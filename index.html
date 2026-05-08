@@ -7257,7 +7257,8 @@ function renderRecipeIngredients() {
       </div>
       <div class="rb-gram-wrap">
         <input type="number" class="rb-gram-input" value="${ri.grams}" min="1" step="1"
-          oninput="_recipeIngredients[${i}].grams=+this.value||0;renderRecipeIngredients();updateRecipeTotals()" />
+          oninput="_recipeIngredients[${i}].grams=+this.value||0;updateRecipeTotals()"
+          onchange="_recipeIngredients[${i}].grams=+this.value||0;renderRecipeIngredients();updateRecipeTotals()" />
         <span class="rb-gram-unit">g</span>
       </div>
       <button class="rb-remove-btn" onclick="_recipeIngredients.splice(${i},1);renderRecipeIngredients();updateRecipeTotals()">✕</button>
