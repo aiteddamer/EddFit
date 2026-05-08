@@ -42,6 +42,13 @@
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       window._currentUser = user;
+      // Hard-reset State so no previous user's data bleeds in
+      Object.assign(State, {
+        profile:{}, targets:{calories:2000,protein:150,carbs:225,fat:67},
+        logs:{}, workouts:[], metrics:[], goals:[], recipes:[],
+        customFoods:[], mealPlan:{}, currentWorkout:[], streak:0,
+        prefs:{reminders:false,macros:true}
+      });
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('app-wrapper').style.display = 'block';
       // Update user info in sidebar
@@ -3999,6 +4006,14 @@ window._loadFirestore = async function() {
     const snap = await window._fbGetDoc(ref);
     if (snap.exists()) {
       const saved = JSON.parse(snap.data().state);
+      // Reset State to defaults first, then apply saved data
+      // This prevents stale data from a previous user leaking through
+      const keys = Object.keys(State);
+      keys.forEach(k => {
+        if (Array.isArray(State[k])) State[k] = [];
+        else if (typeof State[k] === 'object' && State[k] !== null) State[k] = {};
+        else State[k] = 0;
+      });
       Object.assign(State, saved);
       if (!State.prefs)    State.prefs    = { reminders:false, macros:true, darkMode:false };
       if (!State.programs) State.programs = [];
@@ -4012,8 +4027,11 @@ window._loadFirestore = async function() {
         updateDots(1);
       }
     } else {
-      // New user — show onboarding
+      // New user — show onboarding, make sure it's visible
       hideSyncStatus();
+      document.getElementById('onboarding').style.display = 'flex';
+      const appEl = document.getElementById('app');
+      if (appEl) { appEl.style.display = 'none'; appEl.classList.remove('visible'); }
       updateDots(1);
     }
   } catch(e) {
@@ -5277,10 +5295,10 @@ function startApp() {
 
 function initUI() {
   const p = State.profile;
-  // Sidebar
-  document.getElementById('sidebar-name').textContent = p.name || 'User';
-  const initials = (p.name||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-  document.getElementById('sidebar-avatar').textContent = initials;
+  // Sidebar — show profile name as subtitle under Google account
+  const sidebarNameEl = document.getElementById('sidebar-name');
+  if (sidebarNameEl) sidebarNameEl.textContent = p.name ? p.name + ' · EddFit' : '';
+  // Don't touch auth-user-avatar/auth-user-name — those are set by Firebase auth listener
   // Date
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric'});
