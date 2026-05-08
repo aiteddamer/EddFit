@@ -6,6 +6,64 @@
 <title>EddFit — Train Smarter. Live Better.</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet">
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+  import { getFirestore, doc, getDoc, setDoc }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+  // ─── PASTE YOUR FIREBASE CONFIG OBJECT HERE ─────────────────────
+  const firebaseConfig = {
+    apiKey:            "AIzaSyDCgaLr7KDmq_xI01sZmvTXDu3pHru0Z5I",
+    authDomain:        "eddfit-782b9.firebaseapp.com",
+    projectId:         "eddfit-782b9",
+    storageBucket:     "eddfit-782b9.firebasestorage.app",
+    messagingSenderId: "770627906150",
+    appId:             "1:770627906150:web:87f44dd3ce78039085dba7",
+    measurementId:     "G-24EKD1X8VV"
+  };
+  // ─────────────────────────────────────────────────────────────────
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+
+  window._fbAuth     = auth;
+  window._fbDb       = db;
+  window._fbProvider = new GoogleAuthProvider();
+  window._fbDoc      = doc;
+  window._fbGetDoc   = getDoc;
+  window._fbSetDoc   = setDoc;
+  window._fbSignIn   = () => signInWithPopup(auth, window._fbProvider);
+  window._fbSignOut  = () => signOut(auth);
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      window._currentUser = user;
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app-wrapper').style.display = 'block';
+      // Update user info in sidebar
+      const nameEl   = document.getElementById('auth-user-name');
+      const avatarEl = document.getElementById('auth-user-avatar');
+      const photoEl  = document.getElementById('auth-user-photo');
+      if (nameEl)   nameEl.textContent   = user.displayName || user.email;
+      if (avatarEl) avatarEl.textContent = (user.displayName || 'U').charAt(0).toUpperCase();
+      if (photoEl && user.photoURL) {
+        photoEl.src = user.photoURL;
+        photoEl.style.display = 'block';
+        if (avatarEl) avatarEl.style.display = 'none';
+      }
+      await window._loadFirestore();
+    } else {
+      window._currentUser = null;
+      document.getElementById('auth-screen').style.display = 'flex';
+      document.getElementById('app-wrapper').style.display = 'none';
+    }
+  });
+</script>
+
 <style>
 /* ─── LIGHT MODE (default) ─── */
 :root {
@@ -1627,6 +1685,57 @@ html.dark .macro-warning.warn-red {
 </head>
 <body>
 
+<!-- ═══════════════════════ AUTH SCREEN ═══════════════════════ -->
+<div id="auth-screen" style="
+  display:flex; align-items:center; justify-content:center;
+  position:fixed; inset:0; background:var(--bg-base); z-index:9999;
+  padding:20px;
+">
+  <div style="
+    background:var(--bg-card); border:1px solid var(--border);
+    border-radius:var(--radius-lg); padding:40px 36px; max-width:380px; width:100%;
+    box-shadow:var(--shadow-lg); text-align:center;
+  ">
+    <svg width="48" height="48" viewBox="0 0 40 40" fill="none" style="margin-bottom:16px">
+      <rect width="40" height="40" rx="12" fill="var(--accent)"/>
+      <path d="M5 20 L11 10 L17 26 L23 15 L29 20 L35 17" stroke="var(--bg-base)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="35" cy="17" r="3" fill="var(--bg-base)"/>
+    </svg>
+    <div style="font-family:var(--font-display);font-size:1.8rem;font-weight:800;letter-spacing:-1px;margin-bottom:4px">
+      Edd<span style="color:var(--accent)">Fit</span>
+    </div>
+    <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:28px;letter-spacing:1px;text-transform:uppercase">Train Smarter. Live Better.</div>
+    <div style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:24px;line-height:1.5">
+      Sign in with your Google account.<br>Each person gets their own private data.
+    </div>
+    <button id="google-signin-btn" onclick="window._fbSignIn().catch(e=>{ document.getElementById('auth-error').textContent = e.message; })"
+      style="
+        display:flex; align-items:center; justify-content:center; gap:12px;
+        width:100%; padding:13px 20px;
+        background:#fff; color:#3c4043;
+        border:1px solid #dadce0; border-radius:8px;
+        font-family:var(--font-body); font-size:0.95rem; font-weight:600;
+        cursor:pointer; transition:box-shadow 0.2s;
+        box-shadow:0 1px 3px rgba(0,0,0,0.1);
+      "
+      onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'"
+      onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)'">
+      <svg width="20" height="20" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Continue with Google
+    </button>
+    <div id="auth-error" style="margin-top:12px;font-size:0.78rem;color:var(--red);min-height:16px"></div>
+    <div style="margin-top:24px;font-size:0.7rem;color:var(--text-muted)">Your data is private and only accessible to you.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ APP WRAPPER ═══════════════════════ -->
+<div id="app-wrapper" style="display:none">
+
 <!-- SPLASH SCREEN -->
 <div id="splash" style="pointer-events:auto">
   <div class="splash-inner">
@@ -2261,12 +2370,27 @@ function dismissSplash() {
       </div>
     </nav>
     <div class="sidebar-bottom">
-      <div class="user-chip">
-        <div class="user-avatar" id="sidebar-avatar">A</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebar-name">Loading…</div>
-          <div class="user-plan">⚡ Pro Member</div>
+      <div class="user-chip" style="flex-direction:column;align-items:stretch;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="position:relative;flex-shrink:0">
+            <div class="user-avatar" id="auth-user-avatar" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.9rem;background:var(--accent);color:var(--bg-base)">?</div>
+            <img id="auth-user-photo" src="" alt="" style="display:none;position:absolute;inset:0;width:36px;height:36px;border-radius:50%;object-fit:cover"/>
+          </div>
+          <div class="user-info" style="flex:1;min-width:0">
+            <div class="user-name" id="auth-user-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Signed in</div>
+            <div class="user-plan" id="sidebar-name" style="font-size:0.68rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+          </div>
         </div>
+        <button onclick="window._fbSignOut()" style="
+          width:100%;padding:7px 12px;font-size:0.75rem;font-weight:600;
+          background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);
+          color:var(--text-secondary);cursor:pointer;transition:all var(--transition);
+          font-family:var(--font-body);
+        "
+        onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
+          Sign Out
+        </button>
       </div>
     </div>
   </aside>
@@ -3827,8 +3951,9 @@ function todayKey() {
 }
 // localDateKey defined near renderCalendar
 
-// ── Cloud Sync (window.storage) ──────────────────────────────────────
-const STORAGE_KEY = 'eddfit_state';
+// ═══════════════════════════════════════════════════════════════════
+//  FIREBASE SYNC
+// ═══════════════════════════════════════════════════════════════════
 let _saveTimeout = null;
 
 function showSyncStatus(msg, color) {
@@ -3842,56 +3967,64 @@ function showSyncStatus(msg, color) {
 function hideSyncStatus() {
   const el = document.getElementById('sync-status');
   if (!el) return;
-  setTimeout(() => { el.style.opacity = '0'; }, 2000);
+  setTimeout(() => { el.style.opacity = '0'; }, 2500);
 }
 
 function save() {
-  // Debounce: wait 600ms after last call before actually saving
   clearTimeout(_saveTimeout);
   _saveTimeout = setTimeout(async () => {
-    showSyncStatus('☁ Saving…', 'var(--accent)');
+    const user = window._currentUser;
+    if (!user) return;
+    showSyncStatus('\u2601 Saving…', 'var(--accent)');
     try {
-      await window.storage.set(STORAGE_KEY, JSON.stringify(State));
-      showSyncStatus('✓ Synced', 'var(--green)');
+      const ref = window._fbDoc(window._fbDb, 'users', user.uid);
+      await window._fbSetDoc(ref, { state: JSON.stringify(State) });
+      showSyncStatus('\u2713 Synced', 'var(--green)');
       hideSyncStatus();
     } catch(e) {
-      console.warn('EddFit: cloud save failed, falling back to localStorage', e);
-      try { localStorage.setItem('ff_state', JSON.stringify(State)); } catch(_) {}
-      showSyncStatus('⚠ Saved locally', 'var(--orange)');
+      console.warn('EddFit: Firestore save failed', e);
+      showSyncStatus('\u26a0 Sync failed', 'var(--red)');
       hideSyncStatus();
     }
-  }, 600);
+  }, 700);
 }
 
-async function loadFromCloud() {
+// Called by Firebase auth listener after sign-in
+window._loadFirestore = async function() {
+  const user = window._currentUser;
+  if (!user) return;
+  showSyncStatus('\u2601 Loading…', 'var(--accent)');
   try {
-    const result = await window.storage.get(STORAGE_KEY);
-    return result ? result.value : null;
+    const ref = window._fbDoc(window._fbDb, 'users', user.uid);
+    const snap = await window._fbGetDoc(ref);
+    if (snap.exists()) {
+      const saved = JSON.parse(snap.data().state);
+      Object.assign(State, saved);
+      if (!State.prefs)    State.prefs    = { reminders:false, macros:true, darkMode:false };
+      if (!State.programs) State.programs = [];
+      if (!State.mealPlan) State.mealPlan = {};
+      if (!State.recipes)  State.recipes  = [];
+      if (!State.customFoods) State.customFoods = [];
+      hideSyncStatus();
+      if (State.profile && State.profile.name) {
+        startApp();
+      } else {
+        updateDots(1);
+      }
+    } else {
+      // New user — show onboarding
+      hideSyncStatus();
+      updateDots(1);
+    }
   } catch(e) {
-    // Key doesn't exist yet, or other error — try localStorage fallback
-    try {
-      return localStorage.getItem('ff_state');
-    } catch(_) { return null; }
+    console.warn('EddFit: Firestore load failed', e);
+    showSyncStatus('\u26a0 Could not load data', 'var(--red)');
+    updateDots(1);
   }
-}
-
-function applyLoadedState(s) {
-  if (!s) return false;
-  try {
-    const saved = JSON.parse(s);
-    Object.assign(State, saved);
-    if (!State.prefs) State.prefs = { reminders: false, macros: true, darkMode: false };
-    if (State.prefs.darkMode === undefined) State.prefs.darkMode = false;
-    if (!State.programs) State.programs = [];
-    if (!State.mealPlan) State.mealPlan = {};
-    if (!State.recipes) State.recipes = [];
-    if (!State.customFoods) State.customFoods = [];
-    return true;
-  } catch(e) { console.warn('EddFit: could not parse saved state', e); return false; }
-}
+};
 
 function load() {
-  // Synchronous stub — actual loading is async and handled in init
+  // No-op: loading is handled by _loadFirestore via Firebase auth callback
 }
 
 function todayLog() {
@@ -6959,9 +7092,15 @@ function closeGDriveModal() {
 }
 
 function resetOnboarding() {
-  if (!confirm('This will reset all your data. Are you sure?')) return;
-  try { window.storage.delete(STORAGE_KEY); } catch(_) {}
-  try { localStorage.removeItem('ff_state'); } catch(_) {}
+  if (!confirm('This will reset ALL your data for this account. Are you sure?')) return;
+  // Delete from Firestore
+  const user = window._currentUser;
+  if (user) {
+    try {
+      const ref = window._fbDoc(window._fbDb, 'users', user.uid);
+      window._fbSetDoc(ref, { state: '{}' });
+    } catch(_) {}
+  }
   location.reload();
 }
 
@@ -10073,17 +10212,11 @@ function _enhancedRenderWorkoutPage() {
     setTimeout(checkMissedWorkouts, 1500);
   };
 })();
-(async function init() {
-  showSyncStatus('☁ Loading…', 'var(--accent)');
-  const s = await loadFromCloud();
-  const loaded = applyLoadedState(s);
-  hideSyncStatus();
-  if (loaded && State.profile && State.profile.name) {
-    if (!State.metrics.length) seedDemoData();
-    startApp();
-  } else {
-    updateDots(1);
-  }
+// Init is handled by Firebase onAuthStateChanged → _loadFirestore
+// Show the auth screen immediately; Firebase will take over from there
+(function init() {
+  // Auth screen is shown by default (display:flex in HTML)
+  // Firebase auth listener fires and handles everything from there
 })();
 </script>
 <!-- Workout Detail Modal -->
@@ -10871,5 +11004,6 @@ document.addEventListener('click', function(e) {
   </div>
 </div>
 
+</div><!-- /app-wrapper -->
 </body>
 </html>
