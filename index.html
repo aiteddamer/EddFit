@@ -3654,10 +3654,7 @@ function dismissSplash() {
             <label class="form-label">Name</label>
             <input type="text" class="form-input" id="recipe-name" placeholder="e.g. Protein Oats" />
           </div>
-          <div class="form-group">
-            <label class="form-label">Servings</label>
-            <input type="number" class="form-input" id="recipe-servings" value="1" min="1" max="99" step="1" style="text-align:center" oninput="updateRecipeTotals()" />
-          </div>
+          <input type="hidden" id="recipe-servings" value="1" />
           <div class="form-group">
             <label class="form-label">Category</label>
             <select class="form-select" id="recipe-category">
@@ -3788,23 +3785,19 @@ function dismissSplash() {
     </div>
     <div id="mpcell-selected" style="display:none;background:var(--bg-elevated);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px">
       <div style="font-weight:700;margin-bottom:8px" id="mpcell-sel-name"></div>
-      <!-- Serving selector -->
-      <div style="display:flex;gap:6px;margin-bottom:10px">
-        <button class="mp-serving-btn active" data-mode="100g" onclick="mpSetServingMode('100g',this)" style="flex:1;padding:7px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:0.78rem;font-weight:700;cursor:pointer">Per 100g</button>
-        <button class="mp-serving-btn" data-mode="gram" onclick="mpSetServingMode('gram',this)" style="flex:1;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);font-size:0.78rem;font-weight:700;cursor:pointer">Custom g</button>
-      </div>
-      <div id="mpcell-qty-wrap">
-        <div class="form-grid form-grid-2" style="gap:10px;margin-bottom:10px">
-          <div class="form-group">
-            <label class="form-label" id="mpcell-qty-label">Servings</label>
-            <input type="number" class="form-input" id="mpcell-qty" value="1" min="0.1" step="0.1" oninput="updateMpPreview()" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Note (optional)</label>
-            <input type="text" class="form-input" id="mpcell-note" placeholder="e.g. with almond milk" />
-          </div>
+      <!-- Grams only -->
+      <div class="form-grid form-grid-2" style="gap:10px;margin-bottom:10px">
+        <div class="form-group">
+          <label class="form-label">Grams</label>
+          <input type="number" class="form-input" id="mpcell-qty" value="100" min="1" step="1" oninput="updateMpPreview()" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Note (optional)</label>
+          <input type="text" class="form-input" id="mpcell-note" placeholder="e.g. with almond milk" />
         </div>
       </div>
+      <!-- hidden elements kept for JS compatibility -->
+      <div id="mpcell-qty-wrap" style="display:none"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap" id="mpcell-sel-macros"></div>
     </div>
     <div class="btn-row">
@@ -7326,7 +7319,7 @@ function renderRecipesPage() {
   el.innerHTML = State.recipes.map((r,i)=>`
     <div class="recipe-card">
       <div class="recipe-name">${r.name}</div>
-      <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:8px">${r.category} · ${r.servings} serving${r.servings>1?'s':''}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:8px">${r.category}</div>
       <div class="recipe-macros">
         <span class="tag tag-accent">${r.totals.cal} kcal</span>
         <span class="tag tag-blue">${r.totals.protein}g P</span>
@@ -7495,11 +7488,8 @@ function selectMpFood(f) {
   document.getElementById('mpcell-sel-name').textContent = f.name;
   safeStyle('mpcell-selected','display','block');
   document.getElementById('mpcell-qty').value = 1;
-  mpServingMode = '100g';
-  document.querySelectorAll('.mp-serving-btn').forEach((b,i) => {
-    if (i===0) { b.style.background='var(--accent-dim)';b.style.borderColor='var(--accent)';b.style.color='var(--accent)'; }
-    else { b.style.background='var(--bg-card)';b.style.borderColor='var(--border)';b.style.color='var(--text-secondary)'; }
-  });
+  mpServingMode = 'gram';
+  document.getElementById('mpcell-qty').value = 100;
   updateMpPreview();
 }
 
@@ -9648,7 +9638,7 @@ function saveAdjustedMacros() {
 // ═══════════════════════════════════════════════════════════════════
 //  IMPROVED MEAL PLAN RENDERING
 // ═══════════════════════════════════════════════════════════════════
-let mpServingMode = '100g';
+let mpServingMode = 'gram'; // locked to grams only
 let mpSelectedFood = null;
 
 function mpSetServingMode(mode, btn) {
@@ -9671,30 +9661,13 @@ function mpSetServingMode(mode, btn) {
 function updateMpPreview() {
   if (!mpSelectedFood) return;
   const f = mpSelectedFood;
-  let qty = +document.getElementById('mpcell-qty').value || 1;
-  let multiplier;
-  if (mpServingMode === 'serving') multiplier = qty;
-  else if (mpServingMode === '100g') multiplier = qty; // qty = number of 100g portions
-  else multiplier = qty / 100; // grams → fraction of per-100g data
-  // All foods are stored as per-serving; for 100g mode we need per-gram * grams
-  // Use per-gram if mode is gram or 100g (food data is per serving)
-  // For simplicity: if serving-based food, per-gram = cal/100 (approx)
-  const base100g = f.serving && f.serving.includes('100g');
-  let cal, pro, carb, fat;
-  if (mpServingMode === 'serving') {
-    cal = Math.round(f.cal * qty); pro = Math.round(f.protein * qty);
-    carb = Math.round(f.carbs * qty); fat = Math.round(f.fat * qty);
-  } else if (mpServingMode === '100g') {
-    // per 100g = food values (if stored per 100g) else approximate
-    cal = Math.round(f.cal * qty); pro = Math.round(f.protein * qty);
-    carb = Math.round(f.carbs * qty); fat = Math.round(f.fat * qty);
-  } else {
-    // custom grams
-    const gPerServing = base100g ? 100 : 100; // normalize
-    multiplier = qty / gPerServing;
-    cal = Math.round(f.cal * multiplier); pro = Math.round(f.protein * multiplier);
-    carb = Math.round(f.carbs * multiplier); fat = Math.round(f.fat * multiplier);
-  }
+  const grams = +document.getElementById('mpcell-qty').value || 0;
+  const multiplier = grams / 100;
+  let cal = Math.round(f.cal * multiplier);
+  let pro = Math.round(f.protein * multiplier);
+  let carb = Math.round(f.carbs * multiplier);
+  let fat = Math.round(f.fat * multiplier);
+  {
   document.getElementById('mpcell-sel-macros').innerHTML = `
     <span class="tag tag-accent">${cal} kcal</span>
     <span class="tag tag-blue">${pro}g protein</span>
@@ -9954,11 +9927,8 @@ const _origSaveMpCell = saveMpCell;
 saveMpCell = function() {
   if (!mpSelectedFood) { showToast('Select a food first.', 'error'); return; }
   const f = mpSelectedFood;
-  const qty = +document.getElementById('mpcell-qty').value || 1;
-  let multiplier;
-  if (mpServingMode === 'serving') multiplier = qty;
-  else if (mpServingMode === '100g') multiplier = qty;
-  else multiplier = qty / 100;
+  const qty = +document.getElementById('mpcell-qty').value || 100;
+  const multiplier = qty / 100;
   const note = document.getElementById('mpcell-note').value.trim();
   const item = {
     name: f.name + (note ? ` (${note})` : ''),
@@ -9981,6 +9951,8 @@ function openMpCell(dateKey, meal) {
   window._mpCellDate = dateKey;
   window._mpCellMeal = meal;
   mpSelectedFood = null;
+  mpServingMode = 'gram';
+  document.getElementById('mpcell-qty').value = 100;
   document.getElementById('mpcell-search').value = '';
   document.getElementById('mpcell-results').classList.remove('open');
   safeStyle('mpcell-selected','display','none');
