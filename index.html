@@ -3748,44 +3748,92 @@ function dismissSplash() {
 
 <!-- Custom Food Modal -->
 <div class="modal-overlay" id="modal-custom-food">
-  <div class="modal">
+  <div class="modal" style="max-width:480px">
     <div class="modal-title">
-      Add Custom Food
+      🥫 Add Custom Food
       <button class="btn-icon" onclick="closeModal('modal-custom-food')">✕</button>
     </div>
+
+    <!-- Serving Type Toggle -->
+    <div style="margin-bottom:16px">
+      <div class="form-label" style="margin-bottom:8px">Serving Type</div>
+      <div style="display:flex;gap:8px">
+        <button id="cf-type-unit" onclick="cfSetType('unit')"
+          style="flex:1;padding:10px;border-radius:var(--radius-sm);border:2px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-weight:700;cursor:pointer;font-size:0.82rem;transition:all var(--transition)">
+          📦 Unit / Package<br><span style="font-size:0.68rem;font-weight:400;opacity:0.8">e.g. 1 can, 1 bar, 1 cup</span>
+        </button>
+        <button id="cf-type-gram" onclick="cfSetType('gram')"
+          style="flex:1;padding:10px;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-weight:700;cursor:pointer;font-size:0.82rem;transition:all var(--transition)">
+          ⚖️ Per 100g<br><span style="font-size:0.68rem;font-weight:400;opacity:0.8">Macros are per 100g</span>
+        </button>
+      </div>
+    </div>
+
     <div class="form-grid" style="gap:12px">
       <div class="form-group">
         <label class="form-label">Food Name</label>
-        <input type="text" class="form-input" id="cf-name" placeholder="e.g. Homemade Granola" />
+        <input type="text" class="form-input" id="cf-name" placeholder="e.g. Coca-Cola 250ml, Protein Bar" />
       </div>
-      <div class="form-group">
-        <label class="form-label">Serving Size Label</label>
-        <input type="text" class="form-input" id="cf-serving" placeholder="e.g. 100g, 1 cup, 1 piece" />
+
+      <!-- Unit mode: serving label + size -->
+      <div id="cf-unit-fields">
+        <div class="form-grid form-grid-2" style="gap:10px">
+          <div class="form-group">
+            <label class="form-label">Serving Label</label>
+            <input type="text" class="form-input" id="cf-serving" placeholder="e.g. 1 can, 1 bar, 1 cup" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Size (ml/g) — optional</label>
+            <input type="number" class="form-input" id="cf-serving-size" placeholder="e.g. 250" min="0" step="1" />
+          </div>
+        </div>
+        <div style="font-size:0.73rem;color:var(--text-secondary);margin-top:4px;padding:8px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+          💡 Enter macros <strong>per 1 serving</strong> below (e.g. 1 can of Coca-Cola = 105 kcal)
+        </div>
       </div>
-      <div class="form-grid form-grid-2">
+
+      <!-- Gram mode: info box -->
+      <div id="cf-gram-fields" style="display:none">
+        <div style="font-size:0.73rem;color:var(--text-secondary);padding:8px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+          💡 Enter macros <strong>per 100g</strong> below. When logging, you can choose how many grams to add.
+        </div>
+      </div>
+
+      <!-- Macros -->
+      <div class="form-grid form-grid-2" style="gap:10px">
         <div class="form-group">
           <label class="form-label">Calories (kcal)</label>
-          <input type="number" class="form-input" id="cf-cal" placeholder="250" min="0" />
+          <input type="number" class="form-input" id="cf-cal" placeholder="105" min="0" oninput="cfUpdatePreview()" />
         </div>
         <div class="form-group">
           <label class="form-label">Protein (g)</label>
-          <input type="number" class="form-input" id="cf-protein" placeholder="8" min="0" step="0.1" />
+          <input type="number" class="form-input" id="cf-protein" placeholder="0" min="0" step="0.1" oninput="cfUpdatePreview()" />
         </div>
-      </div>
-      <div class="form-grid form-grid-2">
         <div class="form-group">
           <label class="form-label">Carbs (g)</label>
-          <input type="number" class="form-input" id="cf-carbs" placeholder="40" min="0" step="0.1" />
+          <input type="number" class="form-input" id="cf-carbs" placeholder="26" min="0" step="0.1" oninput="cfUpdatePreview()" />
         </div>
         <div class="form-group">
           <label class="form-label">Fat (g)</label>
-          <input type="number" class="form-input" id="cf-fat" placeholder="6" min="0" step="0.1" />
+          <input type="number" class="form-input" id="cf-fat" placeholder="0" min="0" step="0.1" oninput="cfUpdatePreview()" />
+        </div>
+      </div>
+
+      <!-- Live preview -->
+      <div id="cf-preview" style="display:none;background:var(--bg-elevated);border-radius:var(--radius-sm);padding:10px 14px">
+        <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px">Preview <span id="cf-preview-label"></span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <span class="tag tag-accent" id="cfp-cal"></span>
+          <span class="tag tag-blue" id="cfp-prot"></span>
+          <span class="tag tag-orange" id="cfp-carb"></span>
+          <span class="tag tag-red" id="cfp-fat"></span>
         </div>
       </div>
     </div>
+
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="closeModal('modal-custom-food')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveCustomFood()">Save Food</button>
+      <button class="btn btn-primary" onclick="saveCustomFood()">💾 Save Food</button>
     </div>
   </div>
 </div>
@@ -5884,9 +5932,31 @@ function searchFood(q) {
 function selectCustomFood(id) {
   const cf = (State.customFoods||[]).find(f=>f.id===id);
   if (!cf) return;
-  selectedFood = { id: cf.id, name: cf.name, cal: cf.cal, protein: cf.protein, carbs: cf.carbs, fat: cf.fat, serving: cf.serving };
+  selectedFood = { id: cf.id, name: cf.name, cal: cf.cal, protein: cf.protein, carbs: cf.carbs, fat: cf.fat, serving: cf.serving, servingType: cf.servingType||'unit' };
   document.getElementById('food-search').value = cf.name;
   document.getElementById('food-search-results').classList.remove('open');
+
+  // Configure the unit selector based on this food's serving type
+  const unitSelect = document.getElementById('food-unit');
+  if (unitSelect) {
+    if (cf.servingType === 'gram') {
+      // Per-100g food: offer 100g or custom grams
+      unitSelect.innerHTML = '<option value="100g">Per 100g</option><option value="gram">Custom grams</option>';
+      unitSelect.value = '100g';
+    } else {
+      // Unit food: offer serving (macros as-is) or custom qty
+      const servingLabel = cf.serving || '1 serving';
+      const sizeHint = cf.servingSize ? ` (${cf.servingSize}ml/g)` : '';
+      unitSelect.innerHTML = `<option value="serving">Per serving${sizeHint}</option>`;
+      unitSelect.value = 'serving';
+    }
+  }
+  // Reset qty
+  const qtyEl = document.getElementById('food-qty');
+  if (qtyEl) qtyEl.value = 1;
+  const gramInput = document.getElementById('food-gram-input');
+  if (gramInput) gramInput.style.display = 'none';
+
   updateFoodPreview();
   safeStyle('selected-food-preview','display','block');
 }
@@ -7439,7 +7509,7 @@ function renderRecipesPage() {
         <span class="tag tag-orange">${r.totals.carbs}g C</span>
         <span class="tag tag-red">${r.totals.fat}g F</span>
       </div>
-      <div class="recipe-ingredients">${r.ingredients.slice(0,4).map(ri=>`${ri.food.name} ×${ri.qty}`).join(' · ')}${r.ingredients.length>4?'…':''}</div>
+      <div class="recipe-ingredients">${r.ingredients.slice(0,4).map(ri=>`${ri.food.name} · ${ri.grams}g`).join(' · ')}${r.ingredients.length>4?'…':''}</div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-outline btn-sm" onclick="logRecipeAsFood(${i})">Log to today</button>
         <button class="btn btn-ghost btn-sm" onclick="deleteRecipe(${i})">Delete</button>
@@ -7465,44 +7535,106 @@ function deleteRecipe(i) {
   renderRecipesPage();
 }
 
+// Current serving type for custom food modal: 'unit' or 'gram'
+let _cfType = 'unit';
+
+function cfSetType(type) {
+  _cfType = type;
+  const unitBtn  = document.getElementById('cf-type-unit');
+  const gramBtn  = document.getElementById('cf-type-gram');
+  const unitFlds = document.getElementById('cf-unit-fields');
+  const gramFlds = document.getElementById('cf-gram-fields');
+  const accentBorder = '2px solid var(--accent)';
+  const accentBg     = 'var(--accent-dim)';
+  const accentColor  = 'var(--accent)';
+  const neutralBorder= '2px solid var(--border)';
+  const neutralBg    = 'var(--bg-elevated)';
+  const neutralColor = 'var(--text-secondary)';
+  if (type === 'unit') {
+    unitBtn.style.border=accentBorder; unitBtn.style.background=accentBg; unitBtn.style.color=accentColor;
+    gramBtn.style.border=neutralBorder; gramBtn.style.background=neutralBg; gramBtn.style.color=neutralColor;
+    unitFlds.style.display='block'; gramFlds.style.display='none';
+  } else {
+    gramBtn.style.border=accentBorder; gramBtn.style.background=accentBg; gramBtn.style.color=accentColor;
+    unitBtn.style.border=neutralBorder; unitBtn.style.background=neutralBg; unitBtn.style.color=neutralColor;
+    unitFlds.style.display='none'; gramFlds.style.display='block';
+  }
+  cfUpdatePreview();
+}
+
+function cfUpdatePreview() {
+  const cal  = +document.getElementById('cf-cal').value;
+  const prot = +document.getElementById('cf-protein').value;
+  const carb = +document.getElementById('cf-carbs').value;
+  const fat  = +document.getElementById('cf-fat').value;
+  const prev = document.getElementById('cf-preview');
+  if (!cal && !prot && !carb && !fat) { prev.style.display='none'; return; }
+  prev.style.display='block';
+  const label = _cfType === 'gram' ? 'per 100g' : 'per serving';
+  document.getElementById('cf-preview-label').textContent = label;
+  document.getElementById('cfp-cal').textContent  = Math.round(cal) + ' kcal';
+  document.getElementById('cfp-prot').textContent = prot + 'g P';
+  document.getElementById('cfp-carb').textContent = carb + 'g C';
+  document.getElementById('cfp-fat').textContent  = fat  + 'g F';
+}
+
 function openCustomFood() {
+  _cfType = 'unit';
   ['cf-name','cf-serving','cf-cal','cf-protein','cf-carbs','cf-fat'].forEach(id=>document.getElementById(id).value='');
+  const sizeEl = document.getElementById('cf-serving-size');
+  if (sizeEl) sizeEl.value = '';
+  document.getElementById('cf-preview').style.display = 'none';
+  cfSetType('unit');
   openModal('modal-custom-food');
 }
 
 function saveCustomFood() {
   const name = document.getElementById('cf-name').value.trim();
   if (!name) { showToast('Enter a food name.', 'error'); return; }
-  State.customFoods.push({
-    id: Date.now(),
-    name,
-    serving: document.getElementById('cf-serving').value || '1 serving',
-    cal: +document.getElementById('cf-cal').value || 0,
-    protein: +document.getElementById('cf-protein').value || 0,
-    carbs: +document.getElementById('cf-carbs').value || 0,
-    fat: +document.getElementById('cf-fat').value || 0
-  });
+  const cal     = +document.getElementById('cf-cal').value     || 0;
+  const protein = +document.getElementById('cf-protein').value || 0;
+  const carbs   = +document.getElementById('cf-carbs').value   || 0;
+  const fat     = +document.getElementById('cf-fat').value     || 0;
+  let serving, servingType, servingSize;
+  if (_cfType === 'unit') {
+    serving = document.getElementById('cf-serving').value.trim() || '1 serving';
+    servingSize = +document.getElementById('cf-serving-size').value || null;
+    servingType = 'unit';
+  } else {
+    serving = '100g';
+    servingType = 'gram';
+    servingSize = 100;
+  }
+  State.customFoods.push({ id: Date.now(), name, serving, servingType, servingSize, cal, protein, carbs, fat });
   save();
   closeModal('modal-custom-food');
   renderCustomFoods();
+  showToast(`${name} saved! 🥫`, 'success');
 }
 
 function renderCustomFoods() {
   const el = document.getElementById('custom-foods-list');
   if (!State.customFoods.length) {
-    el.innerHTML = '<div class="empty-state"><div class="es-icon">🥫</div><div class="es-text">No custom foods yet.</div></div>';
+    el.innerHTML = '<div class="empty-state"><div class="es-icon">🥫</div><div class="es-text">No custom foods yet. Click "+ Custom Food" to add one!</div></div>';
     return;
   }
-  el.innerHTML = State.customFoods.map((cf,i)=>`
-    <div class="food-item">
-      <div style="flex:1">
-        <div style="font-size:0.88rem;font-weight:700">${cf.name}</div>
-        <div style="font-size:0.72rem;color:var(--text-muted)">${cf.serving}</div>
+  el.innerHTML = State.customFoods.map((cf,i) => {
+    const typeTag = cf.servingType === 'gram'
+      ? '<span class="tag" style="font-size:0.6rem;padding:1px 6px;background:var(--blue-dim);color:var(--blue)">per 100g</span>'
+      : '<span class="tag" style="font-size:0.6rem;padding:1px 6px;background:var(--purple-dim);color:var(--purple)">unit</span>';
+    const sizeLabel = cf.servingSize && cf.servingType === 'unit' ? ` · ${cf.servingSize}ml/g` : '';
+    return `
+    <div class="food-item" style="flex-wrap:wrap;gap:8px">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:0.88rem;font-weight:700">${cf.name}</span>
+          ${typeTag}
+        </div>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">${cf.serving}${sizeLabel} · ${cf.cal} kcal · ${cf.protein}g P · ${cf.carbs}g C · ${cf.fat}g F</div>
       </div>
-      <span class="tag tag-accent">${cf.cal} kcal</span>
-      <span class="tag tag-blue">${cf.protein}g P</span>
-      <button class="btn-icon" onclick="deleteCustomFood(${i})">✕</button>
-    </div>`).join('');
+      <button class="btn-icon" style="color:var(--red)" onclick="deleteCustomFood(${i})" title="Delete">✕</button>
+    </div>`;
+  }).join('');
 }
 
 function deleteCustomFood(i) {
@@ -9800,7 +9932,7 @@ function updateMpPreview() {
   `;
 }
 
-// Improved updateFoodPreview for food log modal with gram support
+// Improved updateFoodPreview for food log modal with gram + serving support
 const _origUpdateFoodPreview = updateFoodPreview;
 updateFoodPreview = function() {
   if (!selectedFood) return;
@@ -9813,9 +9945,13 @@ updateFoodPreview = function() {
   const qty = +document.getElementById('food-qty').value || 1;
   const f = selectedFood;
   let multiplier;
-  if (unit === 'serving') multiplier = qty;
-  else if (unit === '100g') multiplier = qty;
-  else {
+  if (unit === 'serving') {
+    // Custom unit food — macros are already per 1 serving; multiply by qty
+    multiplier = qty;
+  } else if (unit === '100g') {
+    multiplier = qty;
+  } else {
+    // Custom grams
     const grams = +document.getElementById('food-gram-val')?.value || 100;
     multiplier = grams / 100;
   }
@@ -9824,25 +9960,37 @@ updateFoodPreview = function() {
   document.getElementById('sfp-pro').textContent = Math.round(f.protein*multiplier) + 'g protein';
   document.getElementById('sfp-carb').textContent = Math.round(f.carbs*multiplier) + 'g carbs';
   document.getElementById('sfp-fat').textContent = Math.round(f.fat*multiplier) + 'g fat';
+  // Show serving label hint
+  const nameEl = document.getElementById('sfp-name');
+  if (nameEl && unit === 'serving' && f.serving && f.serving !== '1 serving') {
+    nameEl.textContent = f.name + ' (' + (qty > 1 ? qty + '×' : '') + f.serving + ')';
+  }
 };
 
-// Better logSelectedFood with gram support
+// Better logSelectedFood with gram + unit serving support
 const _origLogSelectedFood = logSelectedFood;
 logSelectedFood = function() {
   if (!selectedFood) return;
   const unit = document.getElementById('food-unit').value;
   const qty = +document.getElementById('food-qty').value || 1;
   const f = selectedFood;
-  let multiplier;
-  if (unit === 'serving') multiplier = qty;
-  else if (unit === '100g') multiplier = qty;
-  else {
+  let multiplier, nameLabel;
+  if (unit === 'serving') {
+    // Unit food: macros per 1 serving, scale by qty
+    multiplier = qty;
+    const servingLabel = f.serving && f.serving !== '1 serving' ? f.serving : 'serving';
+    nameLabel = f.name + (qty !== 1 ? ` (${qty}×${servingLabel})` : ` (${servingLabel})`);
+  } else if (unit === '100g') {
+    multiplier = qty;
+    nameLabel = f.name + ` (${qty*100}g)`;
+  } else {
     const grams = +document.getElementById('food-gram-val')?.value || 100;
     multiplier = grams / 100;
+    nameLabel = f.name + ` (${grams}g)`;
   }
   const meal = document.getElementById('food-meal-select').value;
   const entry = {
-    name: f.name + (unit==='gram' ? ` (${document.getElementById('food-gram-val')?.value||100}g)` : unit==='100g'?` (${qty*100}g)`:''),
+    name: nameLabel,
     cal: Math.round(f.cal*multiplier),
     protein: Math.round(f.protein*multiplier),
     carbs: Math.round(f.carbs*multiplier),
