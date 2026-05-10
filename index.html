@@ -3780,14 +3780,36 @@ function dismissSplash() {
         <div class="form-grid form-grid-2" style="gap:10px">
           <div class="form-group">
             <label class="form-label">Serving Label</label>
-            <input type="text" class="form-input" id="cf-serving" placeholder="e.g. 1 can, 1 bar, 1 cup" />
+            <select class="form-select" id="cf-serving" onchange="cfOnServingChange()">
+              <option value="1 can">🥤 1 can</option>
+              <option value="1 bottle">🍶 1 bottle</option>
+              <option value="1 bar">🍫 1 bar</option>
+              <option value="1 packet">📦 1 packet</option>
+              <option value="1 bag">🛍 1 bag</option>
+              <option value="1 slice">🍞 1 slice</option>
+              <option value="1 piece">🍎 1 piece</option>
+              <option value="1 cup">☕ 1 cup</option>
+              <option value="1 bowl">🥣 1 bowl</option>
+              <option value="1 scoop">🥄 1 scoop</option>
+              <option value="1 tablespoon">🥄 1 tablespoon</option>
+              <option value="1 teaspoon">🥄 1 teaspoon</option>
+              <option value="1 serving">🍽 1 serving</option>
+              <option value="custom">✏️ Custom…</option>
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label">Size (ml/g) — optional</label>
             <input type="number" class="form-input" id="cf-serving-size" placeholder="e.g. 250" min="0" step="1" />
           </div>
         </div>
-        <div style="font-size:0.73rem;color:var(--text-secondary);margin-top:4px;padding:8px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+        <!-- Custom label input, shown only when "Custom…" is selected -->
+        <div id="cf-serving-custom-wrap" style="display:none;margin-top:8px">
+          <div class="form-group">
+            <label class="form-label">Custom Label</label>
+            <input type="text" class="form-input" id="cf-serving-custom" placeholder="e.g. 1 sachet, 1 portion…" />
+          </div>
+        </div>
+        <div style="font-size:0.73rem;color:var(--text-secondary);margin-top:8px;padding:8px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
           💡 Enter macros <strong>per 1 serving</strong> below (e.g. 1 can of Coca-Cola = 105 kcal)
         </div>
       </div>
@@ -7578,11 +7600,23 @@ function cfUpdatePreview() {
   document.getElementById('cfp-fat').textContent  = fat  + 'g F';
 }
 
+function cfOnServingChange() {
+  const sel = document.getElementById('cf-serving');
+  const customWrap = document.getElementById('cf-serving-custom-wrap');
+  if (customWrap) customWrap.style.display = sel.value === 'custom' ? 'block' : 'none';
+}
+
 function openCustomFood() {
   _cfType = 'unit';
-  ['cf-name','cf-serving','cf-cal','cf-protein','cf-carbs','cf-fat'].forEach(id=>document.getElementById(id).value='');
+  ['cf-name','cf-cal','cf-protein','cf-carbs','cf-fat'].forEach(id=>document.getElementById(id).value='');
   const sizeEl = document.getElementById('cf-serving-size');
   if (sizeEl) sizeEl.value = '';
+  const selEl = document.getElementById('cf-serving');
+  if (selEl) selEl.value = '1 can';
+  const customWrap = document.getElementById('cf-serving-custom-wrap');
+  if (customWrap) customWrap.style.display = 'none';
+  const customInp = document.getElementById('cf-serving-custom');
+  if (customInp) customInp.value = '';
   document.getElementById('cf-preview').style.display = 'none';
   cfSetType('unit');
   openModal('modal-custom-food');
@@ -7597,7 +7631,12 @@ function saveCustomFood() {
   const fat     = +document.getElementById('cf-fat').value     || 0;
   let serving, servingType, servingSize;
   if (_cfType === 'unit') {
-    serving = document.getElementById('cf-serving').value.trim() || '1 serving';
+    const selEl = document.getElementById('cf-serving');
+    if (selEl && selEl.value === 'custom') {
+      serving = document.getElementById('cf-serving-custom').value.trim() || '1 serving';
+    } else {
+      serving = (selEl && selEl.value) || '1 serving';
+    }
     servingSize = +document.getElementById('cf-serving-size').value || null;
     servingType = 'unit';
   } else {
