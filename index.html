@@ -6013,6 +6013,13 @@ function removeSet(ei, si) {
 function removeExercise(ei) {
   const exs = wdGetActiveExercises();
   exs.splice(ei,1);
+  // If workout is now empty, suppress the auto pull banner for this date
+  // so it doesn't reappear after the user intentionally cleared exercises
+  if (!exs.length) {
+    window._pendingScheduledExercises = null;
+    window._pendingScheduledDate = null;
+    window._pullSuppressedForDate = wdGetDate();
+  }
   if (!wdIsToday()) save();
   renderWorkoutPage();
 }
@@ -10217,8 +10224,14 @@ function _enhancedRenderWorkoutPage() {
   }
 
   // Auto-resolve program workout for the viewed date if not already pending
+  // but respect the suppression flag (set when user manually deletes all exercises)
   const currentDateKey = wdGetDate();
-  if (!window._pendingScheduledExercises || window._pendingScheduledDate !== currentDateKey) {
+  // Reset suppression when navigating to a different date
+  if (window._pullSuppressedForDate && window._pullSuppressedForDate !== currentDateKey) {
+    window._pullSuppressedForDate = null;
+  }
+  if (window._pullSuppressedForDate !== currentDateKey &&
+      (!window._pendingScheduledExercises || window._pendingScheduledDate !== currentDateKey)) {
     const activeProgram = State.programs && State.programs.find(p => p.active);
     const alreadyLogged = wdIsToday()
       ? State.currentWorkout.length > 0
