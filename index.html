@@ -64,6 +64,9 @@
         photoEl.style.display = 'block';
         if (avatarEl) avatarEl.style.display = 'none';
       }
+      // Show email as subtitle
+      const sidebarSubEl = document.getElementById('sidebar-name');
+      if (sidebarSubEl && !sidebarSubEl.textContent) sidebarSubEl.textContent = user.email || '';
       await window._loadFirestore();
     } else {
       window._currentUser = null;
@@ -2388,26 +2391,28 @@ function dismissSplash() {
       </div>
     </nav>
     <div class="sidebar-bottom">
-      <div class="user-chip" style="flex-direction:column;align-items:stretch;gap:10px">
-        <div style="display:flex;align-items:center;gap:10px">
+      <div style="padding:12px 14px;border-top:1px solid var(--border)">
+        <!-- User info row -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
           <div style="position:relative;flex-shrink:0">
-            <div class="user-avatar" id="auth-user-avatar" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.9rem;background:var(--accent);color:var(--bg-base)">?</div>
-            <img id="auth-user-photo" src="" alt="" style="display:none;position:absolute;inset:0;width:36px;height:36px;border-radius:50%;object-fit:cover"/>
+            <div class="user-avatar" id="auth-user-avatar" style="width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.95rem;background:var(--accent);color:var(--bg-base);flex-shrink:0">?</div>
+            <img id="auth-user-photo" src="" alt="" style="display:none;position:absolute;inset:0;width:38px;height:38px;border-radius:50%;object-fit:cover"/>
           </div>
-          <div class="user-info" style="flex:1;min-width:0">
-            <div class="user-name" id="auth-user-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Signed in</div>
-            <div class="user-plan" id="sidebar-name" style="font-size:0.68rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+          <div style="flex:1;min-width:0">
+            <div id="auth-user-name" style="font-size:0.82rem;font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">Signed in</div>
+            <div id="sidebar-name" style="font-size:0.68rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px"></div>
           </div>
         </div>
+        <!-- Sign Out button -->
         <button onclick="window._fbSignOut()" style="
-          width:100%;padding:7px 12px;font-size:0.75rem;font-weight:600;
+          width:100%;padding:7px 12px;font-size:0.76rem;font-weight:600;
           background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);
           color:var(--text-secondary);cursor:pointer;transition:all var(--transition);
-          font-family:var(--font-body);
+          font-family:var(--font-body);display:flex;align-items:center;justify-content:center;gap:6px;
         "
-        onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'"
-        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
-          Sign Out
+        onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)';this.style.background='var(--red-dim)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)';this.style.background='transparent'">
+          <span style="font-size:0.8rem">↩</span> Sign Out
         </button>
       </div>
     </div>
@@ -5423,13 +5428,76 @@ function startApp() {
   initUI();
   navigate('dashboard', document.querySelector('.nav-item'));
   calcStreak();
+  // Show weight reminder once per day if not yet logged
+  setTimeout(checkWeightReminder, 2000);
+}
+
+function checkWeightReminder() {
+  const today = todayKey();
+  const alreadyLogged = State.metrics.some(m => m.date === today && m.weight);
+  const dismissKey = 'eddfit_weight_reminder_' + today;
+  if (alreadyLogged || sessionStorage.getItem(dismissKey)) return;
+  showWeightReminder();
+}
+
+function showWeightReminder() {
+  const today = todayKey();
+  const dismissKey = 'eddfit_weight_reminder_' + today;
+  // Remove any existing reminder
+  const old = document.getElementById('weight-reminder-banner');
+  if (old) old.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'weight-reminder-banner';
+  banner.innerHTML = `
+    <div style="
+      position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+      z-index:9999;
+      background:var(--bg-card);
+      border:1px solid var(--accent);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow-lg);
+      padding:16px 20px;
+      min-width:300px;max-width:420px;
+      display:flex;align-items:center;gap:14px;
+      animation:toastIn 0.3s cubic-bezier(0.4,0,0.2,1) both;
+    ">
+      <div style="font-size:1.8rem;flex-shrink:0">⚖️</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:var(--font-display);font-size:0.92rem;font-weight:700;color:var(--text-primary);margin-bottom:3px">Log your weight today!</div>
+        <div style="font-size:0.76rem;color:var(--text-secondary)">Track your progress — it only takes a second.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+        <button onclick="
+          sessionStorage.setItem('${dismissKey}','1');
+          document.getElementById('weight-reminder-banner').remove();
+          openMetricsModal();
+        " style="
+          padding:6px 14px;font-size:0.76rem;font-weight:700;
+          background:var(--accent);color:var(--bg-base);
+          border:none;border-radius:6px;cursor:pointer;
+          font-family:var(--font-body);white-space:nowrap;
+        ">Log Now</button>
+        <button onclick="
+          sessionStorage.setItem('${dismissKey}','1');
+          document.getElementById('weight-reminder-banner').remove();
+        " style="
+          padding:5px 14px;font-size:0.72rem;font-weight:600;
+          background:transparent;color:var(--text-muted);
+          border:1px solid var(--border);border-radius:6px;cursor:pointer;
+          font-family:var(--font-body);white-space:nowrap;
+        ">Later</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(banner);
 }
 
 function initUI() {
   const p = State.profile;
   // Sidebar — show profile name as subtitle under Google account
   const sidebarNameEl = document.getElementById('sidebar-name');
-  if (sidebarNameEl) sidebarNameEl.textContent = p.name ? p.name + ' · EddFit' : '';
+  if (sidebarNameEl) sidebarNameEl.textContent = p.name || '';
   // Don't touch auth-user-avatar/auth-user-name — those are set by Firebase auth listener
   // Date
   const now = new Date();
