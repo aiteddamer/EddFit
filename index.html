@@ -62,9 +62,11 @@
       if (photoEl && user.photoURL) {
         photoEl.src = user.photoURL;
         photoEl.style.display = 'block';
-        if (avatarEl) avatarEl.style.display = 'none';
+        photoEl.style.position = 'absolute';
+        photoEl.style.top = '0';
+        photoEl.style.left = '0';
+        if (avatarEl) avatarEl.style.visibility = 'hidden';
       }
-      // Show email as subtitle
       const sidebarSubEl = document.getElementById('sidebar-name');
       if (sidebarSubEl && !sidebarSubEl.textContent) sidebarSubEl.textContent = user.email || '';
       await window._loadFirestore();
@@ -464,8 +466,8 @@ html:not(.dark) .brand-icon { color: #fff; }
 html.dark .nav-badge { color: #0a0b0f; }
 
 .sidebar-bottom {
-  padding: 12px;
-  border-top: 1px solid var(--border);
+  padding: 0;
+  border-top: none;
 }
 
 .user-chip {
@@ -2393,14 +2395,14 @@ function dismissSplash() {
     <div class="sidebar-bottom">
       <div style="padding:12px 14px;border-top:1px solid var(--border)">
         <!-- User info row -->
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          <div style="position:relative;flex-shrink:0">
-            <div class="user-avatar" id="auth-user-avatar" style="width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.95rem;background:var(--accent);color:var(--bg-base);flex-shrink:0">?</div>
-            <img id="auth-user-photo" src="" alt="" style="display:none;position:absolute;inset:0;width:38px;height:38px;border-radius:50%;object-fit:cover"/>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;min-width:0">
+          <div style="position:relative;width:38px;height:38px;flex-shrink:0">
+            <div class="user-avatar" id="auth-user-avatar" style="width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.95rem;background:var(--accent);color:var(--bg-base)">?</div>
+            <img id="auth-user-photo" src="" alt="" style="display:none;position:absolute;top:0;left:0;width:38px;height:38px;border-radius:50%;object-fit:cover"/>
           </div>
-          <div style="flex:1;min-width:0">
-            <div id="auth-user-name" style="font-size:0.82rem;font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">Signed in</div>
-            <div id="sidebar-name" style="font-size:0.68rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px"></div>
+          <div style="flex:1;min-width:0;overflow:hidden">
+            <div id="auth-user-name" style="font-size:0.82rem;font-weight:700;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3">Signed in</div>
+            <div id="sidebar-name" style="font-size:0.68rem;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px"></div>
           </div>
         </div>
         <!-- Sign Out button -->
