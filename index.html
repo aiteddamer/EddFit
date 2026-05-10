@@ -6312,6 +6312,36 @@ function renderCalDayDetail(key) {
   const proteinPct = State.targets.protein > 0 ? Math.round(totals.protein / State.targets.protein * 100) : 0;
   const proteinMet = totals.protein >= (State.targets.protein || 150);
 
+  // ── Resolve program scheduled exercises for this date ──
+  const activeProgram = State.programs && State.programs.find(p => p.active);
+  let programDayInfo = null;
+  if (activeProgram) {
+    const progStart = activeProgram.start || activeProgram.startDate;
+    if (!progStart || key >= progStart) {
+      // Map date to Mon=0…Sun=6 index (same as DAY_NAMES order used elsewhere)
+      const d = new Date(key + 'T12:00:00');
+      const dow = d.getDay(); // 0=Sun,1=Mon,...,6=Sat
+      const mondayIdx = dow === 0 ? 6 : dow - 1; // Mon=0…Sun=6
+      const dayEntry = activeProgram.days[mondayIdx];
+      if (dayEntry) {
+        const label = typeof dayEntry === 'string' ? dayEntry : (dayEntry.label || dayEntry.key || 'Workout');
+        // Resolve exercises for this program day
+        let exercises = [];
+        if (dayEntry && typeof dayEntry === 'object' && Array.isArray(dayEntry.exercises)) {
+          exercises = dayEntry.exercises;
+        } else if (activeProgram.dayExercises && activeProgram.dayExercises[mondayIdx]) {
+          exercises = activeProgram.dayExercises[mondayIdx];
+        } else {
+          const templateKey = typeof dayEntry === 'string' ? dayEntry : (dayEntry && dayEntry.key) || 'fullbody';
+          const tmpl = (typeof EXTENDED_TEMPLATES !== 'undefined' && EXTENDED_TEMPLATES[templateKey]) ||
+                       (typeof TEMPLATES !== 'undefined' && TEMPLATES[templateKey]) || [];
+          exercises = tmpl;
+        }
+        programDayInfo = { label, exercises, dayIdx: mondayIdx };
+      }
+    }
+  }
+
   let html = '';
 
   // ── Nutrition section ──
@@ -6329,7 +6359,6 @@ function renderCalDayDetail(key) {
         <span class="tag tag-red">${totals.fat}g fat</span>
         ${proteinMet ? '<span class="tag tag-green" style="font-size:0.62rem">✓ Protein Met</span>' : `<span class="tag" style="font-size:0.62rem;background:var(--orange-dim);color:var(--orange)">${proteinPct}% protein</span>`}
       </div>`;
-    // List meals with delete buttons
     ['breakfast','lunch','dinner','snacks'].forEach(mealKey => {
       const items = log.meals[mealKey] || [];
       if (!items.length) return;
@@ -6356,6 +6385,31 @@ function renderCalDayDetail(key) {
       <div style="font-size:0.78rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">🏋️ Workout</div>
       <button class="btn btn-outline btn-sm" onclick="openCalEditWorkout('${key}')">✏️ Edit</button>
     </div>`;
+
+  // ── Program banner: show scheduled session for this day ──
+  if (programDayInfo) {
+    if (!workout) {
+      // Not yet logged — show program session card with load button
+      const exPreview = programDayInfo.exercises.slice(0,3).map(ex=>`<span style="font-size:0.7rem;color:var(--text-secondary)">• ${ex.name||ex}</span>`).join('');
+      const moreCount = programDayInfo.exercises.length - 3;
+      html += `<div style="background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:0.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">📋 ${activeProgram.name}</div>
+            <div style="font-size:0.82rem;font-weight:700;color:var(--text-primary);margin-bottom:6px">${programDayInfo.label}</div>
+            <div style="display:flex;flex-direction:column;gap:2px">${exPreview}${moreCount > 0 ? `<span style="font-size:0.68rem;color:var(--text-muted)">+${moreCount} more</span>` : ''}</div>
+          </div>
+          <button class="btn btn-primary btn-sm" style="flex-shrink:0;white-space:nowrap" onclick="calLoadProgramWorkout('${key}',${programDayInfo.dayIdx})">⚡ Load Session</button>
+        </div>
+      </div>`;
+    } else {
+      // Already logged — show a small program badge
+      html += `<div style="display:inline-flex;align-items:center;gap:6px;background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:20px;padding:4px 10px;margin-bottom:8px">
+        <span style="font-size:0.68rem;font-weight:700;color:var(--accent)">📋 ${activeProgram.name} · ${programDayInfo.label}</span>
+      </div>`;
+    }
+  }
+
   if (workout) {
     const totalSets = workout.exercises.reduce((s,e)=>s+e.sets.length,0);
     const totalVol = calcVolumeKg(workout.exercises || []);
@@ -6380,12 +6434,42 @@ function renderCalDayDetail(key) {
         </div>
       </div>`;
     });
-  } else {
+  } else if (!programDayInfo) {
     html += `<div style="font-size:0.8rem;color:var(--text-muted);padding:8px 0">No workout logged. Click Edit to add exercises for this day.</div>`;
+  } else if (!workout) {
+    html += `<div style="font-size:0.75rem;color:var(--text-muted);padding:4px 0">Click "⚡ Load Session" above to log this program workout, or use ✏️ Edit to add exercises manually.</div>`;
   }
   html += `</div>`;
 
   detail.innerHTML = html;
+}
+
+// ── Load a program's scheduled workout into the Past Session editor ──
+function calLoadProgramWorkout(dateKey, dayIdx) {
+  const activeProgram = State.programs && State.programs.find(p => p.active);
+  if (!activeProgram) return;
+  const dayEntry = activeProgram.days[dayIdx];
+  let exercises = [];
+  if (dayEntry && typeof dayEntry === 'object' && Array.isArray(dayEntry.exercises)) {
+    exercises = dayEntry.exercises.map(ex => ({...ex, sets: (ex.sets||[]).map(s=>({...s,done:false}))}));
+  } else if (activeProgram.dayExercises && activeProgram.dayExercises[dayIdx]) {
+    exercises = activeProgram.dayExercises[dayIdx].map(ex=>({...ex,sets:(ex.sets||[]).map(s=>({...s,done:false}))}));
+  } else {
+    const templateKey = typeof dayEntry === 'string' ? dayEntry : (dayEntry && dayEntry.key) || 'fullbody';
+    const tmpl = (typeof EXTENDED_TEMPLATES !== 'undefined' && EXTENDED_TEMPLATES[templateKey]) ||
+                 (typeof TEMPLATES !== 'undefined' && TEMPLATES[templateKey]) || [];
+    exercises = tmpl.map(ex=>({...ex,sets:(ex.sets||[]).map(s=>({...s,done:false}))}));
+  }
+  if (!exercises.length) { showToast('No exercises found for this program day.', 'warn'); return; }
+  // Pre-load into the edit modal so user can review and confirm
+  window._calEditWorkoutDateKey = dateKey;
+  window._calEditWorkoutExercises = JSON.parse(JSON.stringify(exercises));
+  const d = new Date(dateKey + 'T12:00:00');
+  const label = d.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  document.getElementById('cal-edit-workout-title').textContent = `Log Workout — ${label}`;
+  renderCalEditWorkout();
+  openModal('modal-cal-edit-workout');
+  showToast('Program workout loaded — review sets then tap Save 💪', 'info');
 }
 
 // ── Calendar edit helpers ──
