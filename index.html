@@ -3748,72 +3748,41 @@ function dismissSplash() {
 
 <!-- Custom Food Modal -->
 <div class="modal-overlay" id="modal-custom-food">
-  <div class="modal" style="max-width:520px;max-height:92vh;overflow-y:auto">
+  <div class="modal">
     <div class="modal-title">
-      <span id="cf-modal-title">Add Custom Food</span>
+      Add Custom Food
       <button class="btn-icon" onclick="closeModal('modal-custom-food')">✕</button>
     </div>
-
-    <!-- Basic info -->
-    <div class="form-grid" style="gap:12px;margin-bottom:16px">
+    <div class="form-grid" style="gap:12px">
       <div class="form-group">
         <label class="form-label">Food Name</label>
         <input type="text" class="form-input" id="cf-name" placeholder="e.g. Homemade Granola" />
       </div>
-    </div>
-
-    <!-- Macros per 100g (base) -->
-    <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Nutrition per 100g (base reference)</div>
-    <div class="form-grid form-grid-2" style="gap:10px;margin-bottom:20px">
       <div class="form-group">
-        <label class="form-label">Calories (kcal)</label>
-        <input type="number" class="form-input" id="cf-cal" placeholder="250" min="0" oninput="cfPreviewUnits()" />
+        <label class="form-label">Serving Size Label</label>
+        <input type="text" class="form-input" id="cf-serving" placeholder="e.g. 100g, 1 cup, 1 piece" />
       </div>
-      <div class="form-group">
-        <label class="form-label">Protein (g)</label>
-        <input type="number" class="form-input" id="cf-protein" placeholder="8" min="0" step="0.1" oninput="cfPreviewUnits()" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Carbs (g)</label>
-        <input type="number" class="form-input" id="cf-carbs" placeholder="40" min="0" step="0.1" oninput="cfPreviewUnits()" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Fat (g)</label>
-        <input type="number" class="form-input" id="cf-fat" placeholder="6" min="0" step="0.1" oninput="cfPreviewUnits()" />
-      </div>
-    </div>
-
-    <!-- Serving Units Builder -->
-    <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div>
-          <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">Serving Units</div>
-          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Define how you measure this food (e.g. 1 egg = 50g)</div>
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label class="form-label">Calories (kcal)</label>
+          <input type="number" class="form-input" id="cf-cal" placeholder="250" min="0" />
         </div>
-        <button class="btn btn-outline btn-sm" onclick="cfAddUnit()">+ Add Unit</button>
+        <div class="form-group">
+          <label class="form-label">Protein (g)</label>
+          <input type="number" class="form-input" id="cf-protein" placeholder="8" min="0" step="0.1" />
+        </div>
       </div>
-
-      <!-- Quick presets -->
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
-        <div style="font-size:0.7rem;color:var(--text-muted);width:100%;margin-bottom:2px">Quick add:</div>
-        <button onclick="cfAddPreset('Small',44)" style="font-size:0.72rem;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all var(--transition)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">🥚 Small egg (44g)</button>
-        <button onclick="cfAddPreset('Medium',53)" style="font-size:0.72rem;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all var(--transition)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">🥚 Medium egg (53g)</button>
-        <button onclick="cfAddPreset('Large',63)" style="font-size:0.72rem;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all var(--transition)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">🥚 Large egg (63g)</button>
-        <button onclick="cfAddPreset('1 cup',240)" style="font-size:0.72rem;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all var(--transition)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">☕ 1 cup (240g)</button>
-        <button onclick="cfAddPreset('1 tbsp',15)" style="font-size:0.72rem;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all var(--transition)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">🥄 1 tbsp (15g)</button>
-        <button onclick="cfAddPreset('1 tsp',5)" style="font-size:0.72rem;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all var(--transition)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">🥄 1 tsp (5g)</button>
-        <button onclick="cfAddPreset('1 piece',100)" style="font-size:0.72rem;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all var(--transition)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">🍞 1 piece (100g)</button>
-        <button onclick="cfAddPreset('1 slice',28)" style="font-size:0.72rem;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all var(--transition)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">🍞 1 slice (28g)</button>
-        <button onclick="cfAddPreset('1 serving',100)" style="font-size:0.72rem;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all var(--transition)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">🍽️ 1 serving (100g)</button>
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label class="form-label">Carbs (g)</label>
+          <input type="number" class="form-input" id="cf-carbs" placeholder="40" min="0" step="0.1" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fat (g)</label>
+          <input type="number" class="form-input" id="cf-fat" placeholder="6" min="0" step="0.1" />
+        </div>
       </div>
-
-      <!-- Units list -->
-      <div id="cf-units-list"></div>
     </div>
-
-    <!-- Legacy serving field (hidden, kept for compat) -->
-    <input type="hidden" id="cf-serving" value="100g" />
-
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="closeModal('modal-custom-food')">Cancel</button>
       <button class="btn btn-primary" onclick="saveCustomFood()">Save Food</button>
@@ -5915,27 +5884,9 @@ function searchFood(q) {
 function selectCustomFood(id) {
   const cf = (State.customFoods||[]).find(f=>f.id===id);
   if (!cf) return;
-  selectedFood = { id: cf.id, name: cf.name, cal: cf.cal, protein: cf.protein, carbs: cf.carbs, fat: cf.fat, serving: cf.serving, servingUnits: cf.servingUnits || [] };
+  selectedFood = { id: cf.id, name: cf.name, cal: cf.cal, protein: cf.protein, carbs: cf.carbs, fat: cf.fat, serving: cf.serving };
   document.getElementById('food-search').value = cf.name;
   document.getElementById('food-search-results').classList.remove('open');
-
-  // Inject custom serving units into the unit dropdown
-  const unitSel = document.getElementById('food-unit');
-  if (unitSel && cf.servingUnits && cf.servingUnits.length) {
-    // Remove any previously injected custom options
-    Array.from(unitSel.options).forEach(o => { if (o.dataset.custom) o.remove(); });
-    // Prepend custom unit options
-    cf.servingUnits.forEach((u, i) => {
-      const opt = document.createElement('option');
-      opt.value = 'cfunit_' + i;
-      opt.dataset.custom = '1';
-      opt.dataset.grams = u.grams;
-      opt.textContent = u.label + ' (' + u.grams + 'g)';
-      unitSel.insertBefore(opt, unitSel.firstChild);
-    });
-    unitSel.value = 'cfunit_0';
-  }
-
   updateFoodPreview();
   safeStyle('selected-food-preview','display','block');
 }
@@ -5944,9 +5895,6 @@ function selectFood(id) {
   selectedFood = FOOD_DB.find(f=>f.id===id);
   document.getElementById('food-search').value = selectedFood.name;
   document.getElementById('food-search-results').classList.remove('open');
-  // Remove any previously injected custom serving unit options
-  const unitSel = document.getElementById('food-unit');
-  if (unitSel) Array.from(unitSel.options).forEach(o => { if (o.dataset.custom) o.remove(); });
   updateFoodPreview();
   safeStyle('selected-food-preview','display','block');
 }
@@ -7400,7 +7348,7 @@ function renderRecipesPage() {
         <span class="tag tag-orange">${r.totals.carbs}g C</span>
         <span class="tag tag-red">${r.totals.fat}g F</span>
       </div>
-      <div class="recipe-ingredients">${r.ingredients.slice(0,4).map(ri=>`${ri.food.name} ×${ri.grams||ri.qty||0}g`).join(' · ')}${r.ingredients.length>4?'…':''}</div>
+      <div class="recipe-ingredients">${r.ingredients.slice(0,4).map(ri=>`${ri.food.name} ×${ri.qty}`).join(' · ')}${r.ingredients.length>4?'…':''}</div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-outline btn-sm" onclick="logRecipeAsFood(${i})">Log to today</button>
         <button class="btn btn-ghost btn-sm" onclick="deleteRecipe(${i})">Delete</button>
@@ -7426,95 +7374,26 @@ function deleteRecipe(i) {
   renderRecipesPage();
 }
 
-// ─── CUSTOM FOOD SERVING UNIT BUILDER ────────────────────────────────────────
-let _cfUnits = []; // [{ label: 'Medium', grams: 53 }, ...]
-
-function cfRenderUnits() {
-  const el = document.getElementById('cf-units-list');
-  if (!el) return;
-  if (!_cfUnits.length) {
-    el.innerHTML = '<div style="font-size:0.78rem;color:var(--text-muted);padding:8px 0">No serving units defined — add one above or use quick presets.</div>';
-    return;
-  }
-  const cal = +document.getElementById('cf-cal').value || 0;
-  const pro = +document.getElementById('cf-protein').value || 0;
-  const crb = +document.getElementById('cf-carbs').value || 0;
-  const fat = +document.getElementById('cf-fat').value || 0;
-  el.innerHTML = _cfUnits.map((u,i) => {
-    const m = u.grams / 100;
-    return `
-    <div style="display:grid;grid-template-columns:1fr 100px auto;gap:8px;align-items:center;padding:8px 10px;background:var(--bg-elevated);border-radius:var(--radius-sm);margin-bottom:6px;border:1px solid var(--border)">
-      <div>
-        <input type="text" value="${u.label}" placeholder="Unit name (e.g. Large, 1 cup)"
-          class="form-input" style="font-size:0.82rem;padding:6px 10px"
-          oninput="_cfUnits[${i}].label=this.value;cfPreviewUnits()" />
-        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:3px;padding-left:2px">
-          ${cal?Math.round(cal*m):0} kcal · ${cal?+(pro*m).toFixed(1):0}g P · ${cal?+(crb*m).toFixed(1):0}g C · ${cal?+(fat*m).toFixed(1):0}g F
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:4px">
-        <input type="number" value="${u.grams}" min="1" step="0.5"
-          class="form-input" style="font-size:0.82rem;padding:6px 8px;width:70px"
-          oninput="_cfUnits[${i}].grams=+this.value||0;cfRenderUnits()" />
-        <span style="font-size:0.72rem;color:var(--text-muted)">g</span>
-      </div>
-      <button class="btn-icon" onclick="_cfUnits.splice(${i},1);cfRenderUnits()" style="color:var(--red);border-color:rgba(255,71,87,0.2)">✕</button>
-    </div>`;
-  }).join('');
-}
-
-function cfPreviewUnits() { cfRenderUnits(); }
-
-function cfAddUnit() {
-  _cfUnits.push({ label: '', grams: 100 });
-  cfRenderUnits();
-  // Focus the new label input
-  setTimeout(() => {
-    const inputs = document.querySelectorAll('#cf-units-list input[type=text]');
-    if (inputs.length) inputs[inputs.length-1].focus();
-  }, 50);
-}
-
-function cfAddPreset(label, grams) {
-  // Don't duplicate
-  if (_cfUnits.some(u => u.label === label)) {
-    showToast(label + ' already added', 'info');
-    return;
-  }
-  _cfUnits.push({ label, grams });
-  cfRenderUnits();
-}
-
 function openCustomFood() {
-  _cfUnits = [];
-  document.getElementById('cf-modal-title').textContent = 'Add Custom Food';
-  ['cf-name','cf-cal','cf-protein','cf-carbs','cf-fat'].forEach(id=>document.getElementById(id).value='');
-  cfRenderUnits();
+  ['cf-name','cf-serving','cf-cal','cf-protein','cf-carbs','cf-fat'].forEach(id=>document.getElementById(id).value='');
   openModal('modal-custom-food');
 }
 
 function saveCustomFood() {
   const name = document.getElementById('cf-name').value.trim();
   if (!name) { showToast('Enter a food name.', 'error'); return; }
-  // Build serving label from first unit or fallback
-  const firstUnit = _cfUnits[0];
-  const servingLabel = firstUnit ? `${firstUnit.label} (${firstUnit.grams}g)` : '100g';
-  document.getElementById('cf-serving').value = servingLabel;
-  const foodData = {
+  State.customFoods.push({
     id: Date.now(),
     name,
-    serving: servingLabel,
-    servingUnits: JSON.parse(JSON.stringify(_cfUnits)),
+    serving: document.getElementById('cf-serving').value || '1 serving',
     cal: +document.getElementById('cf-cal').value || 0,
     protein: +document.getElementById('cf-protein').value || 0,
     carbs: +document.getElementById('cf-carbs').value || 0,
     fat: +document.getElementById('cf-fat').value || 0
-  };
-  State.customFoods.push(foodData);
+  });
   save();
   closeModal('modal-custom-food');
   renderCustomFoods();
-  showToast(name + ' saved!', 'success');
 }
 
 function renderCustomFoods() {
@@ -7523,22 +7402,16 @@ function renderCustomFoods() {
     el.innerHTML = '<div class="empty-state"><div class="es-icon">🥫</div><div class="es-text">No custom foods yet.</div></div>';
     return;
   }
-  el.innerHTML = State.customFoods.map((cf,i)=>{
-    const units = cf.servingUnits && cf.servingUnits.length
-      ? cf.servingUnits.map(u => `<span style="font-size:0.65rem;padding:2px 7px;border-radius:12px;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-secondary);white-space:nowrap">${u.label} = ${u.grams}g</span>`).join('')
-      : `<span style="font-size:0.65rem;color:var(--text-muted)">${cf.serving || '100g'}</span>`;
-    return `
-    <div class="food-item" style="flex-wrap:wrap;gap:6px;align-items:flex-start">
-      <div style="flex:1;min-width:0">
+  el.innerHTML = State.customFoods.map((cf,i)=>`
+    <div class="food-item">
+      <div style="flex:1">
         <div style="font-size:0.88rem;font-weight:700">${cf.name}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${units}</div>
-        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">per 100g: ${cf.cal} kcal · ${cf.protein}g P · ${cf.carbs}g C · ${cf.fat}g F</div>
+        <div style="font-size:0.72rem;color:var(--text-muted)">${cf.serving}</div>
       </div>
-      <div style="display:flex;gap:4px;flex-shrink:0;margin-top:2px">
-        <button class="btn-icon" onclick="deleteCustomFood(${i})" title="Delete">✕</button>
-      </div>
-    </div>`;
-  }).join('');
+      <span class="tag tag-accent">${cf.cal} kcal</span>
+      <span class="tag tag-blue">${cf.protein}g P</span>
+      <button class="btn-icon" onclick="deleteCustomFood(${i})">✕</button>
+    </div>`).join('');
 }
 
 function deleteCustomFood(i) {
@@ -9582,49 +9455,61 @@ function renderWeekSchedule() {
 
 function loadScheduledWorkoutForDay(dayIdx, dateKey) {
   const activeProgram = State.programs&&State.programs.find(p=>p.active);
-  if (!activeProgram||!activeProgram.days[dayIdx]) return;
 
-  // Respect start date — don't load if before program start
-  const progStart = activeProgram.start || activeProgram.startDate;
-  if (progStart && dateKey < progStart) {
-    showToast('This program hasn\'t started yet — it begins on ' +
-      new Date(progStart + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}), 'warn');
+  // Always navigate to the Workouts page + session tab for that date
+  navigate('workouts', document.querySelector('.nav-item[onclick*=\'workouts\']'));
+  workoutViewDate = dateKey;
+  switchWorkoutTab('session', document.querySelector('.workout-tab[data-tab="session"]'));
+
+  if (!activeProgram || !activeProgram.days[dayIdx]) {
+    renderWorkoutPage();
     return;
   }
 
+  // Respect start date
+  const progStart = activeProgram.start || activeProgram.startDate;
+  if (progStart && dateKey < progStart) {
+    showToast('This program has not started yet.', 'warn');
+    renderWorkoutPage();
+    return;
+  }
+
+  const isToday = dateKey === todayKey();
+  const alreadyLogged = isToday
+    ? State.currentWorkout.length > 0
+    : State.workouts.some(w => w.date === dateKey);
+
+  if (alreadyLogged) {
+    renderWorkoutPage();
+    const dayLabel = new Date(dateKey + 'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+    showToast('Viewing session for ' + dayLabel, 'info');
+    return;
+  }
+
+  // Resolve exercises from program
   let exercises;
   const dayEntry = activeProgram.days[dayIdx];
-
-  // Handle onboarding object-format days: { label, key, exercises: [...] }
   if (dayEntry && typeof dayEntry === 'object' && Array.isArray(dayEntry.exercises)) {
-    exercises = dayEntry.exercises.map(ex => ({
-      ...ex,
-      sets: (ex.sets||[]).map(s => ({...s, done: false}))
-    }));
-  }
-  // Use custom day exercises stored separately (custom program builder)
-  else if (activeProgram.dayExercises && activeProgram.dayExercises[dayIdx]) {
+    exercises = dayEntry.exercises.map(ex => ({...ex, sets: (ex.sets||[]).map(s => ({...s, done: false}))}));
+  } else if (activeProgram.dayExercises && activeProgram.dayExercises[dayIdx]) {
     exercises = activeProgram.dayExercises[dayIdx].map(ex=>({...ex,sets:(ex.sets||[]).map(s=>({...s,done:false}))}));
-  }
-  // Fallback to template key string
-  else {
+  } else {
     const templateKey = typeof dayEntry === 'string' ? dayEntry : (dayEntry&&dayEntry.key) || 'fullbody';
-    const tmpl = EXTENDED_TEMPLATES[templateKey]||TEMPLATES[templateKey]||EXTENDED_TEMPLATES.fullbody||[];
+    const tmpl = (typeof EXTENDED_TEMPLATES!=='undefined'&&EXTENDED_TEMPLATES[templateKey]) || (typeof TEMPLATES!=='undefined'&&TEMPLATES[templateKey]) || [];
     exercises = tmpl.map(ex=>({...ex,sets:ex.sets.map(s=>({...s,done:false}))}));
   }
 
   if (!exercises || !exercises.length) {
-    if (typeof showToast==='function') showToast("No exercises found for today's session.", 'warn');
+    showToast('No exercises found for this day in the program.', 'warn');
+    renderWorkoutPage();
     return;
   }
-  if (State.currentWorkout.length&&!confirm('Replace current workout with scheduled session?')) return;
-  State.currentWorkout = exercises;
-  workoutViewDate = todayKey();
-  switchWorkoutTab('session', document.querySelector('.workout-tab[data-tab="session"]'));
-  renderWorkoutPage();
-  if (typeof showToast==='function') showToast('Workout loaded — ' + exercises.length + ' exercises', 'success');
-}
 
+  // Store pending so _enhancedRenderWorkoutPage can show the pull button
+  window._pendingScheduledExercises = exercises;
+  window._pendingScheduledDate = dateKey;
+  renderWorkoutPage();
+}
 function loadScheduledWorkout() {
   const todayDow = new Date().getDay();
   const mondayIdx = todayDow===0?6:todayDow-1;
@@ -9828,8 +9713,7 @@ function updateMpPreview() {
 const _origUpdateFoodPreview = updateFoodPreview;
 updateFoodPreview = function() {
   if (!selectedFood) return;
-  const unitSel = document.getElementById('food-unit');
-  const unit = unitSel ? unitSel.value : '100g';
+  const unit = document.getElementById('food-unit').value;
   const gramInput = document.getElementById('food-gram-input');
   const qtyWrap = document.getElementById('food-qty-wrap');
   const isCustomG = unit === 'gram';
@@ -9838,11 +9722,7 @@ updateFoodPreview = function() {
   const qty = +document.getElementById('food-qty').value || 1;
   const f = selectedFood;
   let multiplier;
-  if (unit.startsWith('cfunit_')) {
-    const opt = unitSel.options[unitSel.selectedIndex];
-    const grams = +(opt && opt.dataset.grams) || 100;
-    multiplier = (grams / 100) * qty;
-  } else if (unit === 'serving') multiplier = qty;
+  if (unit === 'serving') multiplier = qty;
   else if (unit === '100g') multiplier = qty;
   else {
     const grams = +document.getElementById('food-gram-val')?.value || 100;
@@ -9859,27 +9739,19 @@ updateFoodPreview = function() {
 const _origLogSelectedFood = logSelectedFood;
 logSelectedFood = function() {
   if (!selectedFood) return;
-  const unitSel = document.getElementById('food-unit');
-  const unit = unitSel ? unitSel.value : '100g';
+  const unit = document.getElementById('food-unit').value;
   const qty = +document.getElementById('food-qty').value || 1;
   const f = selectedFood;
   let multiplier;
-  let unitLabel = '';
-  if (unit.startsWith('cfunit_')) {
-    const opt = unitSel.options[unitSel.selectedIndex];
-    const grams = +(opt && opt.dataset.grams) || 100;
-    multiplier = (grams / 100) * qty;
-    unitLabel = ' (' + (qty > 1 ? qty + '× ' : '') + (opt ? opt.textContent : '') + ')';
-  } else if (unit === 'serving') { multiplier = qty; unitLabel = ''; }
-  else if (unit === '100g') { multiplier = qty; unitLabel = ` (${qty*100}g)`; }
+  if (unit === 'serving') multiplier = qty;
+  else if (unit === '100g') multiplier = qty;
   else {
     const grams = +document.getElementById('food-gram-val')?.value || 100;
     multiplier = grams / 100;
-    unitLabel = ` (${grams}g)`;
   }
   const meal = document.getElementById('food-meal-select').value;
   const entry = {
-    name: f.name + unitLabel,
+    name: f.name + (unit==='gram' ? ` (${document.getElementById('food-gram-val')?.value||100}g)` : unit==='100g'?` (${qty*100}g)`:''),
     cal: Math.round(f.cal*multiplier),
     protein: Math.round(f.protein*multiplier),
     carbs: Math.round(f.carbs*multiplier),
@@ -9889,8 +9761,6 @@ logSelectedFood = function() {
   const k = nutritionDate;
   if (!State.logs[k]) State.logs[k] = { meals:{breakfast:[],lunch:[],dinner:[],snacks:[]}, water:0 };
   State.logs[k].meals[meal].push(entry);
-  // Clean up injected custom options from dropdown for next use
-  if (unitSel) Array.from(unitSel.options).forEach(o => { if (o.dataset.custom) o.remove(); });
   save();
   closeModal('modal-food');
   renderMealLog();
@@ -10196,6 +10066,32 @@ function saveWorkoutForDate() {
 // ═══════════════════════════════════════════════════════════════════
 //  IMPROVED WORKOUT RENDER (cleaner exercise cards)
 // ═══════════════════════════════════════════════════════════════════
+function pullScheduledWorkout() {
+  const exs = window._pendingScheduledExercises;
+  const dateKey = window._pendingScheduledDate;
+  if (!exs || !exs.length || !dateKey) { showToast('No scheduled workout to pull.', 'error'); return; }
+  const isToday = dateKey === todayKey();
+  if (isToday) {
+    if (State.currentWorkout.length && !confirm('Replace current workout with scheduled session?')) return;
+    State.currentWorkout = JSON.parse(JSON.stringify(exs));
+  } else {
+    // Save directly to that past date
+    const existing = State.workouts.findIndex(w => w.date === dateKey);
+    if (existing >= 0) {
+      if (!confirm('This date already has a logged session. Replace it?')) return;
+      State.workouts[existing].exercises = JSON.parse(JSON.stringify(exs));
+    } else {
+      State.workouts.unshift({ date: dateKey, exercises: JSON.parse(JSON.stringify(exs)) });
+    }
+  }
+  window._pendingScheduledExercises = null;
+  window._pendingScheduledDate = null;
+  save();
+  renderWorkoutPage();
+  refreshDashboard();
+  showToast('Workout pulled — ' + exs.length + ' exercises loaded! 💪', 'success');
+}
+
 function _enhancedRenderWorkoutPage() {
   // ── Update date navigator UI ──
   const isToday = wdIsToday();
@@ -10226,9 +10122,40 @@ function _enhancedRenderWorkoutPage() {
     if (pastBanner) pastBanner.remove();
   }
 
+  // Clear stale pending if we navigated away from the pending date
+  if (window._pendingScheduledDate && window._pendingScheduledDate !== wdGetDate()) {
+    window._pendingScheduledExercises = null;
+    window._pendingScheduledDate = null;
+  }
+
   const currentExercises = wdGetActiveExercises();
   const list = document.getElementById('exercise-list');
+
+  // Remove any existing pull banner
+  const oldPullBanner = document.getElementById('wd-pull-banner');
+  if (oldPullBanner) oldPullBanner.remove();
+
   if (!currentExercises.length) {
+    // Show pull-from-program button if we have pending scheduled exercises for this date
+    if (window._pendingScheduledExercises && window._pendingScheduledDate === wdGetDate()) {
+      const exs = window._pendingScheduledExercises;
+      const dateLabel2 = new Date(wdGetDate() + 'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+      const pullBanner = document.createElement('div');
+      pullBanner.id = 'wd-pull-banner';
+      pullBanner.style.cssText = 'background:var(--accent-dim);border:1px solid var(--accent);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap';
+      pullBanner.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:38px;height:38px;background:var(--accent-dim);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">📥</div>
+          <div>
+            <div style="font-size:0.9rem;font-weight:700;color:var(--accent)">${dateLabel2}</div>
+            <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px">${exs.length} exercises scheduled from your program</div>
+          </div>
+        </div>
+        <button onclick="pullScheduledWorkout()" style="background:var(--accent);color:var(--bg-base);border:none;border-radius:var(--radius-sm);padding:10px 18px;font-weight:700;font-size:0.85rem;cursor:pointer;white-space:nowrap;flex-shrink:0">📥 Pull Workout</button>
+      `;
+      const grid = document.getElementById('exercise-list')?.closest('.grid-2');
+      if (grid) grid.insertAdjacentElement('beforebegin', pullBanner);
+    }
     if (list) list.innerHTML = isToday
       ? '<div class="empty-state"><div class="es-icon">🏋️</div><div class="es-text">Add exercises to build your workout</div></div>'
       : '<div class="empty-state"><div class="es-icon">📅</div><div class="es-text">No workout logged for this day</div></div>';
