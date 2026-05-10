@@ -3287,6 +3287,44 @@ function dismissSplash() {
 </div>
 
 <!-- Add Exercise Modal — muscle browser -->
+<div class="modal-overlay" id="modal-edit-food">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title">
+      ✏️ Edit Food Entry
+      <button class="btn-icon" onclick="closeModal('modal-edit-food')">✕</button>
+    </div>
+    <div class="form-grid" style="gap:12px;margin-bottom:16px">
+      <div class="form-group">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-input" id="ef-name" placeholder="Food name" />
+      </div>
+      <div class="form-grid form-grid-2" style="gap:10px">
+        <div class="form-group">
+          <label class="form-label">Calories (kcal)</label>
+          <input type="number" class="form-input" id="ef-cal" min="0" step="1" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Protein (g)</label>
+          <input type="number" class="form-input" id="ef-protein" min="0" step="0.1" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Carbs (g)</label>
+          <input type="number" class="form-input" id="ef-carbs" min="0" step="0.1" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fat (g)</label>
+          <input type="number" class="form-input" id="ef-fat" min="0" step="0.1" />
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-food')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditFood()">💾 Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Exercise Modal — muscle browser -->
 <div class="modal-overlay" id="modal-exercise">
   <div class="modal" style="max-width:640px;max-height:92vh;padding:0;overflow:hidden;display:flex;flex-direction:column">
 
@@ -3868,6 +3906,9 @@ function dismissSplash() {
       Plan Meal
       <button class="btn-icon" onclick="closeModal('modal-mpcell')">✕</button>
     </div>
+    <div style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:10px;padding:6px 10px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+      💡 Add as many foods as you want — hit <b>➕ Add to Plan</b> for each one, then <b>Done</b> when finished.
+    </div>
     <div class="form-group" style="margin-bottom:12px">
       <label class="form-label">Search food or recipe</label>
       <div class="search-wrap">
@@ -3899,8 +3940,8 @@ function dismissSplash() {
       <div style="display:flex;gap:8px;flex-wrap:wrap" id="mpcell-sel-macros"></div>
     </div>
     <div class="btn-row">
-      <button class="btn btn-ghost" onclick="closeModal('modal-mpcell')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveMpCell()">Add to Plan</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-mpcell')">Done</button>
+      <button class="btn btn-primary" onclick="saveMpCell()">➕ Add to Plan</button>
     </div>
   </div>
 </div>
@@ -4031,7 +4072,7 @@ const State = {
   goals: [],
   recipes: [],     // [{ id, name, servings, category, ingredients:[{food,qty}], totals }]
   customFoods: [], // [{ id, name, serving, cal, protein, carbs, fat }]
-  mealPlan: {},    // { 'YYYY-MM-DD': { breakfast:null, lunch:null, dinner:null, snacks:null } }
+  mealPlan: {},    // { 'YYYY-MM-DD': { breakfast:[], lunch:[], dinner:[], snacks:[] } }
   currentWorkout: [],
   streak: 0,
   prefs: { reminders: false, macros: true }
@@ -5866,6 +5907,7 @@ function renderMealLog() {
           <div class="food-macro-val"><span>${f.fat}g</span> F</div>
         </div>
         <div class="food-cals">${f.cal} kcal</div>
+        <button class="btn-icon" style="padding:4px 6px;font-size:0.75rem;color:var(--accent)" onclick="openEditFood('${m.key}',${i},'${k}')" title="Edit">✏️</button>
         <button class="btn-icon" style="padding:4px 6px; font-size:0.75rem" onclick="removeFood('${m.key}',${i},'${k}')">✕</button>
       </div>
     `).join('') : '<div style="padding:8px 14px; font-size:0.8rem; color:var(--text-muted)">Nothing logged yet</div>';
@@ -5882,6 +5924,38 @@ function renderMealLog() {
       </div>
     `;
   }).join('');
+}
+
+let _editFoodMeal = null, _editFoodIdx = -1, _editFoodDate = null;
+
+function openEditFood(meal, idx, dateKey) {
+  _editFoodMeal = meal;
+  _editFoodIdx = idx;
+  _editFoodDate = dateKey;
+  const f = State.logs[dateKey].meals[meal][idx];
+  if (!f) return;
+  document.getElementById('ef-name').value = f.name || '';
+  document.getElementById('ef-cal').value = f.cal || 0;
+  document.getElementById('ef-protein').value = f.protein || 0;
+  document.getElementById('ef-carbs').value = f.carbs || 0;
+  document.getElementById('ef-fat').value = f.fat || 0;
+  openModal('modal-edit-food');
+}
+
+function saveEditFood() {
+  if (_editFoodIdx < 0 || !_editFoodMeal || !_editFoodDate) return;
+  const f = State.logs[_editFoodDate].meals[_editFoodMeal][_editFoodIdx];
+  f.name    = document.getElementById('ef-name').value.trim() || f.name;
+  f.cal     = +document.getElementById('ef-cal').value || 0;
+  f.protein = +document.getElementById('ef-protein').value || 0;
+  f.carbs   = +document.getElementById('ef-carbs').value || 0;
+  f.fat     = +document.getElementById('ef-fat').value || 0;
+  save();
+  closeModal('modal-edit-food');
+  renderMealLog();
+  refreshNutritionPage();
+  refreshDashboard();
+  showToast('Entry updated ✏️', 'success');
 }
 
 function removeFood(meal, idx, dateKey) {
@@ -10213,13 +10287,29 @@ function renderMealPlanGrid() {
   meals.forEach(m => {
     html += `<div style="padding:10px 8px;font-size:0.72rem;font-weight:700;color:${m.color};border-bottom:1px solid var(--border);border-right:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:flex-start;white-space:nowrap">${m.label}</div>`;
     weekDays.forEach(({key, isToday}) => {
-      const plan = (State.mealPlan[key] || {})[m.key];
-      if (plan) {
-        html += `<div style="border-bottom:1px solid var(--border);border-right:1px solid var(--border);padding:8px 6px;cursor:pointer;background:${isToday?'rgba(232,255,71,0.04)':'transparent'}" onclick="openMpCell('${key}','${m.key}')">
-          <div style="font-size:0.72rem;font-weight:700;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px">${plan.name||''}</div>
-          <div style="font-size:0.65rem;color:var(--accent)">${plan.cal||0} kcal</div>
-          <div style="font-size:0.6rem;color:var(--text-muted)">${plan.protein||0}g P · ${plan.carbs||0}g C · ${plan.fat||0}g F</div>
-          <div style="font-size:0.6rem;color:var(--blue);margin-top:3px;text-decoration:underline" onclick="event.stopPropagation();clearMpCell('${key}','${m.key}')">Remove</div>
+      const dayPlan = State.mealPlan[key] || {};
+      // Support both old single-object and new array format
+      let items = dayPlan[m.key];
+      if (!items) items = [];
+      else if (!Array.isArray(items)) items = [items]; // migrate old format
+      const totalCal = items.reduce((s,it)=>s+(it.cal||0),0);
+      const totalPro = items.reduce((s,it)=>s+(it.protein||0),0);
+      const totalCarb = items.reduce((s,it)=>s+(it.carbs||0),0);
+      const totalFat  = items.reduce((s,it)=>s+(it.fat||0),0);
+
+      if (items.length) {
+        const itemsHtml = items.map((it,idx) => `
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:2px;padding:3px 0;border-bottom:1px solid var(--border)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:0.68rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px">${it.name||''}</div>
+              <div style="font-size:0.6rem;color:var(--accent)">${it.cal||0} kcal</div>
+            </div>
+            <button onclick="event.stopPropagation();removeMpItem('${key}','${m.key}',${idx})" style="flex-shrink:0;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:0.65rem;padding:0 2px;line-height:1" title="Remove">✕</button>
+          </div>`).join('');
+        html += `<div style="border-bottom:1px solid var(--border);border-right:1px solid var(--border);padding:6px;background:${isToday?'rgba(232,255,71,0.04)':'transparent'}">
+          ${itemsHtml}
+          <div style="font-size:0.6rem;color:var(--text-muted);margin-top:4px">P:${totalPro}g C:${totalCarb}g F:${totalFat}g</div>
+          <button onclick="openMpCell('${key}','${m.key}')" style="margin-top:5px;width:100%;font-size:0.6rem;padding:3px 0;border:1px dashed var(--border);border-radius:4px;background:transparent;color:var(--text-muted);cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">+ Add more</button>
         </div>`;
       } else {
         html += `<div style="border-bottom:1px solid var(--border);border-right:1px solid var(--border);padding:8px 6px;cursor:pointer;background:${isToday?'rgba(232,255,71,0.03)':'transparent'};min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px" onclick="openMpCell('${key}','${m.key}')" onmouseenter="this.style.background='var(--accent-dim)'" onmouseleave="this.style.background='${isToday?'rgba(232,255,71,0.03)':'transparent'}'">
@@ -10236,7 +10326,11 @@ function renderMealPlanGrid() {
 function getMpDayTotals(dateKey) {
   const plan = State.mealPlan[dateKey] || {};
   let cal=0, protein=0, carbs=0, fat=0;
-  Object.values(plan).forEach(m => { if(m){cal+=m.cal||0;protein+=m.protein||0;carbs+=m.carbs||0;fat+=m.fat||0;} });
+  Object.values(plan).forEach(slot => {
+    if (!slot) return;
+    const items = Array.isArray(slot) ? slot : [slot];
+    items.forEach(m => { if(m){cal+=m.cal||0;protein+=m.protein||0;carbs+=m.carbs||0;fat+=m.fat||0;} });
+  });
   return {cal,protein,carbs,fat};
 }
 
@@ -10251,10 +10345,16 @@ function showMpDayBreakdown(dateKey) {
   el.innerHTML = `
     <div style="font-size:0.78rem;font-weight:700;margin-bottom:10px;color:var(--text-secondary)">${d}</div>
     ${meals.map(m => {
-      const item = plan[m];
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
-        <div style="font-size:0.8rem">${mealLabels[m]}</div>
-        <div style="font-size:0.78rem;font-weight:600;color:${item?'var(--text-primary)':'var(--text-muted)'}">${item?item.cal+' kcal':'—'}</div>
+      let items = plan[m];
+      if (!items) items = [];
+      else if (!Array.isArray(items)) items = [items];
+      const slotCal = items.reduce((s,it)=>s+(it.cal||0),0);
+      return `<div style="padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:0.8rem">${mealLabels[m]}</div>
+          <div style="font-size:0.78rem;font-weight:600;color:${items.length?'var(--text-primary)':'var(--text-muted)'}">${items.length?slotCal+' kcal':'—'}</div>
+        </div>
+        ${items.map(it=>`<div style="font-size:0.7rem;color:var(--text-secondary);padding-left:8px;margin-top:2px">· ${it.name} — ${it.cal} kcal</div>`).join('')}
       </div>`;
     }).join('')}
     <div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:4px">
@@ -10272,6 +10372,7 @@ function clearMpCell(dateKey, mealKey) {
   delete State.mealPlan[dateKey][mealKey];
   save();
   renderMealPlanGrid();
+  renderMpWeekSummary();
 }
 
 // ─── patch renderMealPlan to call new grid
@@ -10383,7 +10484,7 @@ function selectMpFood(f) {
   updateMpPreview();
 }
 
-// Fix saveMpCell — uses serving multiplier for unit foods, gram multiplier for DB foods
+// Fix saveMpCell — pushes items into an array per meal slot
 const _origSaveMpCell = saveMpCell;
 saveMpCell = function() {
   if (!mpSelectedFood) { showToast('Select a food first.', 'error'); return; }
@@ -10413,12 +10514,39 @@ saveMpCell = function() {
     qty, mode: mpServingMode
   };
   if (!State.mealPlan[window._mpCellDate]) State.mealPlan[window._mpCellDate] = {};
-  State.mealPlan[window._mpCellDate][window._mpCellMeal] = item;
+  const slot = State.mealPlan[window._mpCellDate][window._mpCellMeal];
+  if (!slot || slot === null) {
+    State.mealPlan[window._mpCellDate][window._mpCellMeal] = [item];
+  } else if (Array.isArray(slot)) {
+    slot.push(item);
+  } else {
+    // migrate old single object to array
+    State.mealPlan[window._mpCellDate][window._mpCellMeal] = [slot, item];
+  }
+  // Reset search for quick add-another
+  mpSelectedFood = null;
+  document.getElementById('mpcell-search').value = '';
+  safeStyle('mpcell-selected','display','none');
+  const hintEl = document.getElementById('mpcell-serving-hint');
+  if (hintEl) hintEl.style.display = 'none';
   save();
-  closeModal('modal-mpcell');
   renderMealPlanGrid();
   renderMpWeekSummary();
+  showToast(`${cleanName} added to plan ✅`, 'success');
+  // Keep modal open so user can add more
 };
+
+function removeMpItem(dateKey, mealKey, idx) {
+  if (!State.mealPlan[dateKey]) return;
+  let slot = State.mealPlan[dateKey][mealKey];
+  if (!slot) return;
+  if (!Array.isArray(slot)) slot = [slot];
+  slot.splice(idx, 1);
+  State.mealPlan[dateKey][mealKey] = slot.length ? slot : null;
+  save();
+  renderMealPlanGrid();
+  renderMpWeekSummary();
+}
 
 // Fix openMpCell
 function openMpCell(dateKey, meal) {
