@@ -9253,12 +9253,12 @@ function saveProgram() {
 
 function renderPrograms() {
   const el = document.getElementById('programs-list');
-  const custom = (State.programs||[]).filter(p=>!p.builtinId);
-  if (!custom.length) {
-    el.innerHTML = '<div class="empty-state" style="padding:24px"><div class="es-icon" style="font-size:1.8rem">📋</div><div class="es-text">No custom programs yet. Click "+ Create Program" to build one!</div></div>';
+  const all = (State.programs||[]);
+  if (!all.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:24px"><div class="es-icon" style="font-size:1.8rem">📋</div><div class="es-text">No programs yet. Activate a Built-in Program above or click "+ Create Program"!</div></div>';
     return;
   }
-  el.innerHTML = custom.map((p,i) => {
+  el.innerHTML = all.map((p,i) => {
     const realIdx = State.programs.indexOf(p);
     const allDayIdxs = Object.keys(p.days).map(Number);
     const dayNames = allDayIdxs.map(d=>DAY_NAMES[d].slice(0,3)).join(' · ');
@@ -10142,7 +10142,11 @@ function saveWorkoutForDate() {
       State.workouts[idx].exercises = JSON.parse(JSON.stringify(exs));
       save(); showToast('Past session updated! ✅', 'success'); renderWorkoutPage();
     } else {
-      showToast('No session to update for this date.', 'error');
+      // New entry for a past date (e.g. pulled from program)
+      State.workouts.unshift({ date: wdGetDate(), exercises: JSON.parse(JSON.stringify(exs)) });
+      State.workouts.sort((a,b) => b.date.localeCompare(a.date));
+      save(); calcStreak(); refreshDashboard();
+      showToast('Session saved! 💪', 'success'); renderWorkoutPage();
     }
   }
 }
@@ -10212,6 +10216,40 @@ function _enhancedRenderWorkoutPage() {
     window._pendingScheduledDate = null;
   }
 
+  // Auto-resolve program workout for the viewed date if not already pending
+  const currentDateKey = wdGetDate();
+  if (!window._pendingScheduledExercises || window._pendingScheduledDate !== currentDateKey) {
+    const activeProgram = State.programs && State.programs.find(p => p.active);
+    const alreadyLogged = wdIsToday()
+      ? State.currentWorkout.length > 0
+      : State.workouts.some(w => w.date === currentDateKey);
+    if (activeProgram && !alreadyLogged) {
+      const progStart = activeProgram.start || activeProgram.startDate;
+      if (!progStart || currentDateKey >= progStart) {
+        const d = new Date(currentDateKey + 'T12:00:00');
+        const dow = d.getDay();
+        const mondayIdx = dow === 0 ? 6 : dow - 1;
+        const dayEntry = activeProgram.days[mondayIdx];
+        if (dayEntry) {
+          let exercises = [];
+          if (dayEntry && typeof dayEntry === 'object' && Array.isArray(dayEntry.exercises)) {
+            exercises = dayEntry.exercises.map(ex => ({...ex, sets: (ex.sets||[]).map(s => ({...s, done: false}))}));
+          } else if (activeProgram.dayExercises && activeProgram.dayExercises[mondayIdx]) {
+            exercises = activeProgram.dayExercises[mondayIdx].map(ex => ({...ex, sets: (ex.sets||[]).map(s => ({...s, done: false}))}));
+          } else {
+            const tKey = typeof dayEntry === 'string' ? dayEntry : (dayEntry && dayEntry.key) || 'fullbody';
+            const tmpl = (typeof EXTENDED_TEMPLATES !== 'undefined' && EXTENDED_TEMPLATES[tKey]) || (typeof TEMPLATES !== 'undefined' && TEMPLATES[tKey]) || [];
+            exercises = tmpl.map(ex => ({...ex, sets: (ex.sets||[]).map(s => ({...s, done: false}))}));
+          }
+          if (exercises.length) {
+            window._pendingScheduledExercises = exercises;
+            window._pendingScheduledDate = currentDateKey;
+          }
+        }
+      }
+    }
+  }
+
   const currentExercises = wdGetActiveExercises();
   const list = document.getElementById('exercise-list');
 
@@ -10224,6 +10262,16 @@ function _enhancedRenderWorkoutPage() {
     if (window._pendingScheduledExercises && window._pendingScheduledDate === wdGetDate()) {
       const exs = window._pendingScheduledExercises;
       const dateLabel2 = new Date(wdGetDate() + 'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+      // Resolve program + day label for the banner
+      const activeProgram2 = State.programs && State.programs.find(p => p.active);
+      let progLabel = '';
+      if (activeProgram2) {
+        const dow2 = new Date(wdGetDate() + 'T12:00:00').getDay();
+        const mIdx2 = dow2 === 0 ? 6 : dow2 - 1;
+        const entry2 = activeProgram2.days[mIdx2];
+        const sessionName = entry2 ? (typeof entry2 === 'string' ? entry2 : (entry2.label || entry2.key || 'Workout')) : 'Workout';
+        progLabel = `<div style="font-size:0.7rem;color:var(--accent);font-weight:700;margin-bottom:1px">📋 ${activeProgram2.name} · ${sessionName}</div>`;
+      }
       const pullBanner = document.createElement('div');
       pullBanner.id = 'wd-pull-banner';
       pullBanner.style.cssText = 'background:var(--accent-dim);border:1px solid var(--accent);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap';
@@ -10231,11 +10279,12 @@ function _enhancedRenderWorkoutPage() {
         <div style="display:flex;align-items:center;gap:12px">
           <div style="width:38px;height:38px;background:var(--accent-dim);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">📥</div>
           <div>
-            <div style="font-size:0.9rem;font-weight:700;color:var(--accent)">${dateLabel2}</div>
+            ${progLabel}
+            <div style="font-size:0.88rem;font-weight:700;color:var(--text-primary)">${dateLabel2}</div>
             <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px">${exs.length} exercises scheduled from your program</div>
           </div>
         </div>
-        <button onclick="pullScheduledWorkout()" style="background:var(--accent);color:var(--bg-base);border:none;border-radius:var(--radius-sm);padding:10px 18px;font-weight:700;font-size:0.85rem;cursor:pointer;white-space:nowrap;flex-shrink:0">📥 Pull Workout</button>
+        <button onclick="pullScheduledWorkout()" style="background:var(--accent);color:var(--bg-base);border:none;border-radius:var(--radius-sm);padding:10px 18px;font-weight:700;font-size:0.85rem;cursor:pointer;white-space:nowrap;flex-shrink:0">⚡ Pull Workout</button>
       `;
       const grid = document.getElementById('exercise-list')?.closest('.grid-2');
       if (grid) grid.insertAdjacentElement('beforebegin', pullBanner);
