@@ -7212,8 +7212,10 @@ function seedDemoData() {
 //  RECIPES & CUSTOM FOODS
 // ═══════════════════════════════════════════════════════════════════
 let _recipeIngredients = []; // temp buffer while building recipe
+let _recipeEditIndex = -1; // -1 = new recipe, >= 0 = editing existing
 
 function openRecipeBuilder() {
+  _recipeEditIndex = -1;
   _recipeIngredients = [];
   document.getElementById('recipe-name').value = '';
   document.getElementById('recipe-servings').value = '1';
@@ -7221,6 +7223,29 @@ function openRecipeBuilder() {
   document.getElementById('recipe-ingredients').innerHTML = '';
   document.getElementById('recipe-food-results').innerHTML = '';
   document.getElementById('recipe-food-results').classList.remove('open');
+  // Reset modal title
+  const titleEl = document.querySelector('#modal-recipe .rb-title');
+  if (titleEl) titleEl.textContent = 'Recipe Builder';
+  updateRecipeTotals();
+  openModal('modal-recipe');
+}
+
+function editRecipe(i) {
+  const r = State.recipes[i];
+  if (!r) return;
+  _recipeEditIndex = i;
+  _recipeIngredients = JSON.parse(JSON.stringify(r.ingredients));
+  document.getElementById('recipe-name').value = r.name;
+  document.getElementById('recipe-servings').value = r.servings || 1;
+  const catEl = document.getElementById('recipe-category');
+  if (catEl) catEl.value = r.category || catEl.options[0].value;
+  document.getElementById('recipe-food-search').value = '';
+  document.getElementById('recipe-food-results').innerHTML = '';
+  document.getElementById('recipe-food-results').classList.remove('open');
+  // Update modal title to indicate editing
+  const titleEl = document.querySelector('#modal-recipe .rb-title');
+  if (titleEl) titleEl.textContent = 'Edit Recipe';
+  renderRecipeIngredients();
   updateRecipeTotals();
   openModal('modal-recipe');
 }
@@ -7317,19 +7342,25 @@ function saveRecipe() {
     carbs:   acc.carbs   + ri.food.carbs   * ri.grams / 100,
     fat:     acc.fat     + ri.food.fat     * ri.grams / 100
   }), {cal:0,protein:0,carbs:0,fat:0});
-  State.recipes.push({
-    id: Date.now(),
-    name,
-    servings,
+  const recipeData = {
+    id: (_recipeEditIndex >= 0 && State.recipes[_recipeEditIndex]) ? State.recipes[_recipeEditIndex].id : Date.now(),
+    name, servings,
     category: document.getElementById('recipe-category').value,
     ingredients: JSON.parse(JSON.stringify(_recipeIngredients)),
     totals: { cal: Math.round(t.cal/servings), protein:+(t.protein/servings).toFixed(1),
                carbs:+(t.carbs/servings).toFixed(1), fat:+(t.fat/servings).toFixed(1) }
-  });
+  };
+  if (_recipeEditIndex >= 0 && _recipeEditIndex < State.recipes.length) {
+    State.recipes[_recipeEditIndex] = recipeData;
+    showToast(name + ' updated! \u{1F4D6}', 'success');
+  } else {
+    State.recipes.push(recipeData);
+    showToast(name + ' saved! \u{1F4D6}', 'success');
+  }
+  _recipeEditIndex = -1;
   save();
   closeModal('modal-recipe');
   renderRecipesPage();
-  showToast(`${name} saved! 📖`, 'success');
 }
 
 function renderRecipesPage() {
@@ -7351,6 +7382,7 @@ function renderRecipesPage() {
       <div class="recipe-ingredients">${r.ingredients.slice(0,4).map(ri=>`${ri.food.name} ×${ri.qty}`).join(' · ')}${r.ingredients.length>4?'…':''}</div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-outline btn-sm" onclick="logRecipeAsFood(${i})">Log to today</button>
+        <button class="btn btn-ghost btn-sm" onclick="editRecipe(${i})">✏️ Edit</button>
         <button class="btn btn-ghost btn-sm" onclick="deleteRecipe(${i})">Delete</button>
       </div>
     </div>`).join('');
@@ -7375,22 +7407,47 @@ function deleteRecipe(i) {
 }
 
 function openCustomFood() {
+  _customFoodEditIndex = -1;
   ['cf-name','cf-serving','cf-cal','cf-protein','cf-carbs','cf-fat'].forEach(id=>document.getElementById(id).value='');
+  const titleEl = document.querySelector('#modal-custom-food .modal-title, #modal-custom-food [style*="font-weight:700"]');
+  openModal('modal-custom-food');
+}
+
+let _customFoodEditIndex = -1;
+
+function editCustomFood(i) {
+  const cf = State.customFoods[i];
+  if (!cf) return;
+  _customFoodEditIndex = i;
+  document.getElementById('cf-name').value = cf.name || '';
+  document.getElementById('cf-serving').value = cf.serving || '';
+  document.getElementById('cf-cal').value = cf.cal || '';
+  document.getElementById('cf-protein').value = cf.protein || '';
+  document.getElementById('cf-carbs').value = cf.carbs || '';
+  document.getElementById('cf-fat').value = cf.fat || '';
   openModal('modal-custom-food');
 }
 
 function saveCustomFood() {
   const name = document.getElementById('cf-name').value.trim();
   if (!name) { showToast('Enter a food name.', 'error'); return; }
-  State.customFoods.push({
-    id: Date.now(),
+  const foodData = {
+    id: (_customFoodEditIndex >= 0 && State.customFoods[_customFoodEditIndex]) ? State.customFoods[_customFoodEditIndex].id : Date.now(),
     name,
     serving: document.getElementById('cf-serving').value || '1 serving',
     cal: +document.getElementById('cf-cal').value || 0,
     protein: +document.getElementById('cf-protein').value || 0,
     carbs: +document.getElementById('cf-carbs').value || 0,
     fat: +document.getElementById('cf-fat').value || 0
-  });
+  };
+  if (_customFoodEditIndex >= 0 && _customFoodEditIndex < State.customFoods.length) {
+    State.customFoods[_customFoodEditIndex] = foodData;
+    showToast(name + ' updated!', 'success');
+  } else {
+    State.customFoods.push(foodData);
+    showToast(name + ' saved!', 'success');
+  }
+  _customFoodEditIndex = -1;
   save();
   closeModal('modal-custom-food');
   renderCustomFoods();
@@ -7410,6 +7467,7 @@ function renderCustomFoods() {
       </div>
       <span class="tag tag-accent">${cf.cal} kcal</span>
       <span class="tag tag-blue">${cf.protein}g P</span>
+      <button class="btn-icon" onclick="editCustomFood(${i})" title="Edit" style="font-size:0.8rem">✏️</button>
       <button class="btn-icon" onclick="deleteCustomFood(${i})">✕</button>
     </div>`).join('');
 }
@@ -10215,6 +10273,7 @@ function _enhancedRenderWorkoutPage() {
             }
             if (exercises && exercises.length) {
               State.currentWorkout = exercises;
+              save();
               renderWorkoutPage();
             }
           }
