@@ -3739,7 +3739,7 @@ function dismissSplash() {
       <span class="rb-footer-note">Values calculated per 100 g of each ingredient</span>
       <div style="display:flex;gap:10px">
         <button class="btn btn-ghost" onclick="closeModal('modal-recipe')">Cancel</button>
-        <button class="btn btn-primary" onclick="saveRecipe()">Save Recipe</button>
+        <button class="btn btn-primary" id="rb-save-btn" onclick="saveRecipe()">Save Recipe</button>
       </div>
     </div>
 
@@ -3750,7 +3750,7 @@ function dismissSplash() {
 <div class="modal-overlay" id="modal-custom-food">
   <div class="modal" style="max-width:480px">
     <div class="modal-title">
-      🥫 Add Custom Food
+      <span id="cf-modal-title">🥫 Add Custom Food</span>
       <button class="btn-icon" onclick="closeModal('modal-custom-food')">✕</button>
     </div>
 
@@ -3856,7 +3856,7 @@ function dismissSplash() {
 
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="closeModal('modal-custom-food')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveCustomFood()">💾 Save Food</button>
+      <button class="btn btn-primary" id="cf-save-btn" onclick="saveCustomFood()">💾 Save Food</button>
     </div>
   </div>
 </div>
@@ -7402,7 +7402,10 @@ function seedDemoData() {
 // ═══════════════════════════════════════════════════════════════════
 let _recipeIngredients = []; // temp buffer while building recipe
 
+let _editRecipeIdx = -1; // -1 = new, >=0 = editing
+
 function openRecipeBuilder() {
+  _editRecipeIdx = -1;
   _recipeIngredients = [];
   document.getElementById('recipe-name').value = '';
   document.getElementById('recipe-servings').value = '1';
@@ -7410,6 +7413,31 @@ function openRecipeBuilder() {
   document.getElementById('recipe-ingredients').innerHTML = '';
   document.getElementById('recipe-food-results').innerHTML = '';
   document.getElementById('recipe-food-results').classList.remove('open');
+  // Update title to "New Recipe"
+  const titleEl = document.querySelector('#modal-recipe .rb-title');
+  if (titleEl) titleEl.textContent = 'Recipe Builder';
+  const saveBtn = document.getElementById('rb-save-btn');
+  if (saveBtn) saveBtn.textContent = '💾 Save Recipe';
+  updateRecipeTotals();
+  openModal('modal-recipe');
+}
+
+function editRecipe(i) {
+  const r = State.recipes[i];
+  if (!r) return;
+  _editRecipeIdx = i;
+  _recipeIngredients = JSON.parse(JSON.stringify(r.ingredients));
+  document.getElementById('recipe-name').value = r.name;
+  document.getElementById('recipe-servings').value = r.servings || 1;
+  const catEl = document.getElementById('recipe-category');
+  if (catEl) catEl.value = r.category || 'Other';
+  document.getElementById('recipe-food-search').value = '';
+  document.getElementById('recipe-food-results').classList.remove('open');
+  const titleEl = document.querySelector('#modal-recipe .rb-title');
+  if (titleEl) titleEl.textContent = 'Edit Recipe';
+  const saveBtn = document.getElementById('rb-save-btn');
+  if (saveBtn) saveBtn.textContent = '💾 Update Recipe';
+  renderRecipeIngredients();
   updateRecipeTotals();
   openModal('modal-recipe');
 }
@@ -7506,19 +7534,27 @@ function saveRecipe() {
     carbs:   acc.carbs   + ri.food.carbs   * ri.grams / 100,
     fat:     acc.fat     + ri.food.fat     * ri.grams / 100
   }), {cal:0,protein:0,carbs:0,fat:0});
-  State.recipes.push({
-    id: Date.now(),
+  const recipeData = {
     name,
     servings,
     category: document.getElementById('recipe-category').value,
     ingredients: JSON.parse(JSON.stringify(_recipeIngredients)),
     totals: { cal: Math.round(t.cal/servings), protein:+(t.protein/servings).toFixed(1),
                carbs:+(t.carbs/servings).toFixed(1), fat:+(t.fat/servings).toFixed(1) }
-  });
+  };
+  if (_editRecipeIdx >= 0) {
+    recipeData.id = State.recipes[_editRecipeIdx].id;
+    State.recipes[_editRecipeIdx] = recipeData;
+    showToast(`${name} updated! 📖`, 'success');
+  } else {
+    recipeData.id = Date.now();
+    State.recipes.push(recipeData);
+    showToast(`${name} saved! 📖`, 'success');
+  }
+  _editRecipeIdx = -1;
   save();
   closeModal('modal-recipe');
   renderRecipesPage();
-  showToast(`${name} saved! 📖`, 'success');
 }
 
 function renderRecipesPage() {
@@ -7540,6 +7576,7 @@ function renderRecipesPage() {
       <div class="recipe-ingredients">${r.ingredients.slice(0,4).map(ri=>`${ri.food.name} · ${ri.grams}g`).join(' · ')}${r.ingredients.length>4?'…':''}</div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-outline btn-sm" onclick="logRecipeAsFood(${i})">Log to today</button>
+        <button class="btn btn-ghost btn-sm" onclick="editRecipe(${i})">✏️ Edit</button>
         <button class="btn btn-ghost btn-sm" onclick="deleteRecipe(${i})">Delete</button>
       </div>
     </div>`).join('');
@@ -7612,19 +7649,62 @@ function cfOnServingChange() {
   if (customWrap) customWrap.style.display = sel.value === 'custom' ? 'block' : 'none';
 }
 
+let _editCustomFoodIdx = -1;
+
 function openCustomFood() {
+  _editCustomFoodIdx = -1;
   _cfType = 'unit';
   ['cf-name','cf-cal','cf-protein','cf-carbs','cf-fat'].forEach(id=>document.getElementById(id).value='');
   const sizeEl = document.getElementById('cf-serving-size');
   if (sizeEl) sizeEl.value = '';
   const selEl = document.getElementById('cf-serving');
-  if (selEl) selEl.value = '1 can';
+  if (selEl) selEl.value = 'KASS L3NBA';
   const customWrap = document.getElementById('cf-serving-custom-wrap');
   if (customWrap) customWrap.style.display = 'none';
   const customInp = document.getElementById('cf-serving-custom');
   if (customInp) customInp.value = '';
   document.getElementById('cf-preview').style.display = 'none';
+  const titleEl = document.getElementById('cf-modal-title');
+  if (titleEl) titleEl.textContent = '🥫 Add Custom Food';
+  const saveBtn = document.getElementById('cf-save-btn');
+  if (saveBtn) saveBtn.textContent = '💾 Save Food';
   cfSetType('unit');
+  openModal('modal-custom-food');
+}
+
+function editCustomFood(i) {
+  const cf = State.customFoods[i];
+  if (!cf) return;
+  _editCustomFoodIdx = i;
+  document.getElementById('cf-name').value = cf.name || '';
+  document.getElementById('cf-cal').value = cf.cal || 0;
+  document.getElementById('cf-protein').value = cf.protein || 0;
+  document.getElementById('cf-carbs').value = cf.carbs || 0;
+  document.getElementById('cf-fat').value = cf.fat || 0;
+  const type = cf.servingType || 'unit';
+  if (type === 'unit') {
+    const selEl = document.getElementById('cf-serving');
+    const customWrap = document.getElementById('cf-serving-custom-wrap');
+    const customInp = document.getElementById('cf-serving-custom');
+    // Check if it's a known option or custom
+    const knownVals = Array.from(selEl.options).map(o=>o.value);
+    if (knownVals.includes(cf.serving)) {
+      selEl.value = cf.serving;
+      if (customWrap) customWrap.style.display = 'none';
+    } else {
+      selEl.value = 'custom';
+      if (customInp) customInp.value = cf.serving;
+      if (customWrap) customWrap.style.display = 'block';
+    }
+    const sizeEl = document.getElementById('cf-serving-size');
+    if (sizeEl) sizeEl.value = cf.servingSize || '';
+  }
+  const titleEl = document.getElementById('cf-modal-title');
+  if (titleEl) titleEl.textContent = '✏️ Edit Custom Food';
+  const saveBtn = document.getElementById('cf-save-btn');
+  if (saveBtn) saveBtn.textContent = '💾 Update Food';
+  cfSetType(type);
+  cfUpdatePreview();
   openModal('modal-custom-food');
 }
 
@@ -7650,11 +7730,21 @@ function saveCustomFood() {
     servingType = 'gram';
     servingSize = 100;
   }
-  State.customFoods.push({ id: Date.now(), name, serving, servingType, servingSize, cal, protein, carbs, fat });
-  save();
-  closeModal('modal-custom-food');
-  renderCustomFoods();
-  showToast(`${name} saved! 🥫`, 'success');
+  if (_editCustomFoodIdx >= 0) {
+    const existing = State.customFoods[_editCustomFoodIdx];
+    State.customFoods[_editCustomFoodIdx] = { ...existing, name, serving, servingType, servingSize, cal, protein, carbs, fat };
+    _editCustomFoodIdx = -1;
+    save();
+    closeModal('modal-custom-food');
+    renderCustomFoods();
+    showToast(`${name} updated! ✏️`, 'success');
+  } else {
+    State.customFoods.push({ id: Date.now(), name, serving, servingType, servingSize, cal, protein, carbs, fat });
+    save();
+    closeModal('modal-custom-food');
+    renderCustomFoods();
+    showToast(`${name} saved! 🥫`, 'success');
+  }
 }
 
 function renderCustomFoods() {
@@ -7677,7 +7767,10 @@ function renderCustomFoods() {
         </div>
         <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">${cf.serving}${sizeLabel} · ${cf.cal} kcal · ${cf.protein}g P · ${cf.carbs}g C · ${cf.fat}g F</div>
       </div>
-      <button class="btn-icon" style="color:var(--red)" onclick="deleteCustomFood(${i})" title="Delete">✕</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn-icon" style="color:var(--accent)" onclick="editCustomFood(${i})" title="Edit">✏️</button>
+        <button class="btn-icon" style="color:var(--red)" onclick="deleteCustomFood(${i})" title="Delete">✕</button>
+      </div>
     </div>`;
   }).join('');
 }
