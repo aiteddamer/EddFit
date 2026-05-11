@@ -3359,6 +3359,39 @@ function dismissSplash() {
             </div>
 
             <div class="card settings-section">
+              <div class="settings-section-title">✨ AI Features</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:14px">Power Smart Goal Suggestions with your preferred AI provider. Keys are stored only on this device and never shared.</div>
+
+              <!-- Provider selector -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px" id="ai-provider-grid">
+                <button onclick="selectAIProvider('claude')" id="ai-btn-claude"
+                  style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:var(--radius-sm);border:2px solid var(--accent);background:var(--accent-dim);cursor:pointer;transition:all 0.2s;font-size:0.82rem;font-weight:700;color:var(--accent)">
+                  <span style="font-size:1.1rem">🟣</span> Claude
+                </button>
+                <button onclick="selectAIProvider('gemini')" id="ai-btn-gemini"
+                  style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--bg-elevated);cursor:pointer;transition:all 0.2s;font-size:0.82rem;font-weight:600;color:var(--text-secondary)">
+                  <span style="font-size:1.1rem">🔵</span> Gemini
+                </button>
+                <button onclick="selectAIProvider('openai')" id="ai-btn-openai"
+                  style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--bg-elevated);cursor:pointer;transition:all 0.2s;font-size:0.82rem;font-weight:600;color:var(--text-secondary)">
+                  <span style="font-size:1.1rem">🟢</span> ChatGPT
+                </button>
+                <button onclick="selectAIProvider('perplexity')" id="ai-btn-perplexity"
+                  style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--bg-elevated);cursor:pointer;transition:all 0.2s;font-size:0.82rem;font-weight:600;color:var(--text-secondary)">
+                  <span style="font-size:1.1rem">🟡</span> Perplexity
+                </button>
+              </div>
+
+              <!-- Key input row -->
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+                <input type="password" class="form-input" id="s-api-key" style="flex:1;font-size:0.82rem" placeholder="Paste your API key…" />
+                <button class="btn btn-primary btn-sm" onclick="saveApiKey()">Save</button>
+              </div>
+              <div id="api-key-status" style="font-size:0.72rem;color:var(--text-muted);min-height:16px;margin-bottom:4px"></div>
+              <div id="api-key-hint" style="font-size:0.7rem;color:var(--text-muted)"></div>
+            </div>
+
+            <div class="card settings-section">
               <div class="settings-section-title">Data</div>
               <div style="display:flex; flex-direction:column; gap:10px">
                 <button class="btn btn-outline" onclick="exportData()">📤 Export All Data (JSON)</button>
@@ -5730,6 +5763,7 @@ function initUI() {
   document.getElementById('s-protein').value = State.targets.protein;
   document.getElementById('s-carbs').value = State.targets.carbs;
   document.getElementById('s-fat').value = State.targets.fat;
+  loadApiKeyStatus();
   // Dash label
   document.getElementById('dash-date-label').textContent = now.toLocaleDateString('en-US',{weekday:'long'});
   // Apply unit system labels
@@ -7603,6 +7637,85 @@ function saveSettings() {
   showToast('Profile saved! ✅', 'success');
 }
 
+// ─── Multi-provider AI key management ───────────────────────────────
+const AI_PROVIDERS = {
+  claude:     { label: 'Claude',      prefix: 'sk-ant-',  lsKey: 'eddfit_key_claude',     hint: 'Get your key at console.anthropic.com' },
+  gemini:     { label: 'Gemini',      prefix: 'AIza',     lsKey: 'eddfit_key_gemini',     hint: 'Get your key at aistudio.google.com' },
+  openai:     { label: 'ChatGPT',     prefix: 'sk-',      lsKey: 'eddfit_key_openai',     hint: 'Get your key at platform.openai.com' },
+  perplexity: { label: 'Perplexity',  prefix: 'pplx-',    lsKey: 'eddfit_key_perplexity', hint: 'Get your key at perplexity.ai/settings/api' },
+};
+let _activeAIProvider = localStorage.getItem('eddfit_ai_provider') || 'claude';
+
+function selectAIProvider(id) {
+  _activeAIProvider = id;
+  localStorage.setItem('eddfit_ai_provider', id);
+  // Update button styles
+  Object.keys(AI_PROVIDERS).forEach(p => {
+    const btn = document.getElementById('ai-btn-' + p);
+    if (!btn) return;
+    const active = p === id;
+    btn.style.borderColor  = active ? 'var(--accent)' : 'var(--border)';
+    btn.style.background   = active ? 'var(--accent-dim)' : 'var(--bg-elevated)';
+    btn.style.color        = active ? 'var(--accent)' : 'var(--text-secondary)';
+    btn.style.fontWeight   = active ? '700' : '600';
+  });
+  // Update status text without recursing
+  _refreshApiKeyStatus();
+}
+
+function saveApiKey() {
+  const key = (document.getElementById('s-api-key').value || '').trim();
+  const statusEl = document.getElementById('api-key-status');
+  const provider = AI_PROVIDERS[_activeAIProvider];
+  if (!provider) return;
+  if (!key) {
+    localStorage.removeItem(provider.lsKey);
+    if (statusEl) { statusEl.style.color = 'var(--text-muted)'; statusEl.textContent = provider.label + ' key cleared.'; }
+    loadApiKeyStatus();
+    return;
+  }
+  if (!key.startsWith(provider.prefix)) {
+    if (statusEl) { statusEl.style.color = 'var(--red)'; statusEl.textContent = `⚠️ ${provider.label} key should start with "${provider.prefix}"` ; }
+    return;
+  }
+  localStorage.setItem(provider.lsKey, key);
+  document.getElementById('s-api-key').value = '';
+  if (statusEl) { statusEl.style.color = 'var(--green)'; statusEl.textContent = `✅ ${provider.label} key saved!`; }
+  setTimeout(() => _refreshApiKeyStatus(), 2000);
+}
+
+function _refreshApiKeyStatus() {
+  const provider = AI_PROVIDERS[_activeAIProvider];
+  if (!provider) return;
+  const key = localStorage.getItem(provider.lsKey);
+  const statusEl = document.getElementById('api-key-status');
+  const hintEl   = document.getElementById('api-key-hint');
+  if (statusEl) {
+    statusEl.style.color = key ? 'var(--green)' : 'var(--text-muted)';
+    statusEl.textContent = key ? `✅ ${provider.label} key saved (${key.slice(0,10)}…) — paste a new key to update` : `No ${provider.label} key saved yet.`;
+  }
+  if (hintEl) hintEl.textContent = provider.hint;
+}
+
+function loadApiKeyStatus() {
+  // Sync buttons + status text
+  Object.keys(AI_PROVIDERS).forEach(p => {
+    const btn = document.getElementById('ai-btn-' + p);
+    if (!btn) return;
+    const active = p === _activeAIProvider;
+    btn.style.borderColor = active ? 'var(--accent)' : 'var(--border)';
+    btn.style.background  = active ? 'var(--accent-dim)' : 'var(--bg-elevated)';
+    btn.style.color       = active ? 'var(--accent)' : 'var(--text-secondary)';
+    btn.style.fontWeight  = active ? '700' : '600';
+  });
+  _refreshApiKeyStatus();
+}
+
+function getActiveAIKey() {
+  const provider = AI_PROVIDERS[_activeAIProvider];
+  return provider ? localStorage.getItem(provider.lsKey) || '' : '';
+}
+
 function saveTargets() {
   State.targets.calories = +document.getElementById('s-cal').value || State.targets.calories;
   State.targets.protein = +document.getElementById('s-protein').value || State.targets.protein;
@@ -8609,21 +8722,73 @@ Respond ONLY with a JSON array like:
 No markdown, no preamble, just the JSON array.`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role:'user', content: prompt }]
-      })
-    });
-    const data = await res.json();
-    const text = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
-    const cleaned = text.replace(/```json|```/g,'').trim();
-    const suggestions = JSON.parse(cleaned);
+    const apiKey = getActiveAIKey();
+    const provider = _activeAIProvider;
 
-    content.innerHTML = suggestions.map((s,i)=>`
+    if (!apiKey) {
+      const pLabel = AI_PROVIDERS[provider]?.label || 'AI';
+      content.innerHTML = `<div style="padding:16px;font-size:0.85rem">
+        <div style="color:var(--orange);margin-bottom:8px;font-weight:600">🔑 API Key Required</div>
+        <div style="color:var(--text-secondary);font-size:0.78rem;margin-bottom:12px">Add your ${pLabel} key in <strong>Settings → AI Features</strong> to use Smart Goal Suggestions.</div>
+        <button class="btn btn-outline btn-sm" onclick="navigate('settings');document.getElementById('ai-suggestions-panel').style.display='none'">Go to Settings →</button>
+      </div>`;
+      return;
+    }
+
+    let text = '';
+
+    if (provider === 'claude') {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role:'user', content: prompt }] })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `Claude API error ${res.status}`);
+      text = (data.content || []).filter(b=>b.type==='text').map(b=>b.text).join('');
+
+    } else if (provider === 'gemini') {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `Gemini API error ${res.status}`);
+      text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    } else if (provider === 'openai') {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 1000, messages: [{ role:'user', content: prompt }] })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `OpenAI API error ${res.status}`);
+      text = data.choices?.[0]?.message?.content || '';
+
+    } else if (provider === 'perplexity') {
+      const res = await fetch('https://api.perplexity.ai/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: 'llama-3.1-sonar-small-128k-online', max_tokens: 1000, messages: [{ role:'user', content: prompt }] })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || `Perplexity API error ${res.status}`);
+      text = data.choices?.[0]?.message?.content || '';
+    }
+
+    if (!text) throw new Error('Empty response from API');
+    const cleaned = text.replace(/```json|```/g,'').trim();
+    // Extract JSON array even if there's extra text
+    const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('Could not parse suggestions from response');
+    const suggestions = JSON.parse(jsonMatch[0]);
+
+    const providerLabel = AI_PROVIDERS[provider]?.label || 'AI';
+    content.innerHTML = `<div style="font-size:0.68rem;color:var(--text-muted);margin-bottom:10px;display:flex;align-items:center;gap:4px">
+      Powered by <strong>${providerLabel}</strong>
+    </div>` + suggestions.map((s,i)=>`
       <div class="ai-suggestion-card">
         <div class="ai-suggestion-title">${s.title}</div>
         <div class="ai-suggestion-desc">${s.description}</div>
@@ -8631,10 +8796,18 @@ No markdown, no preamble, just the JSON array.`;
           onclick="adoptAISuggestion(${i})">+ Add This Goal</button>
       </div>`).join('');
 
-    // Store temporarily for adoption
     window._aiSuggestions = suggestions;
   } catch(e) {
-    content.innerHTML = `<div style="padding:16px;color:var(--red);font-size:0.85rem">Could not load suggestions. Please try again.</div>`;
+    console.error('AI suggestions error:', e);
+    const msg = e && e.message ? e.message : String(e);
+    content.innerHTML = `<div style="padding:16px;font-size:0.85rem">
+      <div style="color:var(--red);margin-bottom:10px">⚠️ Could not load suggestions.</div>
+      <div style="color:var(--text-muted);font-size:0.75rem;margin-bottom:12px">${msg}</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="openAISuggestions()">↩ Try Again</button>
+        <button class="btn btn-ghost btn-sm" onclick="navigate('settings');document.getElementById('ai-suggestions-panel').style.display='none'">⚙️ Settings</button>
+      </div>
+    </div>`;
   }
 }
 
