@@ -3502,8 +3502,8 @@ function dismissSplash() {
       </div>
       <!-- Quantity input -->
       <div class="form-group">
-        <label class="form-label">Quantity <span style="color:var(--text-muted);font-weight:400" id="ef-qty-unit-label"></span></label>
-        <input type="number" class="form-input" id="ef-qty" min="0.1" step="0.1" style="font-size:1.1rem;font-weight:700" oninput="efUpdatePreview()" />
+        <label class="form-label" id="ef-qty-label">Grams <span style="color:var(--text-muted);font-weight:400" id="ef-qty-unit-label"></span></label>
+        <input type="number" class="form-input" id="ef-qty" min="1" step="1" style="font-size:1.1rem;font-weight:700" oninput="efUpdatePreview()" />
       </div>
       <!-- Live macro preview -->
       <div id="ef-preview" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px;padding:12px;background:var(--bg-card);border-radius:var(--radius-sm);border:1px solid var(--border)">
@@ -6206,28 +6206,62 @@ function openEditFood(meal, idx, dateKey) {
   const f = State.logs[dateKey].meals[meal][idx];
   if (!f) return;
 
-  // Display name & serving info (read-only)
-  document.getElementById('ef-name-display').textContent = f.name || '—';
-  // Serving label
-  const servingLabel = f.unit === 'g' ? 'per 100g' : (f.serving ? 'per serving (' + f.serving + ')' : '');
-  document.getElementById('ef-serving-display').textContent = servingLabel;
-  // Unit label next to qty
-  const qtyUnitEl = document.getElementById('ef-qty-unit-label');
-  if (qtyUnitEl) qtyUnitEl.textContent = f.unit === 'g' ? '(grams)' : f.mode === 'gram' ? '(grams)' : '(servings)';
+  // Try to extract grams from name label e.g. "Chicken Breast (250g)"
+  const gramMatch = f.name && f.name.match(/\((\d+(?:\.\d+)?)g\)$/);
+  // Try to detect servings e.g. "Egg (2×serving)" or qty-based
+  const servingMatch = f.name && f.name.match(/\((\d+(?:\.\d+)?)×/);
 
-  // Store base-per-unit macros so we can recalculate
-  const qty = f.qty || 1;
-  window._efBase = {
-    cal:     (f.cal     || 0) / qty,
-    protein: (f.protein || 0) / qty,
-    carbs:   (f.carbs   || 0) / qty,
-    fat:     (f.fat     || 0) / qty,
-    mode:    f.mode,
-    unit:    f.unit,
-    serving: f.serving
-  };
+  let mode, currentGrams, currentServings, basePer100g, basePer1serving, cleanName;
 
-  document.getElementById('ef-qty').value = qty;
+  if (gramMatch) {
+    // Gram-logged food
+    mode = 'gram';
+    currentGrams = parseFloat(gramMatch[1]);
+    cleanName = f.name.replace(/\s*\(\d+(?:\.\d+)?g\)$/, '');
+    // Base macros per 100g
+    basePer100g = {
+      cal:     (f.cal     / currentGrams) * 100,
+      protein: (f.protein / currentGrams) * 100,
+      carbs:   (f.carbs   / currentGrams) * 100,
+      fat:     (f.fat     / currentGrams) * 100,
+    };
+    window._efBase = { mode, grams: currentGrams, per100g: basePer100g, cleanName };
+  } else {
+    // Serving-based food — use qty as multiplier
+    mode = 'serving';
+    currentServings = f.qty || 1;
+    cleanName = f.name.replace(/\s*\(.*\)$/, '') || f.name;
+    basePer1serving = {
+      cal:     f.cal     / currentServings,
+      protein: f.protein / currentServings,
+      carbs:   f.carbs   / currentServings,
+      fat:     f.fat     / currentServings,
+    };
+    window._efBase = { mode, servings: currentServings, perServing: basePer1serving, cleanName };
+  }
+
+  // Populate modal
+  document.getElementById('ef-name-display').textContent = cleanName;
+
+  const unitLabel = document.getElementById('ef-qty-unit-label');
+  const qtyInput  = document.getElementById('ef-qty');
+  const servingEl = document.getElementById('ef-serving-display');
+
+  if (mode === 'gram') {
+    if (unitLabel) unitLabel.textContent = '';
+    if (qtyInput)  { qtyInput.value = currentGrams; qtyInput.step = '1'; qtyInput.min = '1'; }
+    const labelEl = document.getElementById('ef-qty-label');
+    if (labelEl) labelEl.firstChild.textContent = 'Grams';
+    if (servingEl) servingEl.textContent = 'Macros recalculate per gram amount';
+  } else {
+    if (unitLabel) unitLabel.textContent = '(servings)';
+    if (qtyInput)  { qtyInput.value = currentServings; qtyInput.step = '0.5'; qtyInput.min = '0.5'; }
+    const labelEl = document.getElementById('ef-qty-label');
+    if (labelEl) labelEl.firstChild.textContent = 'Servings ';
+    const servingHint = f.name.match(/\(.*\)$/);
+    if (servingEl) servingEl.textContent = servingHint ? 'Original: ' + servingHint[0] : '';
+  }
+
   efUpdatePreview();
   openModal('modal-edit-food');
 }
@@ -6236,10 +6270,22 @@ function efUpdatePreview() {
   const base = window._efBase;
   if (!base) return;
   const qty = +document.getElementById('ef-qty').value || 0;
-  document.getElementById('ef-prev-cal').textContent  = Math.round(base.cal     * qty);
-  document.getElementById('ef-prev-pro').textContent  = (base.protein * qty).toFixed(1) + 'g';
-  document.getElementById('ef-prev-carb').textContent = (base.carbs   * qty).toFixed(1) + 'g';
-  document.getElementById('ef-prev-fat').textContent  = (base.fat     * qty).toFixed(1) + 'g';
+  let cal, protein, carbs, fat;
+  if (base.mode === 'gram') {
+    cal     = (base.per100g.cal     * qty) / 100;
+    protein = (base.per100g.protein * qty) / 100;
+    carbs   = (base.per100g.carbs   * qty) / 100;
+    fat     = (base.per100g.fat     * qty) / 100;
+  } else {
+    cal     = base.perServing.cal     * qty;
+    protein = base.perServing.protein * qty;
+    carbs   = base.perServing.carbs   * qty;
+    fat     = base.perServing.fat     * qty;
+  }
+  document.getElementById('ef-prev-cal').textContent  = Math.round(cal);
+  document.getElementById('ef-prev-pro').textContent  = protein.toFixed(1) + 'g';
+  document.getElementById('ef-prev-carb').textContent = carbs.toFixed(1) + 'g';
+  document.getElementById('ef-prev-fat').textContent  = fat.toFixed(1) + 'g';
 }
 
 function saveEditFood() {
@@ -6248,11 +6294,31 @@ function saveEditFood() {
   const base = window._efBase;
   if (!base) return;
   const qty = +document.getElementById('ef-qty').value || 1;
-  f.qty     = qty;
-  f.cal     = Math.round(base.cal     * qty);
-  f.protein = Math.round(base.protein * qty * 10) / 10;
-  f.carbs   = Math.round(base.carbs   * qty * 10) / 10;
-  f.fat     = Math.round(base.fat     * qty * 10) / 10;
+
+  let cal, protein, carbs, fat, newName;
+  if (base.mode === 'gram') {
+    cal     = Math.round((base.per100g.cal     * qty) / 100);
+    protein = Math.round((base.per100g.protein * qty) / 100 * 10) / 10;
+    carbs   = Math.round((base.per100g.carbs   * qty) / 100 * 10) / 10;
+    fat     = Math.round((base.per100g.fat     * qty) / 100 * 10) / 10;
+    newName = base.cleanName + ` (${qty}g)`;
+    f.qty   = qty / 100; // store as multiples of 100g for consistency
+  } else {
+    cal     = Math.round(base.perServing.cal     * qty);
+    protein = Math.round(base.perServing.protein * qty * 10) / 10;
+    carbs   = Math.round(base.perServing.carbs   * qty * 10) / 10;
+    fat     = Math.round(base.perServing.fat     * qty * 10) / 10;
+    // Preserve original serving label if present
+    const originalSuffix = f.name.match(/\(.*\)$/);
+    newName = base.cleanName + (originalSuffix ? ' ' + originalSuffix[0] : '');
+    f.qty   = qty;
+  }
+
+  f.name    = newName;
+  f.cal     = cal;
+  f.protein = protein;
+  f.carbs   = carbs;
+  f.fat     = fat;
   save();
   closeModal('modal-edit-food');
   renderMealLog();
