@@ -3493,27 +3493,35 @@ function dismissSplash() {
       ✏️ Edit Food Entry
       <button class="btn-icon" onclick="closeModal('modal-edit-food')">✕</button>
     </div>
-    <div class="form-grid" style="gap:12px;margin-bottom:16px">
-      <div class="form-group">
-        <label class="form-label">Name</label>
-        <input type="text" class="form-input" id="ef-name" placeholder="Food name" />
+    <div style="margin-bottom:16px">
+      <!-- Food name (read-only display) -->
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:14px">
+        <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Food</div>
+        <div style="font-size:0.95rem;font-weight:600;color:var(--text-primary)" id="ef-name-display">—</div>
+        <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px" id="ef-serving-display"></div>
       </div>
-      <div class="form-grid form-grid-2" style="gap:10px">
-        <div class="form-group">
-          <label class="form-label">Calories (kcal)</label>
-          <input type="number" class="form-input" id="ef-cal" min="0" step="1" />
+      <!-- Quantity input -->
+      <div class="form-group">
+        <label class="form-label">Quantity <span style="color:var(--text-muted);font-weight:400" id="ef-qty-unit-label"></span></label>
+        <input type="number" class="form-input" id="ef-qty" min="0.1" step="0.1" style="font-size:1.1rem;font-weight:700" oninput="efUpdatePreview()" />
+      </div>
+      <!-- Live macro preview -->
+      <div id="ef-preview" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px;padding:12px;background:var(--bg-card);border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <div style="text-align:center">
+          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Cal</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--accent)" id="ef-prev-cal">—</div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Protein (g)</label>
-          <input type="number" class="form-input" id="ef-protein" min="0" step="0.1" />
+        <div style="text-align:center">
+          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Protein</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--green)" id="ef-prev-pro">—</div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Carbs (g)</label>
-          <input type="number" class="form-input" id="ef-carbs" min="0" step="0.1" />
+        <div style="text-align:center">
+          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Carbs</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--orange)" id="ef-prev-carb">—</div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Fat (g)</label>
-          <input type="number" class="form-input" id="ef-fat" min="0" step="0.1" />
+        <div style="text-align:center">
+          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:3px">Fat</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--red)" id="ef-prev-fat">—</div>
         </div>
       </div>
     </div>
@@ -6197,22 +6205,54 @@ function openEditFood(meal, idx, dateKey) {
   _editFoodDate = dateKey;
   const f = State.logs[dateKey].meals[meal][idx];
   if (!f) return;
-  document.getElementById('ef-name').value = f.name || '';
-  document.getElementById('ef-cal').value = f.cal || 0;
-  document.getElementById('ef-protein').value = f.protein || 0;
-  document.getElementById('ef-carbs').value = f.carbs || 0;
-  document.getElementById('ef-fat').value = f.fat || 0;
+
+  // Display name & serving info (read-only)
+  document.getElementById('ef-name-display').textContent = f.name || '—';
+  // Serving label
+  const servingLabel = f.unit === 'g' ? 'per 100g' : (f.serving ? 'per serving (' + f.serving + ')' : '');
+  document.getElementById('ef-serving-display').textContent = servingLabel;
+  // Unit label next to qty
+  const qtyUnitEl = document.getElementById('ef-qty-unit-label');
+  if (qtyUnitEl) qtyUnitEl.textContent = f.unit === 'g' ? '(grams)' : f.mode === 'gram' ? '(grams)' : '(servings)';
+
+  // Store base-per-unit macros so we can recalculate
+  const qty = f.qty || 1;
+  window._efBase = {
+    cal:     (f.cal     || 0) / qty,
+    protein: (f.protein || 0) / qty,
+    carbs:   (f.carbs   || 0) / qty,
+    fat:     (f.fat     || 0) / qty,
+    mode:    f.mode,
+    unit:    f.unit,
+    serving: f.serving
+  };
+
+  document.getElementById('ef-qty').value = qty;
+  efUpdatePreview();
   openModal('modal-edit-food');
+}
+
+function efUpdatePreview() {
+  const base = window._efBase;
+  if (!base) return;
+  const qty = +document.getElementById('ef-qty').value || 0;
+  document.getElementById('ef-prev-cal').textContent  = Math.round(base.cal     * qty);
+  document.getElementById('ef-prev-pro').textContent  = (base.protein * qty).toFixed(1) + 'g';
+  document.getElementById('ef-prev-carb').textContent = (base.carbs   * qty).toFixed(1) + 'g';
+  document.getElementById('ef-prev-fat').textContent  = (base.fat     * qty).toFixed(1) + 'g';
 }
 
 function saveEditFood() {
   if (_editFoodIdx < 0 || !_editFoodMeal || !_editFoodDate) return;
   const f = State.logs[_editFoodDate].meals[_editFoodMeal][_editFoodIdx];
-  f.name    = document.getElementById('ef-name').value.trim() || f.name;
-  f.cal     = +document.getElementById('ef-cal').value || 0;
-  f.protein = +document.getElementById('ef-protein').value || 0;
-  f.carbs   = +document.getElementById('ef-carbs').value || 0;
-  f.fat     = +document.getElementById('ef-fat').value || 0;
+  const base = window._efBase;
+  if (!base) return;
+  const qty = +document.getElementById('ef-qty').value || 1;
+  f.qty     = qty;
+  f.cal     = Math.round(base.cal     * qty);
+  f.protein = Math.round(base.protein * qty * 10) / 10;
+  f.carbs   = Math.round(base.carbs   * qty * 10) / 10;
+  f.fat     = Math.round(base.fat     * qty * 10) / 10;
   save();
   closeModal('modal-edit-food');
   renderMealLog();
@@ -6455,6 +6495,17 @@ function removeExercise(ei) {
     window._pendingScheduledDate = null;
     window._pullSuppressedForDate = wdGetDate();
   }
+  if (!wdIsToday()) save();
+  renderWorkoutPage();
+}
+
+function moveExercise(ei, direction) {
+  const exs = wdGetActiveExercises();
+  const newIdx = ei + direction;
+  if (newIdx < 0 || newIdx >= exs.length) return;
+  const tmp = exs[ei];
+  exs[ei] = exs[newIdx];
+  exs[newIdx] = tmp;
   if (!wdIsToday()) save();
   renderWorkoutPage();
 }
@@ -6980,7 +7031,9 @@ function renderCalEditWorkout() {
           <div style="font-size:0.88rem;font-weight:700">${ex.name}</div>
           <div style="font-size:0.7rem;color:var(--accent)">${ex.muscle}</div>
         </div>
-        <div style="display:flex;gap:4px">
+        <div style="display:flex;gap:4px;align-items:center">
+          ${ei > 0 ? `<button class="btn-icon" onclick="calEditMoveEx(${ei},-1)" title="Move up" style="padding:4px 6px;font-size:0.8rem;color:var(--text-secondary)">↑</button>` : `<span style="width:24px;display:inline-block"></span>`}
+          ${ei < exs.length - 1 ? `<button class="btn-icon" onclick="calEditMoveEx(${ei},1)" title="Move down" style="padding:4px 6px;font-size:0.8rem;color:var(--text-secondary)">↓</button>` : `<span style="width:24px;display:inline-block"></span>`}
           <button class="btn btn-outline btn-sm" onclick="calEditAddSet(${ei})" style="font-size:0.72rem;padding:4px 8px">+ Set</button>
           <button class="btn-icon" style="padding:4px 6px;font-size:0.7rem;color:var(--red)" onclick="calEditRemoveEx(${ei})">✕</button>
         </div>
@@ -7043,6 +7096,15 @@ function calEditRemoveSet(ei,si) {
 }
 function calEditRemoveEx(ei) {
   window._calEditWorkoutExercises.splice(ei,1);
+  renderCalEditWorkout();
+}
+function calEditMoveEx(ei, direction) {
+  const exs = window._calEditWorkoutExercises;
+  const newIdx = ei + direction;
+  if (!exs || newIdx < 0 || newIdx >= exs.length) return;
+  const tmp = exs[ei];
+  exs[ei] = exs[newIdx];
+  exs[newIdx] = tmp;
   renderCalEditWorkout();
 }
 
@@ -11077,7 +11139,9 @@ function _enhancedRenderWorkoutPage() {
               ${vol>0?`<span style="font-size:0.68rem;color:var(--text-muted)">${Math.round(isImperial()?vol*2.20462:vol)}${weightUnit()} vol</span>`:''}
             </div>
           </div>
-          <div style="display:flex;gap:4px">
+          <div style="display:flex;gap:4px;align-items:center">
+            ${ei > 0 ? `<button class="btn-icon" onclick="moveExercise(${ei},-1)" title="Move up" style="padding:5px 7px;font-size:0.8rem;color:var(--text-secondary)">↑</button>` : `<span style="width:28px;display:inline-block"></span>`}
+            ${ei < currentExercises.length - 1 ? `<button class="btn-icon" onclick="moveExercise(${ei},1)" title="Move down" style="padding:5px 7px;font-size:0.8rem;color:var(--text-secondary)">↓</button>` : `<span style="width:28px;display:inline-block"></span>`}
             ${done < ex.sets.length ? `<button class="btn btn-outline btn-sm" onclick="doneAllSets(${ei})" style="padding:6px 10px;font-size:0.75rem;color:var(--green);border-color:var(--green)">✓ All Done</button>` : `<button class="btn btn-outline btn-sm" onclick="undoAllSets(${ei})" style="padding:6px 10px;font-size:0.75rem;color:var(--text-secondary)">↩ Undo</button>`}
             <button class="btn btn-outline btn-sm" onclick="addSet(${ei})" style="padding:6px 10px;font-size:0.75rem">+ Set</button>
             <button class="btn-icon" onclick="removeExercise(${ei})" style="padding:6px 8px;font-size:0.75rem;color:var(--red);border-color:rgba(255,71,87,0.2)">✕</button>
