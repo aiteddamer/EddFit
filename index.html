@@ -8749,14 +8749,31 @@ No markdown, no preamble, just the JSON array.`;
       text = (data.content || []).filter(b=>b.type==='text').map(b=>b.text).join('');
 
     } else if (provider === 'gemini') {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || `Gemini API error ${res.status}`);
-      text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      // Try models in order of best free-tier quota; stop on first success
+      const geminiModels = ['gemini-1.5-flash', 'gemini-2.0-flash'];
+      let lastGeminiError = null;
+      for (const model of geminiModels) {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          lastGeminiError = null;
+          break;
+        }
+        const errMsg = data.error?.message || `Gemini API error ${res.status}`;
+        const errCode = data.error?.code || res.status;
+        if (errCode === 401 || errCode === 403 || String(errMsg).toLowerCase().includes('api key')) {
+          throw new Error('Invalid Gemini API key. Please check your key in Settings → AI Features.');
+        }
+        lastGeminiError = errMsg;
+      }
+      if (lastGeminiError) {
+        throw new Error('Gemini free-tier quota exceeded. Please wait a minute and try again, or upgrade your Google AI plan at aistudio.google.com.');
+      }
 
     } else if (provider === 'openai') {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -8800,10 +8817,23 @@ No markdown, no preamble, just the JSON array.`;
     window._aiSuggestions = suggestions;
   } catch(e) {
     console.error('AI suggestions error:', e);
-    const msg = e && e.message ? e.message : String(e);
+    // Build a clean, user-friendly message — never dump raw API error blobs
+    let msg = 'Something went wrong. Please try again.';
+    if (e && e.message) {
+      const m = e.message;
+      if (m.includes('quota') || m.includes('Quota') || m.includes('rate') || m.includes('limit')) {
+        msg = '⏱ Rate limit reached. Wait a moment and try again, or switch to a different AI provider in Settings.';
+      } else if (m.includes('key') || m.includes('Key') || m.includes('auth') || m.includes('401') || m.includes('403')) {
+        msg = '🔑 API key issue. Check your key is correct in Settings → AI Features.';
+      } else if (m.includes('network') || m.includes('fetch') || m.includes('Failed to fetch')) {
+        msg = '🌐 Network error. Check your internet connection and try again.';
+      } else {
+        msg = m;
+      }
+    }
     content.innerHTML = `<div style="padding:16px;font-size:0.85rem">
-      <div style="color:var(--red);margin-bottom:10px">⚠️ Could not load suggestions.</div>
-      <div style="color:var(--text-muted);font-size:0.75rem;margin-bottom:12px">${msg}</div>
+      <div style="color:var(--red);margin-bottom:10px;font-weight:600">⚠️ Could not load suggestions</div>
+      <div style="color:var(--text-secondary);font-size:0.78rem;margin-bottom:14px;line-height:1.5">${msg}</div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline btn-sm" onclick="openAISuggestions()">↩ Try Again</button>
         <button class="btn btn-ghost btn-sm" onclick="navigate('settings');document.getElementById('ai-suggestions-panel').style.display='none'">⚙️ Settings</button>
