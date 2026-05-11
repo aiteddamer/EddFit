@@ -15,7 +15,9 @@
            createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail,
            updateProfile }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-  import { getFirestore, doc, getDoc, setDoc }
+  import { getFirestore, doc, getDoc, setDoc,
+           collection, query, where, getDocs, addDoc, updateDoc,
+           onSnapshot, arrayUnion, serverTimestamp, deleteDoc, orderBy, limit }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
   // ─── PASTE YOUR FIREBASE CONFIG OBJECT HERE ─────────────────────
@@ -40,6 +42,19 @@
   window._fbDoc      = doc;
   window._fbGetDoc   = getDoc;
   window._fbSetDoc   = setDoc;
+  // Social Firestore helpers
+  window._fbCollection   = collection;
+  window._fbQuery        = query;
+  window._fbWhere        = where;
+  window._fbGetDocs      = getDocs;
+  window._fbAddDoc       = addDoc;
+  window._fbUpdateDoc    = updateDoc;
+  window._fbOnSnapshot   = onSnapshot;
+  window._fbArrayUnion   = arrayUnion;
+  window._fbServerTs     = serverTimestamp;
+  window._fbDeleteDoc    = deleteDoc;
+  window._fbOrderBy      = orderBy;
+  window._fbLimit        = limit;
   window._fbSignIn   = () => signInWithPopup(auth, window._fbProvider);
   window._fbSignOut  = () => signOut(auth);
 
@@ -2581,6 +2596,10 @@ function dismissSplash() {
         <span class="nav-icon">📰</span> Reports
       </div>
       <div class="nav-section-label">Account</div>
+      <div class="nav-item" onclick="navigate('social',this)">
+        <span class="nav-icon">👥</span> Friends
+        <span class="nav-badge" id="social-invite-badge" style="display:none">!</span>
+      </div>
       <div class="nav-item" onclick="navigate('settings',this)">
         <span class="nav-icon">⚙️</span> Settings
       </div>
@@ -5805,7 +5824,7 @@ const PAGE_TITLES = {
   workouts: 'Workout Planner', calendar: 'Calendar',
   progress: 'Progress', goals: 'Goals', settings: 'Settings',
   bodymap: 'Body Map', mealplan: 'Meal Plan', recipes: 'Recipes',
-  records: 'Personal Records', reports: 'Weekly Reports'
+  records: 'Personal Records', reports: 'Weekly Reports', social: 'Friends & Challenges'
 };
 
 function navigate(page, el) {
@@ -5829,6 +5848,7 @@ function navigate(page, el) {
   if (page === 'records')   { if (typeof renderRecordsPage  === 'function') renderRecordsPage(); }
   if (page === 'reports')   { if (typeof renderReports      === 'function') renderReports(); }
   if (page === 'settings')  { loadApiKeyStatus(); }
+  if (page === 'social')    { if (typeof renderSocialPage   === 'function') renderSocialPage(); }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -12311,7 +12331,840 @@ document.addEventListener('click', function(e) {
     </div>
   </div>
 </div>
+<!-- ═════════ FRIENDS & CHALLENGES ═════════ -->
+<div class="page" id="page-social">
+  <!-- Tabs -->
+  <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto">
+    <button class="social-tab active" data-tab="friends"    onclick="switchSocialTab('friends',this)"    style="padding:11px 22px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap">👥 Friends</button>
+    <button class="social-tab"        data-tab="challenges" onclick="switchSocialTab('challenges',this)" style="padding:11px 22px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap">🏆 Challenges</button>
+    <button class="social-tab"        data-tab="leaderboard" onclick="switchSocialTab('leaderboard',this)" style="padding:11px 22px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap">📊 Leaderboard</button>
+  </div>
+
+  <!-- FRIENDS TAB -->
+  <div id="social-tab-friends">
+    <div class="grid-2" style="gap:20px">
+      <!-- Add Friend -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Add a Friend</div>
+            <div class="card-sub">Invite by email address</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input type="email" class="form-input" id="friend-email-input" placeholder="friend@email.com" style="flex:1;font-size:0.88rem;padding:9px 12px"
+            onkeydown="if(event.key==='Enter') sendFriendRequest()" />
+          <button class="btn btn-primary btn-sm" onclick="sendFriendRequest()">Send Invite</button>
+        </div>
+        <div id="friend-invite-msg" style="font-size:0.78rem;margin-top:8px;min-height:16px"></div>
+      </div>
+
+      <!-- Pending Invites -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Pending Invites</div>
+            <div class="card-sub" id="pending-invites-sub">Friend requests waiting for you</div>
+          </div>
+        </div>
+        <div id="pending-invites-list">
+          <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:16px 0">No pending invites</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Friends List -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-header">
+        <div>
+          <div class="card-title">My Friends</div>
+          <div class="card-sub" id="friends-count-sub">Loading…</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="refreshFriendsData()">↻ Refresh</button>
+      </div>
+      <div id="friends-list">
+        <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:24px 0">Loading friends…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHALLENGES TAB -->
+  <div id="social-tab-challenges" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:700">Weekly Challenges</div>
+        <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:2px">Compete with friends on fitness goals</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openCreateChallenge()">+ New Challenge</button>
+    </div>
+
+    <!-- Active Challenges -->
+    <div id="challenges-list">
+      <div style="text-align:center;padding:40px 0">
+        <div style="font-size:2.5rem;margin-bottom:12px">🏆</div>
+        <div style="font-family:var(--font-display);font-size:1rem;font-weight:700;margin-bottom:6px">No active challenges</div>
+        <div style="font-size:0.82rem;color:var(--text-secondary)">Create a challenge and invite friends to compete!</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD TAB -->
+  <div id="social-tab-leaderboard" style="display:none">
+    <div class="grid-2" style="gap:16px;margin-bottom:16px">
+      <!-- Period picker -->
+      <div class="card" style="padding:14px 18px">
+        <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Leaderboard Period</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="toggle-btn active" onclick="setLbPeriod('week',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:0.78rem;font-weight:700;cursor:pointer">This Week</button>
+          <button class="toggle-btn" onclick="setLbPeriod('month',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.78rem;font-weight:600;cursor:pointer">This Month</button>
+          <button class="toggle-btn" onclick="setLbPeriod('alltime',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.78rem;font-weight:600;cursor:pointer">All Time</button>
+        </div>
+      </div>
+      <!-- Metric picker -->
+      <div class="card" style="padding:14px 18px">
+        <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Rank By</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="lb-metric-btn active" onclick="setLbMetric('workouts',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:0.75rem;font-weight:700;cursor:pointer">💪 Workouts</button>
+          <button class="lb-metric-btn" onclick="setLbMetric('streak',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.75rem;font-weight:600;cursor:pointer">🔥 Streak</button>
+          <button class="lb-metric-btn" onclick="setLbMetric('calories',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.75rem;font-weight:600;cursor:pointer">🔥 Cal Goal</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title" id="lb-title">Workout Leaderboard — This Week</div>
+          <div class="card-sub">You + friends ranked by performance</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="loadLeaderboard()">↻ Refresh</button>
+      </div>
+      <div id="leaderboard-list">
+        <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:24px 0">Add friends to see the leaderboard</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create Challenge Modal -->
+<div class="modal-overlay" id="modal-create-challenge">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">
+      🏆 New Challenge
+      <button class="btn-icon" onclick="closeModal('modal-create-challenge')">✕</button>
+    </div>
+    <div class="form-grid" style="gap:14px">
+      <div class="form-group">
+        <label class="form-label">Challenge Name</label>
+        <input type="text" class="form-input" id="ch-name" placeholder="e.g. Workout Warriors" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Challenge Type</label>
+        <select class="form-select" id="ch-type">
+          <option value="most_workouts">💪 Most Workouts (count)</option>
+          <option value="calorie_streak">🔥 Calorie Goal Streak (days hit)</option>
+          <option value="most_steps">🚶 Most Active Days</option>
+        </select>
+      </div>
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label class="form-label">Start Date</label>
+          <input type="date" class="form-input" id="ch-start" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Date</label>
+          <input type="date" class="form-input" id="ch-end" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Invite Friends</label>
+        <div id="ch-friends-checkboxes" style="display:flex;flex-direction:column;gap:8px;margin-top:4px;max-height:160px;overflow-y:auto">
+          <div style="font-size:0.8rem;color:var(--text-muted)">Add friends first to invite them</div>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-create-challenge')">Cancel</button>
+      <button class="btn btn-primary" onclick="createChallenge()">🚀 Create Challenge</button>
+    </div>
+  </div>
+</div>
+
 
 </div><!-- /app-wrapper -->
+<!-- ═══════════════════════════════════════════════════════════════
+     FRIENDS & CHALLENGES MODULE
+═══════════════════════════════════════════════════════════════ -->
+<script>
+// ── Social state ──────────────────────────────────────────────────────
+const Social = {
+  friends: [],        // confirmed friend user objects { uid, name, email, photoURL }
+  pendingIn: [],      // incoming invite docs  { id, fromUid, fromName, fromEmail }
+  challenges: [],     // challenge docs
+  lbPeriod: 'week',
+  lbMetric: 'workouts',
+  _unsubFriends: null,
+  _unsubChallenges: null,
+};
+
+// ── Tab switching ────────────────────────────────────────────────────
+function switchSocialTab(tab, btn) {
+  document.querySelectorAll('.social-tab').forEach(b => {
+    b.style.color = 'var(--text-secondary)';
+    b.style.borderBottomColor = 'transparent';
+  });
+  btn.style.color = 'var(--accent)';
+  btn.style.borderBottomColor = 'var(--accent)';
+  ['friends','challenges','leaderboard'].forEach(t => {
+    const el = document.getElementById('social-tab-' + t);
+    if (el) el.style.display = t === tab ? '' : 'none';
+  });
+  if (tab === 'leaderboard') loadLeaderboard();
+  if (tab === 'challenges')  loadChallenges();
+}
+
+// ── Entry point ──────────────────────────────────────────────────────
+async function renderSocialPage() {
+  await loadFriends();
+  loadPendingInvites();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  FRIENDS
+// ─────────────────────────────────────────────────────────────────────
+async function sendFriendRequest() {
+  const input = document.getElementById('friend-email-input');
+  const msgEl = document.getElementById('friend-invite-msg');
+  const email = (input?.value || '').trim().toLowerCase();
+  msgEl.textContent = '';
+  msgEl.style.color = 'var(--text-secondary)';
+
+  if (!email || !email.includes('@')) {
+    msgEl.textContent = '⚠️ Enter a valid email address.';
+    msgEl.style.color = 'var(--red)';
+    return;
+  }
+  const me = window._currentUser;
+  if (!me) return;
+  if (email === me.email?.toLowerCase()) {
+    msgEl.textContent = '⚠️ You can\'t add yourself!';
+    msgEl.style.color = 'var(--red)';
+    return;
+  }
+
+  msgEl.textContent = 'Searching…';
+  try {
+    const db = window._fbDb;
+    // Find target user by email in the public index (users_public/{uid})
+    const usersQ = window._fbQuery(
+      window._fbCollection(db, 'users_public'),
+      window._fbWhere('email', '==', email)
+    );
+    const snap = await window._fbGetDocs(usersQ);
+    if (snap.empty) {
+      msgEl.textContent = '⚠️ No EddFit user found with that email. They need to sign up first.';
+      msgEl.style.color = 'var(--orange)';
+      return;
+    }
+    const targetDoc = snap.docs[0];
+    const targetUid = targetDoc.id;
+    const targetData = targetDoc.data();
+
+    // Check if already friends or pending
+    const alreadyFriend = Social.friends.some(f => f.uid === targetUid);
+    if (alreadyFriend) {
+      msgEl.textContent = '✅ Already friends!';
+      msgEl.style.color = 'var(--green)';
+      return;
+    }
+
+    // Write invite to target user's invites sub-collection
+    await window._fbAddDoc(
+      window._fbCollection(db, 'users_public', targetUid, 'invites'),
+      {
+        fromUid: me.uid,
+        fromName: me.displayName || me.email,
+        fromEmail: me.email,
+        fromPhotoURL: me.photoURL || '',
+        sentAt: window._fbServerTs(),
+        status: 'pending'
+      }
+    );
+
+    // Write our public profile so others can find us
+    await window._fbSetDoc(
+      window._fbDoc(db, 'users_public', me.uid),
+      { email: me.email?.toLowerCase(), name: me.displayName || me.email, photoURL: me.photoURL || '' },
+      { merge: true }
+    );
+
+    msgEl.textContent = `✅ Friend request sent to ${targetData.name || email}!`;
+    msgEl.style.color = 'var(--green)';
+    if (input) input.value = '';
+  } catch(e) {
+    console.error('sendFriendRequest', e);
+    msgEl.textContent = '⚠️ Failed to send invite. Please try again.';
+    msgEl.style.color = 'var(--red)';
+  }
+}
+
+async function loadPendingInvites() {
+  const me = window._currentUser;
+  if (!me) return;
+  try {
+    const db = window._fbDb;
+    // Ensure our public profile exists
+    await window._fbSetDoc(
+      window._fbDoc(db, 'users_public', me.uid),
+      { email: me.email?.toLowerCase(), name: me.displayName || me.email, photoURL: me.photoURL || '' },
+      { merge: true }
+    );
+
+    const invSnap = await window._fbGetDocs(
+      window._fbQuery(
+        window._fbCollection(db, 'users_public', me.uid, 'invites'),
+        window._fbWhere('status', '==', 'pending')
+      )
+    );
+    Social.pendingIn = invSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderPendingInvites();
+
+    // Badge
+    const badge = document.getElementById('social-invite-badge');
+    if (badge) badge.style.display = Social.pendingIn.length > 0 ? '' : 'none';
+  } catch(e) {
+    console.error('loadPendingInvites', e);
+  }
+}
+
+function renderPendingInvites() {
+  const el = document.getElementById('pending-invites-list');
+  if (!el) return;
+  if (!Social.pendingIn.length) {
+    el.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:16px 0">No pending invites 🎉</div>';
+    return;
+  }
+  el.innerHTML = Social.pendingIn.map(inv => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:0.85rem;color:var(--bg-base);flex-shrink:0">
+        ${(inv.fromName||'?').charAt(0).toUpperCase()}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:0.88rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${inv.fromName||inv.fromEmail}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted)">${inv.fromEmail}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-primary btn-sm" onclick="acceptInvite('${inv.id}','${inv.fromUid}','${encodeURIComponent(inv.fromName||'')}','${inv.fromEmail}')">Accept</button>
+        <button class="btn btn-ghost btn-sm" onclick="declineInvite('${inv.id}')">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function acceptInvite(invId, fromUid, fromNameEnc, fromEmail) {
+  const me = window._currentUser;
+  if (!me) return;
+  const fromName = decodeURIComponent(fromNameEnc);
+  const db = window._fbDb;
+  try {
+    // Mark invite as accepted
+    await window._fbUpdateDoc(
+      window._fbDoc(db, 'users_public', me.uid, 'invites', invId),
+      { status: 'accepted' }
+    );
+    // Write friendship record both ways
+    const friendshipId = [me.uid, fromUid].sort().join('_');
+    await window._fbSetDoc(
+      window._fbDoc(db, 'friendships', friendshipId),
+      {
+        users: [me.uid, fromUid],
+        createdAt: window._fbServerTs()
+      }
+    );
+    showToast(`You and ${fromName} are now friends! 🎉`, 'success');
+    Social.pendingIn = Social.pendingIn.filter(i => i.id !== invId);
+    renderPendingInvites();
+    await loadFriends();
+  } catch(e) {
+    console.error('acceptInvite', e);
+    showToast('Failed to accept invite', 'error');
+  }
+}
+
+async function declineInvite(invId) {
+  const me = window._currentUser;
+  if (!me) return;
+  try {
+    await window._fbUpdateDoc(
+      window._fbDoc(window._fbDb, 'users_public', me.uid, 'invites', invId),
+      { status: 'declined' }
+    );
+    Social.pendingIn = Social.pendingIn.filter(i => i.id !== invId);
+    renderPendingInvites();
+    showToast('Invite declined', 'info');
+  } catch(e) { console.error('declineInvite', e); }
+}
+
+async function loadFriends() {
+  const me = window._currentUser;
+  if (!me) return;
+  try {
+    const db = window._fbDb;
+    const q = window._fbQuery(
+      window._fbCollection(db, 'friendships'),
+      window._fbWhere('users', 'array-contains', me.uid)
+    );
+    const snap = await window._fbGetDocs(q);
+    const friendUids = [];
+    snap.docs.forEach(d => {
+      d.data().users.forEach(uid => { if (uid !== me.uid) friendUids.push(uid); });
+    });
+
+    // Load public profiles for each friend
+    Social.friends = [];
+    await Promise.all(friendUids.map(async uid => {
+      const pSnap = await window._fbGetDoc(window._fbDoc(db, 'users_public', uid));
+      if (pSnap.exists()) Social.friends.push({ uid, ...pSnap.data() });
+    }));
+
+    renderFriendsList();
+    updateChallengeInviteList();
+  } catch(e) {
+    console.error('loadFriends', e);
+    renderFriendsList();
+  }
+}
+
+async function refreshFriendsData() {
+  showToast('Refreshing…', 'info', 1500);
+  await loadFriends();
+  await loadPendingInvites();
+  showToast('Friends updated!', 'success');
+}
+
+function renderFriendsList() {
+  const el = document.getElementById('friends-list');
+  const sub = document.getElementById('friends-count-sub');
+  if (sub) sub.textContent = `${Social.friends.length} friend${Social.friends.length !== 1 ? 's' : ''}`;
+  if (!el) return;
+  if (!Social.friends.length) {
+    el.innerHTML = `
+      <div style="text-align:center;padding:32px 0">
+        <div style="font-size:2rem;margin-bottom:10px">👥</div>
+        <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:700;margin-bottom:6px">No friends yet</div>
+        <div style="font-size:0.8rem;color:var(--text-secondary)">Invite a friend by email above to get started!</div>
+      </div>`;
+    return;
+  }
+  el.innerHTML = Social.friends.map(f => `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
+      <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:var(--bg-base);flex-shrink:0;position:relative">
+        ${f.photoURL ? `<img src="${f.photoURL}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;position:absolute;top:0;left:0" onerror="this.style.display='none'">` : ''}
+        ${(f.name||'?').charAt(0).toUpperCase()}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:0.9rem;font-weight:600">${f.name || f.email}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted)">${f.email || ''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <span style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:var(--green-dim);color:var(--green);font-weight:700">✓ Friends</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function removeFriend(friendUid) {
+  const me = window._currentUser;
+  if (!me) return;
+  const friendshipId = [me.uid, friendUid].sort().join('_');
+  try {
+    await window._fbDeleteDoc(window._fbDoc(window._fbDb, 'friendships', friendshipId));
+    Social.friends = Social.friends.filter(f => f.uid !== friendUid);
+    renderFriendsList();
+    showToast('Friend removed', 'info');
+  } catch(e) { console.error('removeFriend', e); }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  CHALLENGES
+// ─────────────────────────────────────────────────────────────────────
+function openCreateChallenge() {
+  // Set default dates to this week Mon–Sun
+  const now = new Date();
+  const day = now.getDay();
+  const monday = new Date(now); monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  const fmt = d => d.toISOString().split('T')[0];
+  const startEl = document.getElementById('ch-start');
+  const endEl   = document.getElementById('ch-end');
+  if (startEl) startEl.value = fmt(monday);
+  if (endEl)   endEl.value   = fmt(sunday);
+  updateChallengeInviteList();
+  openModal('modal-create-challenge');
+}
+
+function updateChallengeInviteList() {
+  const el = document.getElementById('ch-friends-checkboxes');
+  if (!el) return;
+  if (!Social.friends.length) {
+    el.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted)">Add friends first to invite them to challenges</div>';
+    return;
+  }
+  el.innerHTML = Social.friends.map(f => `
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 8px;border-radius:var(--radius-sm);transition:background var(--transition)" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
+      <input type="checkbox" value="${f.uid}" style="accent-color:var(--accent);width:15px;height:15px;flex-shrink:0" />
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--bg-base);flex-shrink:0">${(f.name||'?').charAt(0).toUpperCase()}</div>
+      <span style="font-size:0.85rem;font-weight:500">${f.name || f.email}</span>
+    </label>
+  `).join('');
+}
+
+async function createChallenge() {
+  const name   = document.getElementById('ch-name')?.value.trim();
+  const type   = document.getElementById('ch-type')?.value;
+  const start  = document.getElementById('ch-start')?.value;
+  const end    = document.getElementById('ch-end')?.value;
+  const me = window._currentUser;
+  if (!me) return;
+
+  if (!name) { showToast('Enter a challenge name', 'warn'); return; }
+  if (!start || !end || start > end) { showToast('Set valid start and end dates', 'warn'); return; }
+
+  const invitedUids = [];
+  document.querySelectorAll('#ch-friends-checkboxes input[type=checkbox]:checked').forEach(cb => {
+    invitedUids.push(cb.value);
+  });
+
+  const participants = [me.uid, ...invitedUids];
+  const scores = {};
+  participants.forEach(uid => { scores[uid] = 0; });
+
+  const participantNames = { [me.uid]: me.displayName || me.email };
+  Social.friends.filter(f => invitedUids.includes(f.uid)).forEach(f => {
+    participantNames[f.uid] = f.name || f.email;
+  });
+
+  try {
+    await window._fbAddDoc(
+      window._fbCollection(window._fbDb, 'challenges'),
+      {
+        name,
+        type,
+        start,
+        end,
+        createdBy: me.uid,
+        createdByName: me.displayName || me.email,
+        participants,
+        participantNames,
+        scores,
+        createdAt: window._fbServerTs()
+      }
+    );
+    showToast(`Challenge "${name}" created! 🏆`, 'success');
+    closeModal('modal-create-challenge');
+    document.getElementById('ch-name').value = '';
+    switchSocialTab('challenges', document.querySelector('.social-tab[data-tab=challenges]'));
+    await loadChallenges();
+  } catch(e) {
+    console.error('createChallenge', e);
+    showToast('Failed to create challenge', 'error');
+  }
+}
+
+async function loadChallenges() {
+  const me = window._currentUser;
+  if (!me) return;
+  try {
+    const snap = await window._fbGetDocs(
+      window._fbQuery(
+        window._fbCollection(window._fbDb, 'challenges'),
+        window._fbWhere('participants', 'array-contains', me.uid)
+      )
+    );
+    Social.challenges = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // For each challenge, recalculate the user's own score from State
+    for (const ch of Social.challenges) {
+      const myScore = calcChallengeScore(ch);
+      if (myScore !== ch.scores[me.uid]) {
+        ch.scores[me.uid] = myScore;
+        // Push to Firestore
+        await window._fbUpdateDoc(
+          window._fbDoc(window._fbDb, 'challenges', ch.id),
+          { [`scores.${me.uid}`]: myScore }
+        ).catch(() => {});
+      }
+    }
+    renderChallenges();
+  } catch(e) {
+    console.error('loadChallenges', e);
+  }
+}
+
+function calcChallengeScore(ch) {
+  const start = ch.start, end = ch.end;
+  if (ch.type === 'most_workouts') {
+    return State.workouts.filter(w => w.date >= start && w.date <= end && w.exercises?.length > 0).length;
+  }
+  if (ch.type === 'calorie_streak') {
+    // Days where calorie goal was met
+    let count = 0;
+    const startD = new Date(start + 'T00:00:00');
+    const endD   = new Date(end   + 'T00:00:00');
+    for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+      const k = d.toISOString().split('T')[0];
+      const log = State.logs[k];
+      if (!log) continue;
+      const cal = Object.values(log.meals).flat().reduce((s, f) => s + (f.cal||0), 0);
+      if (cal >= (State.targets.calories * 0.9)) count++;
+    }
+    return count;
+  }
+  if (ch.type === 'most_steps') {
+    // Active days = any workout or calorie entry
+    const startD = new Date(start + 'T00:00:00');
+    const endD   = new Date(end   + 'T00:00:00');
+    let count = 0;
+    for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+      const k = d.toISOString().split('T')[0];
+      const hasWorkout = State.workouts.some(w => w.date === k && w.exercises?.length > 0);
+      const hasFood    = State.logs[k] && Object.values(State.logs[k].meals).some(m => m.length > 0);
+      if (hasWorkout || hasFood) count++;
+    }
+    return count;
+  }
+  return 0;
+}
+
+const CHALLENGE_TYPE_LABELS = {
+  most_workouts:  '💪 Most Workouts',
+  calorie_streak: '🔥 Calorie Goal Streak',
+  most_steps:     '🚶 Most Active Days',
+};
+const CHALLENGE_TYPE_UNIT = {
+  most_workouts:  'workouts',
+  calorie_streak: 'days hit',
+  most_steps:     'active days',
+};
+
+function renderChallenges() {
+  const el = document.getElementById('challenges-list');
+  if (!el) return;
+  const me = window._currentUser;
+  if (!Social.challenges.length) {
+    el.innerHTML = `
+      <div style="text-align:center;padding:40px 0">
+        <div style="font-size:2.5rem;margin-bottom:12px">🏆</div>
+        <div style="font-family:var(--font-display);font-size:1rem;font-weight:700;margin-bottom:6px">No active challenges</div>
+        <div style="font-size:0.82rem;color:var(--text-secondary)">Create a challenge and invite friends to compete!</div>
+      </div>`;
+    return;
+  }
+  const today = todayKey();
+  el.innerHTML = Social.challenges.map(ch => {
+    const isActive = ch.start <= today && ch.end >= today;
+    const isEnded  = ch.end < today;
+    const sorted   = Object.entries(ch.scores).sort((a,b) => b[1]-a[1]);
+    const myScore  = ch.scores[me.uid] || 0;
+    const myRank   = sorted.findIndex(([uid]) => uid === me.uid) + 1;
+    const medal    = myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : `#${myRank}`;
+    const unit     = CHALLENGE_TYPE_UNIT[ch.type] || '';
+    const statusColor = isEnded ? 'var(--text-muted)' : isActive ? 'var(--green)' : 'var(--orange)';
+    const statusLabel = isEnded ? 'Ended' : isActive ? 'Active' : 'Upcoming';
+
+    const rows = sorted.slice(0, 5).map(([uid, score], i) => {
+      const name = ch.participantNames?.[uid] || uid.slice(0, 8);
+      const isMe = uid === me.uid;
+      const m = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--radius-sm);background:${isMe?'var(--accent-dim)':'transparent'}">
+        <span style="font-size:0.85rem;min-width:24px">${m}</span>
+        <span style="font-size:0.85rem;font-weight:${isMe?'700':'500'};flex:1;color:${isMe?'var(--accent)':'var(--text-primary)'}">${name}${isMe?' (you)':''}</span>
+        <span style="font-size:0.85rem;font-weight:700;color:var(--text-secondary)">${score} ${unit}</span>
+      </div>`;
+    }).join('');
+
+    return `
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px">
+          <div>
+            <div style="font-family:var(--font-display);font-size:0.97rem;font-weight:700">${ch.name}</div>
+            <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px">${CHALLENGE_TYPE_LABELS[ch.type]||ch.type} · ${ch.start} → ${ch.end}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+            <span style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:${isActive?'var(--green-dim)':isEnded?'var(--bg-elevated)':'var(--orange-dim)'};color:${statusColor};font-weight:700">${statusLabel}</span>
+            <span style="font-size:1rem">${medal}</span>
+          </div>
+        </div>
+        <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);overflow:hidden">${rows}</div>
+        <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:0.75rem;color:var(--text-secondary)">${ch.participants.length} participant${ch.participants.length!==1?'s':''} · created by ${ch.createdByName||'Unknown'}</div>
+          <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">Your score: ${myScore} ${unit}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  LEADERBOARD
+// ─────────────────────────────────────────────────────────────────────
+function setLbPeriod(period, btn) {
+  Social.lbPeriod = period;
+  document.querySelectorAll('.toggle-btn').forEach(b => {
+    b.style.background = 'var(--bg-elevated)';
+    b.style.borderColor = 'var(--border)';
+    b.style.color = 'var(--text-secondary)';
+  });
+  btn.style.background = 'var(--accent-dim)';
+  btn.style.borderColor = 'var(--accent)';
+  btn.style.color = 'var(--accent)';
+  updateLbTitle();
+  loadLeaderboard();
+}
+
+function setLbMetric(metric, btn) {
+  Social.lbMetric = metric;
+  document.querySelectorAll('.lb-metric-btn').forEach(b => {
+    b.style.background = 'var(--bg-elevated)';
+    b.style.borderColor = 'var(--border)';
+    b.style.color = 'var(--text-secondary)';
+  });
+  btn.style.background = 'var(--accent-dim)';
+  btn.style.borderColor = 'var(--accent)';
+  btn.style.color = 'var(--accent)';
+  updateLbTitle();
+  loadLeaderboard();
+}
+
+function updateLbTitle() {
+  const metricLabels = { workouts: 'Workout', streak: 'Streak', calories: 'Calorie Goal' };
+  const periodLabels = { week: 'This Week', month: 'This Month', alltime: 'All Time' };
+  const el = document.getElementById('lb-title');
+  if (el) el.textContent = `${metricLabels[Social.lbMetric]||''} Leaderboard — ${periodLabels[Social.lbPeriod]||''}`;
+}
+
+function getLbPeriodRange() {
+  const now = new Date();
+  if (Social.lbPeriod === 'week') {
+    const day = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    return { start: monday.toISOString().split('T')[0], end: sunday.toISOString().split('T')[0] };
+  }
+  if (Social.lbPeriod === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const end   = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0];
+    return { start, end };
+  }
+  return { start: '2020-01-01', end: '2099-12-31' };
+}
+
+function calcMyLbScore() {
+  const { start, end } = getLbPeriodRange();
+  const me = window._currentUser;
+  if (Social.lbMetric === 'workouts') {
+    return State.workouts.filter(w => w.date >= start && w.date <= end && w.exercises?.length > 0).length;
+  }
+  if (Social.lbMetric === 'streak') {
+    return State.streak || 0;
+  }
+  if (Social.lbMetric === 'calories') {
+    // Days calorie goal was met in range
+    let count = 0;
+    const startD = new Date(start + 'T00:00:00');
+    const endD   = new Date(end   + 'T00:00:00');
+    for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+      const k = d.toISOString().split('T')[0];
+      const log = State.logs[k];
+      if (!log) continue;
+      const cal = Object.values(log.meals).flat().reduce((s, f) => s + (f.cal||0), 0);
+      if (cal >= (State.targets.calories * 0.9)) count++;
+    }
+    return count;
+  }
+  return 0;
+}
+
+async function loadLeaderboard() {
+  const me = window._currentUser;
+  if (!me) return;
+  if (!Social.friends.length) {
+    const el = document.getElementById('leaderboard-list');
+    if (el) el.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:24px 0">Add friends to see the leaderboard 👥</div>';
+    return;
+  }
+
+  const myScore = calcMyLbScore();
+  const metric  = Social.lbMetric;
+  const { start, end } = getLbPeriodRange();
+  const metricField = metric === 'workouts' ? 'workouts' : metric === 'streak' ? 'streak' : 'calGoalDays';
+
+  // Push own score to public leaderboard doc
+  try {
+    await window._fbSetDoc(
+      window._fbDoc(window._fbDb, 'leaderboard', me.uid),
+      {
+        uid: me.uid,
+        name: me.displayName || me.email,
+        photoURL: me.photoURL || '',
+        workouts: metric === 'workouts' ? myScore : undefined,
+        streak:   metric === 'streak'   ? myScore : undefined,
+        calGoalDays: metric === 'calories' ? myScore : undefined,
+        period: Social.lbPeriod,
+        updatedAt: window._fbServerTs()
+      },
+      { merge: true }
+    );
+  } catch(e) {}
+
+  // Load friend scores
+  const friendUids = Social.friends.map(f => f.uid);
+  const entries = [{ uid: me.uid, name: me.displayName || me.email, score: myScore, isMe: true }];
+
+  await Promise.all(friendUids.map(async uid => {
+    try {
+      const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'leaderboard', uid));
+      if (snap.exists()) {
+        const d = snap.data();
+        if (!d.period || d.period === Social.lbPeriod) {
+          const score = d[metricField] || 0;
+          const name  = Social.friends.find(f => f.uid === uid)?.name || d.name || uid.slice(0,8);
+          entries.push({ uid, name, score, isMe: false });
+        }
+      }
+    } catch(e) {}
+  }));
+
+  entries.sort((a, b) => b.score - a.score);
+  renderLeaderboard(entries);
+}
+
+const LB_UNITS = { workouts: 'workouts', streak: 'day streak', calories: 'days' };
+
+function renderLeaderboard(entries) {
+  const el = document.getElementById('leaderboard-list');
+  if (!el) return;
+  const unit = LB_UNITS[Social.lbMetric] || '';
+  el.innerHTML = entries.map((e, i) => {
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+    const friend = Social.friends.find(f => f.uid === e.uid);
+    const initials = (e.name || '?').charAt(0).toUpperCase();
+    return `
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 10px;border-radius:var(--radius-sm);background:${e.isMe?'var(--accent-dim)':'transparent'};${i < entries.length-1 ? 'border-bottom:1px solid var(--border)' : ''}">
+        <span style="font-size:1.1rem;min-width:28px;text-align:center">${medal}</span>
+        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:0.82rem;color:var(--bg-base);flex-shrink:0;position:relative">
+          ${friend?.photoURL ? `<img src="${friend.photoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;position:absolute;top:0;left:0" onerror="this.style.display='none'">` : ''}
+          ${initials}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.9rem;font-weight:${e.isMe?'700':'600'};color:${e.isMe?'var(--accent)':'var(--text-primary)'}">${e.name}${e.isMe ? ' (you)' : ''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:800;color:${e.isMe?'var(--accent)':'var(--text-primary)'}">${e.score}</div>
+          <div style="font-size:0.68rem;color:var(--text-muted)">${unit}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+</script>
 </body>
 </html>
