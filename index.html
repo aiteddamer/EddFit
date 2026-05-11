@@ -5828,6 +5828,7 @@ function navigate(page, el) {
   if (page === 'recipes')   { if (typeof renderRecipesPage  === 'function') renderRecipesPage(); if (typeof renderCustomFoods === 'function') renderCustomFoods(); }
   if (page === 'records')   { if (typeof renderRecordsPage  === 'function') renderRecordsPage(); }
   if (page === 'reports')   { if (typeof renderReports      === 'function') renderReports(); }
+  if (page === 'settings')  { loadApiKeyStatus(); }
 }
 
 // ═══════════════════════════════════════════════════════════════════
