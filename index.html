@@ -2596,6 +2596,9 @@ function dismissSplash() {
         <span class="nav-icon">📰</span> Reports
       </div>
       <div class="nav-section-label">Account</div>
+      <div class="nav-item" onclick="openAccountModal()">
+        <span class="nav-icon">👤</span> My Account
+      </div>
       <div class="nav-item" onclick="navigate('social',this)">
         <span class="nav-icon">👥</span> Friends
         <span class="nav-badge" id="social-invite-badge" style="display:none">!</span>
@@ -12339,9 +12342,8 @@ document.addEventListener('click', function(e) {
     <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:3px">Connect, compete, and stay accountable together</div>
   </div>
 
-  <!-- Tabs -->
-  <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none">
-    <style>#page-social .social-tab-nav::-webkit-scrollbar{display:none}</style>
+  <!-- Tabs — scrollbar hidden -->
+  <div style="display:flex;border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto;-ms-overflow-style:none;scrollbar-width:none">
     <button class="social-tab active" data-tab="friends"    onclick="switchSocialTab('friends',this)"    style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">👥 Friends</button>
     <button class="social-tab"        data-tab="challenges" onclick="switchSocialTab('challenges',this)" style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">🏆 Challenges</button>
     <button class="social-tab"        data-tab="leaderboard" onclick="switchSocialTab('leaderboard',this)" style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">📊 Leaderboard</button>
@@ -12349,20 +12351,40 @@ document.addEventListener('click', function(e) {
 
   <!-- FRIENDS TAB -->
   <div id="social-tab-friends">
+
+    <!-- My Profile Card -->
+    <div class="card" id="social-my-profile-card" style="margin-bottom:16px;background:var(--accent-dim);border-color:var(--accent)">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:1.1rem;color:var(--bg-base);flex-shrink:0;position:relative" id="social-my-avatar-wrap">
+          <img id="social-my-photo" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover">
+          <span id="social-my-initial">?</span>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--accent)" id="social-my-displayname">—</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:1px">@<span id="social-my-username">set your username</span></div>
+        </div>
+        <button onclick="openAccountModal()" style="background:var(--accent);color:var(--bg-base);border:none;border-radius:var(--radius-sm);padding:7px 14px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:var(--font-body);white-space:nowrap">Edit Profile</button>
+      </div>
+    </div>
+
     <div class="grid-2">
       <!-- Add Friend -->
       <div class="card">
         <div class="card-header">
           <div>
             <div class="card-title">➕ Add a Friend</div>
-            <div class="card-sub">Invite by email address</div>
+            <div class="card-sub">Search by @username</div>
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <input type="email" class="form-input" id="friend-email-input" placeholder="friend@email.com" style="flex:1;min-width:0;font-size:0.88rem;padding:9px 12px"
-            onkeydown="if(event.key==='Enter') sendFriendRequest()" />
-          <button class="btn btn-primary btn-sm" onclick="sendFriendRequest()" style="white-space:nowrap">Send Invite</button>
+          <div style="position:relative;flex:1;min-width:0">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.9rem">@</span>
+            <input type="text" class="form-input" id="friend-username-input" placeholder="username" style="padding-left:24px;font-size:0.88rem;padding-top:9px;padding-bottom:9px;width:100%"
+              onkeydown="if(event.key==='Enter') sendFriendRequestByUsername()" oninput="searchUsernameDebounced(this.value)" />
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="sendFriendRequestByUsername()" style="white-space:nowrap">Add Friend</button>
         </div>
+        <div id="username-search-results" style="margin-top:8px;display:none;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border);overflow:hidden"></div>
         <div id="friend-invite-msg" style="font-size:0.78rem;margin-top:8px;min-height:16px"></div>
       </div>
 
@@ -12371,11 +12393,11 @@ document.addEventListener('click', function(e) {
         <div class="card-header">
           <div>
             <div class="card-title">🔔 Pending Invites</div>
-            <div class="card-sub" id="pending-invites-sub">Friend requests waiting for you</div>
+            <div class="card-sub" id="pending-invites-sub">Friend requests waiting</div>
           </div>
         </div>
         <div id="pending-invites-list">
-          <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:16px 0">No pending invites</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:16px 0">No pending invites 🎉</div>
         </div>
       </div>
     </div>
@@ -12500,6 +12522,63 @@ document.addEventListener('click', function(e) {
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════
+     ACCOUNT MANAGEMENT MODAL
+═══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-account" style="z-index:999">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">
+      👤 My Account
+      <button class="btn-icon" onclick="closeModal('modal-account')">✕</button>
+    </div>
+
+    <!-- Profile Preview -->
+    <div style="display:flex;align-items:center;gap:14px;background:var(--bg-elevated);border-radius:var(--radius);padding:16px;margin-bottom:20px">
+      <div style="position:relative;width:56px;height:56px;flex-shrink:0">
+        <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:1.2rem;color:var(--bg-base)" id="acct-avatar-letter">?</div>
+        <img id="acct-avatar-photo" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover">
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="acct-preview-fullname">—</div>
+        <div style="font-size:0.8rem;color:var(--accent);margin-top:2px;font-weight:600">@<span id="acct-preview-username">—</span></div>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px" id="acct-preview-email">—</div>
+      </div>
+    </div>
+
+    <div class="form-grid" style="gap:14px">
+      <!-- Full Name -->
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" class="form-input" id="acct-fullname" placeholder="e.g. Ayman Ait Eddamer" />
+        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">Shown to friends in their friend list</div>
+      </div>
+
+      <!-- Username -->
+      <div class="form-group">
+        <label class="form-label">Username <span style="color:var(--accent)">*</span></label>
+        <div style="position:relative">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-weight:600">@</span>
+          <input type="text" class="form-input" id="acct-username" placeholder="your_username" style="padding-left:28px"
+            oninput="validateUsernameInput(this.value)" maxlength="30" />
+        </div>
+        <div id="acct-username-status" style="font-size:0.72rem;margin-top:4px;min-height:16px;color:var(--text-muted)">3–30 chars · letters, numbers, underscores only · unique per user</div>
+      </div>
+    </div>
+
+    <!-- Locked info note -->
+    <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:10px 14px;margin-top:14px;font-size:0.75rem;color:var(--text-secondary);display:flex;gap:8px;align-items:flex-start">
+      <span style="flex-shrink:0">🔒</span>
+      <span>Your <strong>email address</strong> is never visible to other users — only you can see it. Friends see your username and full name only.</span>
+    </div>
+
+    <div id="acct-save-msg" style="font-size:0.78rem;margin-top:10px;min-height:16px;text-align:center"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-account')">Cancel</button>
+      <button class="btn btn-primary" id="acct-save-btn" onclick="saveAccountProfile()">💾 Save Profile</button>
+    </div>
+  </div>
+</div>
 
 </div><!-- /app-wrapper -->
 <!-- ═══════════════════════════════════════════════════════════════
@@ -12508,9 +12587,10 @@ document.addEventListener('click', function(e) {
 <script>
 // ── Social state ──────────────────────────────────────────────────────
 const Social = {
-  friends: [],        // confirmed friend user objects { uid, name, email, photoURL }
-  pendingIn: [],      // incoming invite docs  { id, fromUid, fromName, fromEmail }
-  challenges: [],     // challenge docs
+  friends: [],
+  pendingIn: [],
+  myProfile: null,
+  challenges: [],
   lbPeriod: 'week',
   lbMetric: 'workouts',
   _unsubFriends: null,
@@ -12522,9 +12602,11 @@ function switchSocialTab(tab, btn) {
   document.querySelectorAll('.social-tab').forEach(b => {
     b.style.color = 'var(--text-secondary)';
     b.style.borderBottomColor = 'transparent';
+    b.style.fontWeight = '600';
   });
   btn.style.color = 'var(--accent)';
   btn.style.borderBottomColor = 'var(--accent)';
+  btn.style.fontWeight = '700';
   ['friends','challenges','leaderboard'].forEach(t => {
     const el = document.getElementById('social-tab-' + t);
     if (el) el.style.display = t === tab ? '' : 'none';
@@ -12535,120 +12617,285 @@ function switchSocialTab(tab, btn) {
 
 // ── Entry point ──────────────────────────────────────────────────────
 async function renderSocialPage() {
+  await loadMyProfile();
+  updateSocialProfileCard();
   await loadFriends();
   loadPendingInvites();
 }
 
 // ─────────────────────────────────────────────────────────────────────
-//  FRIENDS
+//  ACCOUNT MANAGEMENT
 // ─────────────────────────────────────────────────────────────────────
-async function sendFriendRequest() {
-  const input = document.getElementById('friend-email-input');
-  const msgEl = document.getElementById('friend-invite-msg');
-  const email = (input?.value || '').trim().toLowerCase();
-  msgEl.textContent = '';
-  msgEl.style.color = 'var(--text-secondary)';
+let _acctUsernameTimer  = null;
+let _acctUsernameValid  = false;
+let _acctCurrentUsername = '';
 
-  if (!email || !email.includes('@')) {
-    msgEl.textContent = '⚠️ Enter a valid email address.';
-    msgEl.style.color = 'var(--red)';
-    return;
-  }
+function openAccountModal() {
   const me = window._currentUser;
   if (!me) return;
-  if (email === me.email?.toLowerCase()) {
-    msgEl.textContent = '⚠️ You can\'t add yourself!';
-    msgEl.style.color = 'var(--red)';
-    return;
+  if (typeof closeSidebar === 'function') closeSidebar();
+
+  const fullname = Social.myProfile?.fullName || me.displayName || '';
+  const username = Social.myProfile?.username || '';
+  _acctCurrentUsername = username;
+  _acctUsernameValid   = !!username;
+
+  document.getElementById('acct-fullname').value = fullname;
+  document.getElementById('acct-username').value = username;
+  document.getElementById('acct-save-msg').textContent = '';
+
+  const statusEl = document.getElementById('acct-username-status');
+  if (statusEl) {
+    statusEl.textContent = username ? '✅ Your current username' : '3–30 chars · letters, numbers, underscores only';
+    statusEl.style.color = username ? 'var(--green)' : 'var(--text-muted)';
   }
+
+  document.getElementById('acct-preview-fullname').textContent = fullname || me.displayName || '—';
+  document.getElementById('acct-preview-username').textContent = username || 'not set';
+  document.getElementById('acct-preview-email').textContent   = me.email || '';
+  document.getElementById('acct-avatar-letter').textContent   = (fullname || me.displayName || 'U').charAt(0).toUpperCase();
+  if (me.photoURL) {
+    document.getElementById('acct-avatar-photo').src = me.photoURL;
+    document.getElementById('acct-avatar-photo').style.display = 'block';
+  } else {
+    document.getElementById('acct-avatar-photo').style.display = 'none';
+  }
+
+  document.getElementById('modal-account').classList.add('active');
+}
+
+function validateUsernameInput(val) {
+  const statusEl = document.getElementById('acct-username-status');
+  const cleaned  = val.toLowerCase().replace(/[^a-z0-9_]/g,'');
+  const inputEl  = document.getElementById('acct-username');
+  if (inputEl && cleaned !== val.toLowerCase()) inputEl.value = cleaned;
+
+  const fnVal = document.getElementById('acct-fullname')?.value || '';
+  const me    = window._currentUser;
+  const previewUn = document.getElementById('acct-preview-username');
+  const previewFn = document.getElementById('acct-preview-fullname');
+  if (previewUn) previewUn.textContent = cleaned || 'not set';
+  if (previewFn) previewFn.textContent = fnVal || me?.displayName || '—';
+
+  if (!cleaned || cleaned.length < 3) {
+    if (statusEl) { statusEl.textContent = cleaned.length>0 ? 'Too short (min 3 chars)' : '3–30 chars · letters, numbers, underscores only'; statusEl.style.color = cleaned.length>0 ? 'var(--red)' : 'var(--text-muted)'; }
+    _acctUsernameValid = false; return;
+  }
+  if (cleaned === _acctCurrentUsername) {
+    if (statusEl) { statusEl.textContent = '✅ Your current username'; statusEl.style.color = 'var(--green)'; }
+    _acctUsernameValid = true; return;
+  }
+  if (statusEl) { statusEl.textContent = 'Checking availability…'; statusEl.style.color = 'var(--text-muted)'; }
+  _acctUsernameValid = false;
+  clearTimeout(_acctUsernameTimer);
+  _acctUsernameTimer = setTimeout(() => checkUsernameAvailability(cleaned), 600);
+}
+
+async function checkUsernameAvailability(username) {
+  const statusEl = document.getElementById('acct-username-status');
+  try {
+    const snap = await window._fbGetDocs(
+      window._fbQuery(window._fbCollection(window._fbDb, 'users_public'), window._fbWhere('username','==',username))
+    );
+    const me = window._currentUser;
+    const taken = snap.docs.some(d => d.id !== me.uid);
+    if (statusEl) { statusEl.textContent = taken ? '❌ Username taken' : '✅ Available!'; statusEl.style.color = taken ? 'var(--red)' : 'var(--green)'; }
+    _acctUsernameValid = !taken;
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = 'Could not check — try saving'; statusEl.style.color = 'var(--text-muted)'; }
+    _acctUsernameValid = true;
+  }
+}
+
+async function saveAccountProfile() {
+  const me       = window._currentUser;
+  if (!me) return;
+  const fullName = document.getElementById('acct-fullname').value.trim();
+  const username = document.getElementById('acct-username').value.trim().toLowerCase();
+  const msgEl    = document.getElementById('acct-save-msg');
+  const btn      = document.getElementById('acct-save-btn');
+
+  msgEl.textContent = '';
+  if (!username || username.length < 3) { msgEl.textContent = '⚠️ Username must be at least 3 characters.'; msgEl.style.color = 'var(--red)'; return; }
+  if (!/^[a-z0-9_]+$/.test(username))  { msgEl.textContent = '⚠️ Letters, numbers, underscores only.'; msgEl.style.color = 'var(--red)'; return; }
+  if (!_acctUsernameValid && username !== _acctCurrentUsername) { msgEl.textContent = '⚠️ Wait for username check or pick another.'; msgEl.style.color = 'var(--red)'; return; }
+
+  btn.disabled = true; btn.style.opacity = '0.6';
+  msgEl.textContent = 'Saving…'; msgEl.style.color = 'var(--text-muted)';
+
+  try {
+    const db = window._fbDb;
+    if (username !== _acctCurrentUsername) {
+      const snap = await window._fbGetDocs(window._fbQuery(window._fbCollection(db,'users_public'),window._fbWhere('username','==',username)));
+      if (snap.docs.some(d => d.id !== me.uid)) {
+        msgEl.textContent = '❌ Username just taken.'; msgEl.style.color = 'var(--red)';
+        btn.disabled = false; btn.style.opacity = '1'; return;
+      }
+    }
+    await window._fbSetDoc(window._fbDoc(db,'users_public',me.uid), { username, fullName: fullName || me.displayName || '', photoURL: me.photoURL || '', uid: me.uid }, { merge: true });
+
+    Social.myProfile = { username, fullName: fullName || me.displayName || '', photoURL: me.photoURL || '' };
+    _acctCurrentUsername = username;
+    _acctUsernameValid   = true;
+
+    const authNameEl = document.getElementById('auth-user-name');
+    if (authNameEl) authNameEl.textContent = fullName || me.displayName || me.email;
+    const sidebarNameEl = document.getElementById('sidebar-name');
+    if (sidebarNameEl) sidebarNameEl.textContent = '@' + username;
+
+    updateSocialProfileCard();
+    msgEl.textContent = '✅ Profile saved!'; msgEl.style.color = 'var(--green)';
+    btn.disabled = false; btn.style.opacity = '1';
+    setTimeout(() => closeModal('modal-account'), 1200);
+    if (typeof showToast === 'function') showToast('Profile updated! ✅', 'success');
+  } catch(e) {
+    console.error('saveAccountProfile', e);
+    msgEl.textContent = '⚠️ Failed — try again.'; msgEl.style.color = 'var(--red)';
+    btn.disabled = false; btn.style.opacity = '1';
+  }
+}
+
+function updateSocialProfileCard() {
+  const me = window._currentUser;
+  if (!me) return;
+  const p = Social.myProfile || {};
+  const fullName = p.fullName || me.displayName || me.email || '';
+  const username = p.username || '';
+  const nameEl  = document.getElementById('social-my-displayname');
+  const unEl    = document.getElementById('social-my-username');
+  const initEl  = document.getElementById('social-my-initial');
+  const photoEl = document.getElementById('social-my-photo');
+  if (nameEl)  nameEl.textContent  = fullName || '—';
+  if (unEl)    unEl.textContent    = username || 'tap Edit Profile to set username';
+  if (initEl)  initEl.textContent  = (fullName || 'U').charAt(0).toUpperCase();
+  if (photoEl) { if (me.photoURL) { photoEl.src = me.photoURL; photoEl.style.display = 'block'; } else photoEl.style.display = 'none'; }
+}
+
+async function loadMyProfile() {
+  const me = window._currentUser;
+  if (!me) return;
+  try {
+    const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'users_public', me.uid));
+    Social.myProfile = snap.exists() ? snap.data() : { username:'', fullName: me.displayName||'', photoURL: me.photoURL||'' };
+    const sub = document.getElementById('sidebar-name');
+    if (sub && Social.myProfile.username) sub.textContent = '@' + Social.myProfile.username;
+  } catch(e) { console.error('loadMyProfile', e); }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  USERNAME SEARCH + SEND FRIEND REQUEST
+// ─────────────────────────────────────────────────────────────────────
+let _usernameSearchTimer = null;
+
+function searchUsernameDebounced(val) {
+  clearTimeout(_usernameSearchTimer);
+  const q = val.trim().toLowerCase().replace(/^@/,'');
+  const resultsEl = document.getElementById('username-search-results');
+  if (!q || q.length < 2) { if (resultsEl) resultsEl.style.display = 'none'; return; }
+  _usernameSearchTimer = setTimeout(() => searchUsername(q), 400);
+}
+
+async function searchUsername(query) {
+  const resultsEl = document.getElementById('username-search-results');
+  const me = window._currentUser;
+  if (!resultsEl || !me) return;
+  resultsEl.style.display = 'block';
+  resultsEl.innerHTML = '<div style="padding:10px 14px;font-size:0.8rem;color:var(--text-muted)">Searching…</div>';
+  try {
+    const snap = await window._fbGetDocs(
+      window._fbQuery(window._fbCollection(window._fbDb,'users_public'), window._fbWhere('username','>=',query), window._fbWhere('username','<=',query+'\uf8ff'), window._fbLimit(6))
+    );
+    const results = snap.docs.filter(d => d.id !== me.uid).map(d => ({ uid:d.id, ...d.data() }));
+    if (!results.length) { resultsEl.innerHTML = `<div style="padding:10px 14px;font-size:0.8rem;color:var(--text-muted)">No users found for "@${query}"</div>`; return; }
+    resultsEl.innerHTML = results.map(u => {
+      const isFriend = Social.friends.some(f => f.uid === u.uid);
+      const init = (u.fullName || u.username || '?').charAt(0).toUpperCase();
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer"
+        onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'"
+        onclick="selectUsernameResult('${u.username}','${u.uid}')">
+        <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.78rem;color:var(--bg-base);flex-shrink:0;position:relative">
+          ${u.photoURL?`<img src="${u.photoURL}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">`:''} ${init}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.85rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.fullName||u.username}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted)">@${u.username}</div>
+        </div>
+        ${isFriend?'<span style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:var(--green-dim);color:var(--green);font-weight:700;flex-shrink:0">✓ Friends</span>':'<span style="font-size:0.72rem;color:var(--accent);font-weight:600;flex-shrink:0">Add →</span>'}
+      </div>`;
+    }).join('');
+  } catch(e) { resultsEl.innerHTML = '<div style="padding:10px 14px;font-size:0.8rem;color:var(--red)">Search failed — try again</div>'; }
+}
+
+function selectUsernameResult(username) {
+  const inputEl = document.getElementById('friend-username-input');
+  if (inputEl) inputEl.value = '@' + username;
+  const resultsEl = document.getElementById('username-search-results');
+  if (resultsEl) resultsEl.style.display = 'none';
+}
+
+async function sendFriendRequestByUsername() {
+  const input = document.getElementById('friend-username-input');
+  const msgEl = document.getElementById('friend-invite-msg');
+  const resultsEl = document.getElementById('username-search-results');
+  let username = (input?.value || '').trim().toLowerCase().replace(/^@/,'');
+  msgEl.textContent = ''; msgEl.style.color = 'var(--text-secondary)';
+  if (resultsEl) resultsEl.style.display = 'none';
+
+  const me = window._currentUser;
+  if (!me) return;
+  if (!username || username.length < 3) { msgEl.textContent = '⚠️ Enter a valid @username.'; msgEl.style.color = 'var(--red)'; return; }
+  if (!Social.myProfile?.username) { msgEl.textContent = '⚠️ Set your own username first (tap Edit Profile above).'; msgEl.style.color = 'var(--orange)'; return; }
+  if (username === Social.myProfile.username) { msgEl.textContent = '⚠️ That\'s you!'; msgEl.style.color = 'var(--red)'; return; }
 
   msgEl.textContent = 'Searching…';
   try {
     const db = window._fbDb;
-    // Find target user by email in the public index (users_public/{uid})
-    const usersQ = window._fbQuery(
-      window._fbCollection(db, 'users_public'),
-      window._fbWhere('email', '==', email)
-    );
-    const snap = await window._fbGetDocs(usersQ);
-    if (snap.empty) {
-      msgEl.textContent = '⚠️ No EddFit user found with that email. They need to sign up first.';
-      msgEl.style.color = 'var(--orange)';
-      return;
-    }
+    const snap = await window._fbGetDocs(window._fbQuery(window._fbCollection(db,'users_public'), window._fbWhere('username','==',username)));
+    if (snap.empty) { msgEl.textContent = '⚠️ No user found with @'+username+'. Check spelling.'; msgEl.style.color = 'var(--orange)'; return; }
     const targetDoc = snap.docs[0];
     const targetUid = targetDoc.id;
-    const targetData = targetDoc.data();
+    if (targetUid === me.uid) { msgEl.textContent = '⚠️ That\'s your own profile!'; msgEl.style.color = 'var(--red)'; return; }
+    if (Social.friends.some(f => f.uid === targetUid)) { msgEl.textContent = '✅ Already friends!'; msgEl.style.color = 'var(--green)'; return; }
 
-    // Check if already friends or pending
-    const alreadyFriend = Social.friends.some(f => f.uid === targetUid);
-    if (alreadyFriend) {
-      msgEl.textContent = '✅ Already friends!';
-      msgEl.style.color = 'var(--green)';
-      return;
-    }
+    await window._fbAddDoc(window._fbCollection(db,'users_public',targetUid,'invites'), {
+      fromUid: me.uid,
+      fromUsername: Social.myProfile.username,
+      fromName: Social.myProfile.fullName || me.displayName || Social.myProfile.username,
+      fromPhotoURL: me.photoURL || '',
+      sentAt: window._fbServerTs(),
+      status: 'pending'
+    });
+    await window._fbSetDoc(window._fbDoc(db,'users_public',me.uid), { username: Social.myProfile.username, fullName: Social.myProfile.fullName||me.displayName||'', photoURL: me.photoURL||'', uid: me.uid }, { merge: true });
 
-    // Write invite to target user's invites sub-collection
-    await window._fbAddDoc(
-      window._fbCollection(db, 'users_public', targetUid, 'invites'),
-      {
-        fromUid: me.uid,
-        fromName: me.displayName || me.email,
-        fromEmail: me.email,
-        fromPhotoURL: me.photoURL || '',
-        sentAt: window._fbServerTs(),
-        status: 'pending'
-      }
-    );
-
-    // Write our public profile so others can find us
-    await window._fbSetDoc(
-      window._fbDoc(db, 'users_public', me.uid),
-      { email: me.email?.toLowerCase(), name: me.displayName || me.email, photoURL: me.photoURL || '' },
-      { merge: true }
-    );
-
-    msgEl.textContent = `✅ Friend request sent to ${targetData.name || email}!`;
+    msgEl.textContent = `✅ Friend request sent to @${username}!`;
     msgEl.style.color = 'var(--green)';
     if (input) input.value = '';
   } catch(e) {
-    console.error('sendFriendRequest', e);
-    msgEl.textContent = '⚠️ Failed to send invite. Please try again.';
-    msgEl.style.color = 'var(--red)';
+    console.error('sendFriendRequestByUsername', e);
+    msgEl.textContent = '⚠️ Failed to send. Please try again.'; msgEl.style.color = 'var(--red)';
   }
 }
+
+async function sendFriendRequest() { return sendFriendRequestByUsername(); }
 
 async function loadPendingInvites() {
   const me = window._currentUser;
   if (!me) return;
   try {
-    const db = window._fbDb;
-    // Ensure our public profile exists
-    await window._fbSetDoc(
-      window._fbDoc(db, 'users_public', me.uid),
-      { email: me.email?.toLowerCase(), name: me.displayName || me.email, photoURL: me.photoURL || '' },
-      { merge: true }
-    );
-
     const invSnap = await window._fbGetDocs(
-      window._fbQuery(
-        window._fbCollection(db, 'users_public', me.uid, 'invites'),
-        window._fbWhere('status', '==', 'pending')
-      )
+      window._fbQuery(window._fbCollection(window._fbDb,'users_public',me.uid,'invites'), window._fbWhere('status','==','pending'))
     );
     Social.pendingIn = invSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderPendingInvites();
-
-    // Badge
     const badge = document.getElementById('social-invite-badge');
     if (badge) badge.style.display = Social.pendingIn.length > 0 ? '' : 'none';
-  } catch(e) {
-    console.error('loadPendingInvites', e);
-  }
+  } catch(e) { console.error('loadPendingInvites', e); }
 }
 
 function renderPendingInvites() {
-  const el = document.getElementById('pending-invites-list');
+  const el  = document.getElementById('pending-invites-list');
+  const sub = document.getElementById('pending-invites-sub');
+  if (sub) sub.textContent = Social.pendingIn.length ? `${Social.pendingIn.length} request${Social.pendingIn.length>1?'s':''} waiting` : 'No pending requests';
   if (!el) return;
   if (!Social.pendingIn.length) {
     el.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:16px 0">No pending invites 🎉</div>';
@@ -12656,59 +12903,40 @@ function renderPendingInvites() {
   }
   el.innerHTML = Social.pendingIn.map(inv => `
     <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
-      <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:0.85rem;color:var(--bg-base);flex-shrink:0">
-        ${(inv.fromName||'?').charAt(0).toUpperCase()}
+      <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;color:var(--bg-base);flex-shrink:0;position:relative">
+        ${inv.fromPhotoURL?`<img src="${inv.fromPhotoURL}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">`:''} ${(inv.fromName||inv.fromUsername||'?').charAt(0).toUpperCase()}
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:0.88rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${inv.fromName||inv.fromEmail}</div>
-        <div style="font-size:0.72rem;color:var(--text-muted)">${inv.fromEmail}</div>
+        <div style="font-size:0.88rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${inv.fromName||inv.fromUsername||'Unknown'}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted)">@${inv.fromUsername||'—'}</div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0">
-        <button class="btn btn-primary btn-sm" onclick="acceptInvite('${inv.id}','${inv.fromUid}','${encodeURIComponent(inv.fromName||'')}','${inv.fromEmail}')">Accept</button>
+        <button class="btn btn-primary btn-sm" onclick="acceptInvite('${inv.id}','${inv.fromUid}','${encodeURIComponent(inv.fromName||inv.fromUsername||'')}','${inv.fromUsername||''}')">Accept</button>
         <button class="btn btn-ghost btn-sm" onclick="declineInvite('${inv.id}')">✕</button>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
-async function acceptInvite(invId, fromUid, fromNameEnc, fromEmail) {
+async function acceptInvite(invId, fromUid, fromNameEnc, fromUsername) {
   const me = window._currentUser;
   if (!me) return;
   const fromName = decodeURIComponent(fromNameEnc);
-  const db = window._fbDb;
   try {
-    // Mark invite as accepted
-    await window._fbUpdateDoc(
-      window._fbDoc(db, 'users_public', me.uid, 'invites', invId),
-      { status: 'accepted' }
-    );
-    // Write friendship record both ways
+    await window._fbUpdateDoc(window._fbDoc(window._fbDb,'users_public',me.uid,'invites',invId), { status:'accepted' });
     const friendshipId = [me.uid, fromUid].sort().join('_');
-    await window._fbSetDoc(
-      window._fbDoc(db, 'friendships', friendshipId),
-      {
-        users: [me.uid, fromUid],
-        createdAt: window._fbServerTs()
-      }
-    );
+    await window._fbSetDoc(window._fbDoc(window._fbDb,'friendships',friendshipId), { users:[me.uid,fromUid], createdAt:window._fbServerTs() });
     showToast(`You and ${fromName} are now friends! 🎉`, 'success');
     Social.pendingIn = Social.pendingIn.filter(i => i.id !== invId);
     renderPendingInvites();
     await loadFriends();
-  } catch(e) {
-    console.error('acceptInvite', e);
-    showToast('Failed to accept invite', 'error');
-  }
+  } catch(e) { console.error('acceptInvite', e); showToast('Failed to accept invite', 'error'); }
 }
 
 async function declineInvite(invId) {
   const me = window._currentUser;
   if (!me) return;
   try {
-    await window._fbUpdateDoc(
-      window._fbDoc(window._fbDb, 'users_public', me.uid, 'invites', invId),
-      { status: 'declined' }
-    );
+    await window._fbUpdateDoc(window._fbDoc(window._fbDb,'users_public',me.uid,'invites',invId), { status:'declined' });
     Social.pendingIn = Social.pendingIn.filter(i => i.id !== invId);
     renderPendingInvites();
     showToast('Invite declined', 'info');
@@ -12720,29 +12948,19 @@ async function loadFriends() {
   if (!me) return;
   try {
     const db = window._fbDb;
-    const q = window._fbQuery(
-      window._fbCollection(db, 'friendships'),
-      window._fbWhere('users', 'array-contains', me.uid)
-    );
-    const snap = await window._fbGetDocs(q);
+    const snap = await window._fbGetDocs(window._fbQuery(window._fbCollection(db,'friendships'), window._fbWhere('users','array-contains',me.uid)));
     const friendUids = [];
-    snap.docs.forEach(d => {
-      d.data().users.forEach(uid => { if (uid !== me.uid) friendUids.push(uid); });
-    });
-
-    // Load public profiles for each friend
+    snap.docs.forEach(d => d.data().users.forEach(uid => { if (uid !== me.uid) friendUids.push(uid); }));
     Social.friends = [];
     await Promise.all(friendUids.map(async uid => {
-      const pSnap = await window._fbGetDoc(window._fbDoc(db, 'users_public', uid));
-      if (pSnap.exists()) Social.friends.push({ uid, ...pSnap.data() });
+      try {
+        const pSnap = await window._fbGetDoc(window._fbDoc(db,'users_public',uid));
+        if (pSnap.exists()) Social.friends.push({ uid, ...pSnap.data() });
+      } catch(e) {}
     }));
-
     renderFriendsList();
     updateChallengeInviteList();
-  } catch(e) {
-    console.error('loadFriends', e);
-    renderFriendsList();
-  }
+  } catch(e) { console.error('loadFriends', e); renderFriendsList(); }
 }
 
 async function refreshFriendsData() {
@@ -12753,35 +12971,32 @@ async function refreshFriendsData() {
 }
 
 function renderFriendsList() {
-  const el = document.getElementById('friends-list');
+  const el  = document.getElementById('friends-list');
   const sub = document.getElementById('friends-count-sub');
-  if (sub) sub.textContent = `${Social.friends.length} friend${Social.friends.length !== 1 ? 's' : ''}`;
+  if (sub) sub.textContent = `${Social.friends.length} friend${Social.friends.length!==1?'s':''}`;
   if (!el) return;
   if (!Social.friends.length) {
-    el.innerHTML = `
-      <div style="text-align:center;padding:32px 0">
-        <div style="font-size:2rem;margin-bottom:10px">👥</div>
-        <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:700;margin-bottom:6px">No friends yet</div>
-        <div style="font-size:0.8rem;color:var(--text-secondary)">Invite a friend by email above to get started!</div>
-      </div>`;
+    el.innerHTML = `<div style="text-align:center;padding:36px 0"><div style="font-size:2.2rem;margin-bottom:10px">👥</div><div style="font-family:var(--font-display);font-size:0.95rem;font-weight:700;margin-bottom:6px">No friends yet</div><div style="font-size:0.8rem;color:var(--text-secondary)">Search by @username above to add friends!</div></div>`;
     return;
   }
-  el.innerHTML = Social.friends.map(f => `
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
-      <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:var(--bg-base);flex-shrink:0;position:relative">
-        ${f.photoURL ? `<img src="${f.photoURL}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;position:absolute;top:0;left:0" onerror="this.style.display='none'">` : ''}
-        ${(f.name||'?').charAt(0).toUpperCase()}
+  el.innerHTML = Social.friends.map(f => {
+    const displayName = f.fullName || f.name || f.username || '?';
+    const username    = f.username || '';
+    const initial     = displayName.charAt(0).toUpperCase();
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
+      <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:0.95rem;color:var(--bg-base);flex-shrink:0;position:relative">
+        ${f.photoURL?`<img src="${f.photoURL}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">`:''} ${initial}
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:0.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name || f.email}</div>
-        <div style="font-size:0.72rem;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.email || ''}</div>
+        <div style="font-size:0.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${displayName}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted)">@${username||'—'}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
         <span style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:var(--green-dim);color:var(--green);font-weight:700">✓ Friends</span>
-        <button onclick="removeFriend('${f.uid}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;padding:4px;border-radius:4px;line-height:1;transition:color 0.15s" title="Remove friend" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
+        <button onclick="removeFriend('${f.uid}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;padding:4px;border-radius:4px;line-height:1" title="Remove friend" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 async function removeFriend(friendUid) {
@@ -12789,7 +13004,7 @@ async function removeFriend(friendUid) {
   if (!me) return;
   const friendshipId = [me.uid, friendUid].sort().join('_');
   try {
-    await window._fbDeleteDoc(window._fbDoc(window._fbDb, 'friendships', friendshipId));
+    await window._fbDeleteDoc(window._fbDoc(window._fbDb,'friendships',friendshipId));
     Social.friends = Social.friends.filter(f => f.uid !== friendUid);
     renderFriendsList();
     showToast('Friend removed', 'info');
