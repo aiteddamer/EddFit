@@ -736,7 +736,7 @@ html.dark .nav-badge { color: #0a0b0f; }
 }
 
 .page { display: none; }
-.page.active { display: block !important; visibility: visible !important; animation: fadeUp 0.3s ease forwards; }
+.page.active { display: block !important; visibility: visible !important; }
 
 /* ─── GRID LAYOUTS ─── */
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -5918,17 +5918,15 @@ function startApp() {
   initUI();
   navigate('dashboard', document.querySelector('.nav-item'));
   calcStreak();
-  // Use double-rAF to ensure the browser has rendered the page before refreshing,
-  // then a 400ms safety net to catch any slow paints.
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const ring = document.getElementById('calorie-ring-fill');
-      if (ring) ring.style.transition = 'none';
-      refreshDashboard();
-      if (ring) { ring.getBoundingClientRect(); ring.style.transition = ''; }
-    });
-  });
-  setTimeout(() => { refreshDashboard(); }, 400);
+  // Force reflow so the browser commits display:block before we paint values.
+  const _appEl2 = document.getElementById('page-dashboard');
+  if (_appEl2) void _appEl2.offsetHeight;
+  const _ring0 = document.getElementById('calorie-ring-fill');
+  if (_ring0) _ring0.style.transition = 'none';
+  refreshDashboard();
+  if (_ring0) { _ring0.getBoundingClientRect(); _ring0.style.transition = ''; }
+  // Safety net in case first paint is still deferred
+  setTimeout(() => { refreshDashboard(); }, 100);
   // Always check username gate — handles Google users, old accounts, and new email sign-ups
   // Use a short delay so Firestore write from _fbEmailSignUp has time to propagate
   setTimeout(async () => {
@@ -6102,18 +6100,14 @@ function navigate(page, el) {
   if (page === 'goals')       renderGoals();
   if (page === 'calendar')  { renderCalendar(); renderCalLegend(); }
   if (page === 'dashboard') {
-    // Use double-rAF so the browser has rendered the page before we update values.
-    // This prevents the animation from suppressing SVG and DOM visual updates.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const ring = document.getElementById('calorie-ring-fill');
-        if (ring) ring.style.transition = 'none';
-        refreshDashboard();
-        if (ring) { ring.getBoundingClientRect(); ring.style.transition = ''; }
-      });
-    });
-    // Safety net repaint after animation completes
-    setTimeout(() => { refreshDashboard(); }, 350);
+    // Force a reflow after making the page visible so the browser commits
+    // the display:block before we update values — prevents deferred paints.
+    const _dashEl = document.getElementById('page-dashboard');
+    if (_dashEl) void _dashEl.offsetHeight;
+    const ring = document.getElementById('calorie-ring-fill');
+    if (ring) ring.style.transition = 'none';
+    refreshDashboard();
+    if (ring) { ring.getBoundingClientRect(); ring.style.transition = ''; }
   }
   if (page === 'bodymap')     setTimeout(function(){ if (typeof bmSetView === 'function') bmSetView('front'); }, 50);
   if (page === 'mealplan')  { if (typeof renderMealPlan     === 'function') renderMealPlan(); }
@@ -6152,11 +6146,16 @@ function refreshDashboard() {
   document.getElementById('dash-cal-rem').textContent = remaining > 0 ? remaining : 0;
   document.getElementById('dash-protein').textContent = totals.protein + 'g';
 
-  // Ring
+  // Ring — disable transition first so the value is applied instantly (not deferred by CSS),
+  // then force a synchronous reflow, then re-enable the transition for future updates.
   const ringFill = document.getElementById('calorie-ring-fill');
   const circumference = 326.7;
   const offset = circumference - (pct(totals.cal, T.calories)/100)*circumference;
+  ringFill.style.transition = 'none';
   ringFill.style.strokeDashoffset = offset;
+  ringFill.setAttribute('stroke-dashoffset', offset);
+  void ringFill.getBoundingClientRect(); // synchronous reflow — commits the value NOW
+  ringFill.style.transition = '';        // re-enable smooth transition for future changes
   document.getElementById('ring-cals').textContent = totals.cal;
 
   // Progress bars
@@ -6201,6 +6200,14 @@ function refreshDashboard() {
   document.getElementById('streak-count').textContent = State.streak;
   // Macro warnings on dashboard
   renderMacroWarnings(totals, T);
+
+  // Force browser to repaint all dashboard elements immediately.
+  // Without this, Chrome/Safari may defer visual updates when the page
+  // was just made visible (display:none → display:block transition).
+  const dashPage = document.getElementById('page-dashboard');
+  if (dashPage) {
+    void dashPage.offsetHeight; // trigger synchronous reflow
+  }
 }
 
 function renderDashRecentMeals() {
