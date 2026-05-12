@@ -3306,6 +3306,7 @@ function dismissSplash() {
         <div class="food-tab-wrap" style="border-bottom:1px solid var(--border);margin-bottom:16px">
           <div class="food-tab active" onclick="switchRecipeTab('recipes',this)">📖 My Recipes</div>
           <div class="food-tab" onclick="switchRecipeTab('custom',this)">🥫 Custom Foods</div>
+          <div class="food-tab" onclick="switchRecipeTab('shared',this)" id="recipe-shared-tab">📬 Shared with Me <span id="shared-inbox-badge" style="display:none;background:var(--red);color:#fff;font-size:0.6rem;font-weight:800;border-radius:20px;padding:1px 6px;margin-left:4px;vertical-align:middle">0</span></div>
         </div>
         <div id="tab-recipes">
           <div id="recipes-grid" class="grid-3">
@@ -3315,6 +3316,19 @@ function dismissSplash() {
         <div id="tab-custom" style="display:none">
           <div id="custom-foods-list">
             <div class="empty-state"><div class="es-icon">🥫</div><div class="es-text">No custom foods yet.</div></div>
+          </div>
+        </div>
+        <!-- SHARED WITH ME TAB -->
+        <div id="tab-shared" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+            <div>
+              <div style="font-family:var(--font-display);font-size:1rem;font-weight:700">📬 Shared by Friends</div>
+              <div style="font-size:0.78rem;color:var(--text-secondary)">Recipes & custom foods your squad sent you</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="loadSharedInbox()">↻ Refresh</button>
+          </div>
+          <div id="shared-inbox-list">
+            <div class="empty-state"><div class="es-icon">📭</div><div class="es-text">Nothing shared yet — ask a friend to send you their recipe!</div></div>
           </div>
         </div>
       </div>
@@ -9114,6 +9128,7 @@ function renderRecipesPage() {
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-outline btn-sm" onclick="logRecipeAsFood(${i})">Log to today</button>
         <button class="btn btn-ghost btn-sm" onclick="editRecipe(${i})">✏️ Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="openShareModal('recipe',${i})">📤 Share</button>
         <button class="btn btn-ghost btn-sm" onclick="deleteRecipe(${i})">Delete</button>
       </div>
     </div>`).join('');
@@ -9305,6 +9320,7 @@ function renderCustomFoods() {
         <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">${cf.serving}${sizeLabel} · ${cf.cal} kcal · ${cf.protein}g P · ${cf.carbs}g C · ${cf.fat}g F</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn-icon" style="color:var(--blue)" onclick="openShareModal('customFood',${i})" title="Share with friend">📤</button>
         <button class="btn-icon" style="color:var(--accent)" onclick="editCustomFood(${i})" title="Edit">✏️</button>
         <button class="btn-icon" style="color:var(--red)" onclick="deleteCustomFood(${i})" title="Delete">✕</button>
       </div>
@@ -14991,6 +15007,401 @@ function renderLeaderboard(entries) {
       window._showUsernameSetup();
     }
   };
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SHARE RECIPE / CUSTOM FOOD MODAL
+═══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-share-food" style="z-index:1100">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">
+      <span id="share-modal-title">📤 Share Recipe</span>
+      <button class="btn-icon" onclick="closeModal('modal-share-food')">✕</button>
+    </div>
+
+    <!-- Item preview -->
+    <div id="share-item-preview" style="background:var(--bg-elevated);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;border:1px solid var(--border)">
+      <div style="font-weight:700;font-size:0.92rem" id="share-item-name">—</div>
+      <div style="font-size:0.73rem;color:var(--text-secondary);margin-top:3px" id="share-item-macros">—</div>
+    </div>
+
+    <!-- Friend picker -->
+    <div class="form-group" style="margin-bottom:14px">
+      <label class="form-label">Send to friend</label>
+      <div id="share-friends-list" style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;margin-top:4px">
+        <div style="font-size:0.82rem;color:var(--text-muted)">Loading friends…</div>
+      </div>
+    </div>
+
+    <!-- Optional message -->
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">Message (optional)</label>
+      <input type="text" class="form-input" id="share-message-input" placeholder="e.g. Try this bro, it's 🔥" style="font-size:0.88rem" />
+    </div>
+
+    <div id="share-send-msg" style="font-size:0.78rem;min-height:16px;margin-bottom:8px;text-align:center"></div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn btn-ghost" onclick="closeModal('modal-share-food')">Cancel</button>
+      <button class="btn btn-primary" id="share-send-btn" onclick="sendShareToFriend()">📤 Send to Friend</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  RECIPE & CUSTOM FOOD SHARING
+// ═══════════════════════════════════════════════════════════════
+(function() {
+
+  // State for current share operation
+  let _shareType  = null;  // 'recipe' | 'customFood'
+  let _shareIdx   = -1;
+  let _shareData  = null;
+  let _selectedFriendUid = null;
+
+  // ── Update switchRecipeTab to handle 'shared' ──────────────
+  const _origSwitchRecipeTab = window.switchRecipeTab;
+  window.switchRecipeTab = function(tab, btn) {
+    if (_origSwitchRecipeTab) _origSwitchRecipeTab(tab, btn);
+    const sharedEl = document.getElementById('tab-shared');
+    if (tab === 'shared') {
+      if (sharedEl) sharedEl.style.display = '';
+      loadSharedInbox();
+    } else {
+      if (sharedEl) sharedEl.style.display = 'none';
+    }
+  };
+
+  // Also patch the tab function if it hides all tabs naively
+  const _origSRTBase = window.switchRecipeTab;
+  window.switchRecipeTab = function(tab, btn) {
+    // Hide all three tabs
+    ['tab-recipes','tab-custom','tab-shared'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    const target = document.getElementById('tab-' + tab);
+    if (target) target.style.display = '';
+
+    // Update active tab button styling
+    document.querySelectorAll('.food-tab').forEach(b => {
+      b.classList.remove('active');
+    });
+    if (btn) btn.classList.add('active');
+
+    if (tab === 'shared') loadSharedInbox();
+  };
+
+  // ── Open share modal ───────────────────────────────────────
+  window.openShareModal = function(type, idx) {
+    _shareType = type;
+    _shareIdx  = idx;
+    _selectedFriendUid = null;
+
+    const titleEl   = document.getElementById('share-modal-title');
+    const nameEl    = document.getElementById('share-item-name');
+    const macrosEl  = document.getElementById('share-item-macros');
+    const msgEl     = document.getElementById('share-message-input');
+    const sendMsg   = document.getElementById('share-send-msg');
+    if (msgEl)   msgEl.value = '';
+    if (sendMsg) sendMsg.textContent = '';
+
+    if (type === 'recipe') {
+      _shareData = State.recipes[idx];
+      if (titleEl) titleEl.textContent = '📤 Share Recipe';
+      if (nameEl)  nameEl.textContent  = _shareData?.name || '—';
+      if (macrosEl) macrosEl.textContent = _shareData
+        ? `${_shareData.totals.cal} kcal · ${_shareData.totals.protein}g P · ${_shareData.totals.carbs}g C · ${_shareData.totals.fat}g F · ${_shareData.servings} serving(s)`
+        : '—';
+    } else {
+      _shareData = State.customFoods[idx];
+      if (titleEl) titleEl.textContent = '📤 Share Custom Food';
+      if (nameEl)  nameEl.textContent  = _shareData?.name || '—';
+      if (macrosEl) macrosEl.textContent = _shareData
+        ? `${_shareData.cal} kcal · ${_shareData.protein}g P · ${_shareData.carbs}g C · ${_shareData.fat}g F per ${_shareData.serving}`
+        : '—';
+    }
+
+    // Populate friend list
+    _renderShareFriendList();
+    document.getElementById('modal-share-food').style.display = 'flex';
+  };
+
+  function _renderShareFriendList() {
+    const container = document.getElementById('share-friends-list');
+    if (!container) return;
+    const friends = (window.Social && window.Social.friends) ? window.Social.friends : [];
+    if (!friends.length) {
+      container.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">Add friends first to share with them 👥</div>';
+      return;
+    }
+    container.innerHTML = friends.map(f => {
+      const initial = (f.fullName || f.username || 'U').charAt(0).toUpperCase();
+      return `<div class="share-friend-row" data-uid="${f.uid}"
+        onclick="_selectShareFriend('${f.uid}', this)"
+        style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;transition:all 0.15s;background:var(--bg-elevated)">
+        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:0.8rem;color:var(--bg-base);flex-shrink:0">${initial}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:0.88rem">${f.fullName || f.username}</div>
+          <div style="font-size:0.72rem;color:var(--text-secondary)">@${f.username}</div>
+        </div>
+        <div class="share-friend-check" style="display:none;color:var(--green);font-size:1.1rem">✓</div>
+      </div>`;
+    }).join('');
+  }
+
+  window._selectShareFriend = function(uid, el) {
+    _selectedFriendUid = uid;
+    document.querySelectorAll('.share-friend-row').forEach(row => {
+      const isThis = row.getAttribute('data-uid') === uid;
+      row.style.borderColor   = isThis ? 'var(--accent)' : 'var(--border)';
+      row.style.background    = isThis ? 'var(--accent-dim)' : 'var(--bg-elevated)';
+      const check = row.querySelector('.share-friend-check');
+      if (check) check.style.display = isThis ? '' : 'none';
+    });
+  };
+
+  // ── Send share to Firestore ────────────────────────────────
+  window.sendShareToFriend = async function() {
+    const msgEl   = document.getElementById('share-message-input');
+    const sendMsg = document.getElementById('share-send-msg');
+    const btn     = document.getElementById('share-send-btn');
+
+    if (!_selectedFriendUid) {
+      if (sendMsg) { sendMsg.style.color = 'var(--red)'; sendMsg.textContent = '⚠️ Select a friend first.'; }
+      return;
+    }
+    if (!_shareData) {
+      if (sendMsg) { sendMsg.style.color = 'var(--red)'; sendMsg.textContent = '⚠️ No item to share.'; }
+      return;
+    }
+
+    const me = window._currentUser;
+    if (!me) { if (sendMsg) { sendMsg.style.color = 'var(--red)'; sendMsg.textContent = '⚠️ Not signed in.'; } return; }
+
+    btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Sending…';
+    if (sendMsg) { sendMsg.style.color = 'var(--text-muted)'; sendMsg.textContent = ''; }
+
+    try {
+      const senderProfile = (window.Social && window.Social.myProfile) || {};
+      const payload = {
+        toUid:      _selectedFriendUid,
+        fromUid:    me.uid,
+        fromName:   senderProfile.fullName || me.displayName || 'A friend',
+        fromHandle: senderProfile.username || '',
+        type:       _shareType,
+        data:       JSON.parse(JSON.stringify(_shareData)),
+        message:    (msgEl && msgEl.value.trim()) || '',
+        sentAt:     window._fbServerTs(),
+        read:       false,
+      };
+
+      await window._fbAddDoc(window._fbCollection(window._fbDb, 'shared_items'), payload);
+
+      btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📤 Send to Friend';
+      if (sendMsg) { sendMsg.style.color = 'var(--green)'; sendMsg.textContent = '✅ Sent! Your friend will see it in their Shared inbox.'; }
+      setTimeout(() => { closeModal('modal-share-food'); if (sendMsg) sendMsg.textContent = ''; }, 1800);
+      if (typeof showToast === 'function') showToast(`${_shareData.name} shared with friend! 📤`, 'success');
+
+    } catch(e) {
+      btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '📤 Send to Friend';
+      const hint = e?.code === 'permission-denied' ? '⚠️ Permission denied — check Firestore rules.'
+                 : e?.code === 'unavailable' ? '⚠️ No connection — try again.'
+                 : `⚠️ Failed (${e?.code || 'unknown'})`;
+      if (sendMsg) { sendMsg.style.color = 'var(--red)'; sendMsg.textContent = hint; }
+      console.error('sendShareToFriend error:', e);
+    }
+  };
+
+  // ── Load shared inbox ──────────────────────────────────────
+  window.loadSharedInbox = async function() {
+    const container = document.getElementById('shared-inbox-list');
+    const badge     = document.getElementById('shared-inbox-badge');
+    if (!container) return;
+
+    const me = window._currentUser;
+    if (!me) {
+      container.innerHTML = '<div class="empty-state"><div class="es-icon">🔒</div><div class="es-text">Sign in to see shared items</div></div>';
+      return;
+    }
+
+    container.innerHTML = '<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:0.85rem">Loading…</div>';
+
+    try {
+      const q = window._fbQuery(
+        window._fbCollection(window._fbDb, 'shared_items'),
+        window._fbWhere('toUid', '==', me.uid),
+        window._fbOrderBy('sentAt', 'desc'),
+        window._fbLimit(40)
+      );
+      const snap = await window._fbGetDocs(q);
+
+      if (snap.empty) {
+        container.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">Nothing shared yet — ask a friend to send you their recipe!</div></div>';
+        if (badge) badge.style.display = 'none';
+        return;
+      }
+
+      const unread = snap.docs.filter(d => !d.data().read).length;
+      if (badge) {
+        badge.textContent = unread;
+        badge.style.display = unread > 0 ? '' : 'none';
+      }
+
+      container.innerHTML = snap.docs.map(docSnap => {
+        const d    = docSnap.data();
+        const id   = docSnap.id;
+        const item = d.data || {};
+        const isRecipe = d.type === 'recipe';
+        const macros = isRecipe
+          ? `${item.totals?.cal||0} kcal · ${item.totals?.protein||0}g P · ${item.totals?.carbs||0}g C · ${item.totals?.fat||0}g F`
+          : `${item.cal||0} kcal · ${item.protein||0}g P · ${item.carbs||0}g C · ${item.fat||0}g F per ${item.serving||'serving'}`;
+        const typeTag = isRecipe
+          ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:4px;background:var(--accent-dim);color:var(--accent);font-weight:700">📖 Recipe</span>`
+          : `<span style="font-size:0.65rem;padding:2px 7px;border-radius:4px;background:var(--blue-dim);color:var(--blue);font-weight:700">🥫 Custom Food</span>`;
+        const unreadDot = !d.read
+          ? `<span style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block;margin-left:6px;flex-shrink:0"></span>`
+          : '';
+        const msgBlock = d.message
+          ? `<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px;font-style:italic">"${d.message}"</div>`
+          : '';
+        const ingBlock = isRecipe && item.ingredients?.length
+          ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px">${item.ingredients.slice(0,4).map(i=>i.food?.name+' '+i.grams+'g').join(' · ')}${item.ingredients.length>4?'…':''}</div>`
+          : '';
+
+        return `<div style="background:var(--bg-card);border:1px solid ${d.read?'var(--border)':'var(--accent)'};border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;transition:all 0.15s" id="shared-item-${id}">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+                ${typeTag}${unreadDot}
+              </div>
+              <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:800">${item.name||'Untitled'}</div>
+              <div style="font-size:0.73rem;color:var(--text-secondary);margin-top:2px">${macros}</div>
+              ${ingBlock}
+              ${msgBlock}
+              <div style="font-size:0.68rem;color:var(--text-muted);margin-top:6px">From <strong>${d.fromName||'Friend'}</strong>${d.fromHandle?' (@'+d.fromHandle+')':''}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="importSharedItem('${id}', this)">⬇️ Import to My ${isRecipe?'Recipes':'Foods'}</button>
+            <button class="btn btn-ghost btn-sm" onclick="deleteSharedItem('${id}', this)">🗑 Dismiss</button>
+          </div>
+        </div>`;
+      }).join('');
+
+      // Mark all as read
+      snap.docs.forEach(async docSnap => {
+        if (!docSnap.data().read) {
+          try { await window._fbUpdateDoc(window._fbDoc(window._fbDb, 'shared_items', docSnap.id), { read: true }); } catch(e) {}
+        }
+      });
+      if (badge) badge.style.display = 'none';
+
+    } catch(e) {
+      container.innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><div class="es-text">${e?.code === 'permission-denied' ? 'Permission denied — check Firestore rules for shared_items.' : 'Could not load shared items. Check connection.'}</div></div>`;
+      console.error('loadSharedInbox error:', e);
+    }
+  };
+
+  // ── Import a shared item into your own State ──────────────
+  window.importSharedItem = async function(docId, btn) {
+    const itemEl = document.getElementById('shared-item-' + docId);
+    if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; btn.style.opacity = '0.6'; }
+
+    try {
+      const me = window._currentUser;
+      if (!me) throw new Error('not-signed-in');
+      const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'shared_items', docId));
+      if (!snap.exists()) throw new Error('not-found');
+      const d    = snap.data();
+      const item = d.data;
+
+      if (d.type === 'recipe') {
+        // Check for duplicate name
+        const exists = State.recipes.some(r => r.name.toLowerCase() === item.name.toLowerCase());
+        const newRecipe = { ...item, id: Date.now(), importedFrom: d.fromName || 'Friend' };
+        if (exists) newRecipe.name = item.name + ' (from ' + (d.fromName || 'friend') + ')';
+        State.recipes.push(newRecipe);
+        save();
+        if (typeof renderRecipesPage === 'function') renderRecipesPage();
+        if (typeof showToast === 'function') showToast(`"${newRecipe.name}" added to your recipes! 📖`, 'success');
+      } else {
+        const exists = State.customFoods.some(f => f.name.toLowerCase() === item.name.toLowerCase());
+        const newFood = { ...item, id: Date.now(), importedFrom: d.fromName || 'Friend' };
+        if (exists) newFood.name = item.name + ' (from ' + (d.fromName || 'friend') + ')';
+        State.customFoods.push(newFood);
+        save();
+        if (typeof renderCustomFoods === 'function') renderCustomFoods();
+        if (typeof showToast === 'function') showToast(`"${newFood.name}" added to your custom foods! 🥫`, 'success');
+      }
+
+      // Update UI
+      if (itemEl) {
+        itemEl.style.opacity = '0.5';
+        itemEl.innerHTML = `<div style="text-align:center;padding:10px;font-size:0.82rem;color:var(--green);font-weight:700">✅ Imported successfully!</div>`;
+      }
+
+    } catch(e) {
+      if (btn) { btn.disabled = false; btn.textContent = '⬇️ Import'; btn.style.opacity = '1'; }
+      if (typeof showToast === 'function') showToast('Import failed — try again.', 'error');
+      console.error('importSharedItem error:', e);
+    }
+  };
+
+  // ── Dismiss / delete a shared item ─────────────────────────
+  window.deleteSharedItem = async function(docId, btn) {
+    const itemEl = document.getElementById('shared-item-' + docId);
+    if (btn) { btn.disabled = true; }
+    try {
+      await window._fbDeleteDoc(window._fbDoc(window._fbDb, 'shared_items', docId));
+      if (itemEl) itemEl.remove();
+      // If list is now empty, show empty state
+      const container = document.getElementById('shared-inbox-list');
+      if (container && !container.querySelector('[id^="shared-item-"]')) {
+        container.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">All caught up! Nothing left in inbox.</div></div>';
+      }
+    } catch(e) {
+      if (btn) btn.disabled = false;
+      if (typeof showToast === 'function') showToast('Could not dismiss — try again.', 'error');
+    }
+  };
+
+  // ── Check unread badge on social page load & recipe page ──
+  window._checkSharedBadge = async function() {
+    const me = window._currentUser;
+    if (!me || !window._fbQuery) return;
+    try {
+      const q    = window._fbQuery(
+        window._fbCollection(window._fbDb, 'shared_items'),
+        window._fbWhere('toUid', '==', me.uid),
+        window._fbWhere('read', '==', false)
+      );
+      const snap = await window._fbGetDocs(q);
+      const cnt  = snap.size;
+      const badge = document.getElementById('shared-inbox-badge');
+      if (badge) { badge.textContent = cnt; badge.style.display = cnt > 0 ? '' : 'none'; }
+    } catch(e) { /* silent */ }
+  };
+
+  // Hook into page navigation to show badge
+  const _origNavigate = window.navigate;
+  if (_origNavigate) {
+    window.navigate = function(page, el) {
+      _origNavigate(page, el);
+      if (page === 'recipes') setTimeout(window._checkSharedBadge, 400);
+    };
+  }
+
+  // Check badge 3s after auth loads
+  const _origLoadFS = window._loadFirestore;
+  if (_origLoadFS) {
+    window._loadFirestore = async function() {
+      await _origLoadFS();
+      setTimeout(window._checkSharedBadge, 3000);
+    };
+  }
+
 })();
 </script>
 
