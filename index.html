@@ -12333,28 +12333,35 @@ document.addEventListener('click', function(e) {
 </div>
 <!-- ═════════ FRIENDS & CHALLENGES ═════════ -->
 <div class="page" id="page-social">
+  <!-- Page Header -->
+  <div style="margin-bottom:20px">
+    <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;letter-spacing:-0.3px">Friends &amp; Challenges</div>
+    <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:3px">Connect, compete, and stay accountable together</div>
+  </div>
+
   <!-- Tabs -->
-  <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto">
-    <button class="social-tab active" data-tab="friends"    onclick="switchSocialTab('friends',this)"    style="padding:11px 22px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap">👥 Friends</button>
-    <button class="social-tab"        data-tab="challenges" onclick="switchSocialTab('challenges',this)" style="padding:11px 22px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap">🏆 Challenges</button>
-    <button class="social-tab"        data-tab="leaderboard" onclick="switchSocialTab('leaderboard',this)" style="padding:11px 22px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap">📊 Leaderboard</button>
+  <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none">
+    <style>#page-social .social-tab-nav::-webkit-scrollbar{display:none}</style>
+    <button class="social-tab active" data-tab="friends"    onclick="switchSocialTab('friends',this)"    style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">👥 Friends</button>
+    <button class="social-tab"        data-tab="challenges" onclick="switchSocialTab('challenges',this)" style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">🏆 Challenges</button>
+    <button class="social-tab"        data-tab="leaderboard" onclick="switchSocialTab('leaderboard',this)" style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">📊 Leaderboard</button>
   </div>
 
   <!-- FRIENDS TAB -->
   <div id="social-tab-friends">
-    <div class="grid-2" style="gap:20px">
+    <div class="grid-2">
       <!-- Add Friend -->
       <div class="card">
         <div class="card-header">
           <div>
-            <div class="card-title">Add a Friend</div>
+            <div class="card-title">➕ Add a Friend</div>
             <div class="card-sub">Invite by email address</div>
           </div>
         </div>
-        <div style="display:flex;gap:8px">
-          <input type="email" class="form-input" id="friend-email-input" placeholder="friend@email.com" style="flex:1;font-size:0.88rem;padding:9px 12px"
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="email" class="form-input" id="friend-email-input" placeholder="friend@email.com" style="flex:1;min-width:0;font-size:0.88rem;padding:9px 12px"
             onkeydown="if(event.key==='Enter') sendFriendRequest()" />
-          <button class="btn btn-primary btn-sm" onclick="sendFriendRequest()">Send Invite</button>
+          <button class="btn btn-primary btn-sm" onclick="sendFriendRequest()" style="white-space:nowrap">Send Invite</button>
         </div>
         <div id="friend-invite-msg" style="font-size:0.78rem;margin-top:8px;min-height:16px"></div>
       </div>
@@ -12363,7 +12370,7 @@ document.addEventListener('click', function(e) {
       <div class="card">
         <div class="card-header">
           <div>
-            <div class="card-title">Pending Invites</div>
+            <div class="card-title">🔔 Pending Invites</div>
             <div class="card-sub" id="pending-invites-sub">Friend requests waiting for you</div>
           </div>
         </div>
@@ -12383,7 +12390,10 @@ document.addEventListener('click', function(e) {
         <button class="btn btn-outline btn-sm" onclick="refreshFriendsData()">↻ Refresh</button>
       </div>
       <div id="friends-list">
-        <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:24px 0">Loading friends…</div>
+        <div style="text-align:center;padding:32px 0">
+          <div style="font-size:2rem;margin-bottom:10px">👥</div>
+          <div style="font-size:0.88rem;color:var(--text-muted)">Loading friends…</div>
+        </div>
       </div>
     </div>
   </div>
@@ -12763,11 +12773,12 @@ function renderFriendsList() {
         ${(f.name||'?').charAt(0).toUpperCase()}
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:0.9rem;font-weight:600">${f.name || f.email}</div>
-        <div style="font-size:0.72rem;color:var(--text-muted)">${f.email || ''}</div>
+        <div style="font-size:0.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name || f.email}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.email || ''}</div>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
         <span style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:var(--green-dim);color:var(--green);font-weight:700">✓ Friends</span>
+        <button onclick="removeFriend('${f.uid}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;padding:4px;border-radius:4px;line-height:1;transition:color 0.15s" title="Remove friend" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
       </div>
     </div>
   `).join('');
