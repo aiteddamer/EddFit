@@ -12626,15 +12626,15 @@ document.addEventListener('click', function(e) {
         <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">Shown to friends in their friend list</div>
       </div>
 
-      <!-- Username -->
+      <!-- Username (locked — cannot be changed after set) -->
       <div class="form-group">
-        <label class="form-label">Username <span style="color:var(--accent)">*</span></label>
+        <label class="form-label">Username <span style="color:var(--text-muted);font-size:0.7rem;font-weight:500">🔒 permanent</span></label>
         <div style="position:relative">
           <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-weight:600">@</span>
-          <input type="text" class="form-input" id="acct-username" placeholder="your_username" style="padding-left:28px"
-            oninput="validateUsernameInput(this.value)" maxlength="30" />
+          <input type="text" class="form-input" id="acct-username" placeholder="your_username" style="padding-left:28px;opacity:0.6;cursor:not-allowed;pointer-events:none"
+            readonly maxlength="30" tabindex="-1" />
         </div>
-        <div id="acct-username-status" style="font-size:0.72rem;margin-top:4px;min-height:16px;color:var(--text-muted)">5–30 chars · letters, numbers, underscores only · unique per user</div>
+        <div id="acct-username-status" style="font-size:0.72rem;margin-top:4px;min-height:16px;color:var(--text-muted)">Usernames are permanent and cannot be changed.</div>
       </div>
     </div>
 
@@ -12803,41 +12803,36 @@ async function checkUsernameAvailability(username) {
   }
 }
 
+
+
 async function saveAccountProfile() {
-  const me       = window._currentUser;
+  const me = window._currentUser;
   if (!me) return;
   const fullName = document.getElementById('acct-fullname').value.trim();
-  const username = document.getElementById('acct-username').value.trim().toLowerCase();
-  const msgEl    = document.getElementById('acct-save-msg');
-  const btn      = document.getElementById('acct-save-btn');
+  // Username is permanent — always read from stored value, never from the (now readonly) input
+  const username = _acctCurrentUsername || Social.myProfile?.username || '';
+  const msgEl   = document.getElementById('acct-save-msg');
+  const btn     = document.getElementById('acct-save-btn');
 
   msgEl.textContent = '';
-  if (!username || username.length < 5) { msgEl.textContent = '⚠️ Username must be at least 5 characters.'; msgEl.style.color = 'var(--red)'; return; }
-  if (!/^[a-z0-9_]+$/.test(username))  { msgEl.textContent = '⚠️ Letters, numbers, underscores only.'; msgEl.style.color = 'var(--red)'; return; }
-  if (!_acctUsernameValid && username !== _acctCurrentUsername) { msgEl.textContent = '⚠️ Wait for username check or pick another.'; msgEl.style.color = 'var(--red)'; return; }
-
   btn.disabled = true; btn.style.opacity = '0.6';
   msgEl.textContent = 'Saving…'; msgEl.style.color = 'var(--text-muted)';
 
   try {
     const db = window._fbDb;
-    if (username !== _acctCurrentUsername) {
-      const snap = await window._fbGetDocs(window._fbQuery(window._fbCollection(db,'users_public'),window._fbWhere('username','==',username)));
-      if (snap.docs.some(d => d.id !== me.uid)) {
-        msgEl.textContent = '❌ Username just taken.'; msgEl.style.color = 'var(--red)';
-        btn.disabled = false; btn.style.opacity = '1'; return;
-      }
-    }
-    await window._fbSetDoc(window._fbDoc(db,'users_public',me.uid), { username, fullName: fullName || me.displayName || '', photoURL: me.photoURL || '', uid: me.uid }, { merge: true });
+    // Only merge fullName and photoURL — never overwrite the permanent username
+    await window._fbSetDoc(window._fbDoc(db,'users_public',me.uid), {
+      fullName: fullName || me.displayName || '',
+      photoURL: me.photoURL || '',
+      uid: me.uid
+    }, { merge: true });
 
     Social.myProfile = { username, fullName: fullName || me.displayName || '', photoURL: me.photoURL || '' };
-    _acctCurrentUsername = username;
-    _acctUsernameValid   = true;
 
     const authNameEl = document.getElementById('auth-user-name');
     if (authNameEl) authNameEl.textContent = fullName || me.displayName || me.email;
     const sidebarNameEl = document.getElementById('sidebar-name');
-    if (sidebarNameEl) sidebarNameEl.textContent = '@' + username;
+    if (sidebarNameEl && username) sidebarNameEl.textContent = '@' + username;
 
     updateSocialProfileCard();
     msgEl.textContent = '✅ Profile saved!'; msgEl.style.color = 'var(--green)';
@@ -13569,7 +13564,7 @@ function renderLeaderboard(entries) {
       Continue →
     </button>
     <div style="font-size:0.68rem;color:var(--text-muted);margin-top:14px">
-      You can change your username later in your profile.
+      🔒 Your username is permanent and cannot be changed later.
     </div>
   </div>
 </div>
