@@ -12851,14 +12851,6 @@ document.addEventListener('click', function(e) {
             <option value="other">Other</option>
           </select>
         </div>
-        <div class="form-group" style="grid-column:1/-1">
-          <label class="form-label">Fitness Goal</label>
-          <select class="form-input" id="fp-goal">
-            <option value="cut">🔻 Cut — Lose fat</option>
-            <option value="maintain">⚖️ Maintain — Stay lean</option>
-            <option value="bulk">📈 Bulk — Build muscle</option>
-          </select>
-        </div>
       </div>
 
       <div style="border-top:1px solid var(--border);padding-top:14px">
@@ -13099,7 +13091,6 @@ async function openAccountModal() {
   document.getElementById('fp-height').value = h ? (isImp ? Math.round(h / 2.54) : h) : '';
   document.getElementById('fp-age').value    = State.profile?.age || '';
   document.getElementById('fp-gender').value = State.profile?.gender || 'male';
-  document.getElementById('fp-goal').value   = State.profile?.goal   || 'maintain';
   document.getElementById('fp-cal').value    = State.targets?.calories || '';
   document.getElementById('fp-protein').value= State.targets?.protein  || '';
   document.getElementById('fp-carbs').value  = State.targets?.carbs    || '';
@@ -13158,7 +13149,6 @@ function saveFitProfile() {
   const age = parseInt(document.getElementById('fp-age').value);
   if (age) State.profile.age = age;
   State.profile.gender = document.getElementById('fp-gender').value;
-  State.profile.goal   = document.getElementById('fp-goal').value;
 
   const cal  = parseInt(document.getElementById('fp-cal').value);
   const pro  = parseInt(document.getElementById('fp-protein').value);
