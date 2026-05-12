@@ -735,8 +735,8 @@ html.dark .nav-badge { color: #0a0b0f; }
   scroll-behavior: smooth;
 }
 
-.page { display: none; animation: fadeUp 0.3s ease both; }
-.page.active { display: block !important; visibility: visible !important; }
+.page { display: none; }
+.page.active { display: block !important; visibility: visible !important; animation: fadeUp 0.3s ease forwards; }
 
 /* ─── GRID LAYOUTS ─── */
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -4610,8 +4610,60 @@ window._loadFirestore = async function() {
     }
   } catch(e) {
     console.warn('EddFit: Firestore load failed', e);
-    showSyncStatus('\u26a0 Could not load data', 'var(--red)');
-    updateDots(1);
+    // Auto-retry up to 3 times with backoff before showing error
+    const _retryLoad = async (attempt) => {
+      if (attempt > 3) {
+        showSyncStatus('\u26a0 Could not load — tap to retry', 'var(--red)');
+        const syncEl = document.getElementById('sync-status');
+        if (syncEl) {
+          syncEl.style.cursor = 'pointer';
+          const _handler = () => {
+            syncEl.style.cursor = '';
+            syncEl.removeEventListener('click', _handler);
+            window._loadFirestore();
+          };
+          syncEl.addEventListener('click', _handler);
+        }
+        updateDots(1);
+        return;
+      }
+      showSyncStatus('\u2601 Retrying… (' + attempt + '/3)', 'var(--accent)');
+      setTimeout(async () => {
+        try {
+          const _u = window._currentUser;
+          if (!_u) return;
+          const _ref = window._fbDoc(window._fbDb, 'users', _u.uid);
+          const _snap = await window._fbGetDoc(_ref);
+          if (_snap.exists()) {
+            const _saved = JSON.parse(_snap.data().state);
+            const _keys = Object.keys(State);
+            _keys.forEach(k => {
+              if (Array.isArray(State[k])) State[k] = [];
+              else if (typeof State[k] === 'object' && State[k] !== null) State[k] = {};
+              else State[k] = 0;
+            });
+            Object.assign(State, _saved);
+            if (!State.prefs)      State.prefs      = { reminders:false, macros:true, darkMode:false };
+            if (!State.programs)   State.programs   = [];
+            if (!State.mealPlan)   State.mealPlan   = {};
+            if (!State.recipes)    State.recipes    = [];
+            if (!State.customFoods) State.customFoods = [];
+            hideSyncStatus();
+            if (State.profile && State.profile.name) { startApp(); } else { updateDots(1); }
+          } else {
+            hideSyncStatus();
+            document.getElementById('onboarding').style.display = 'flex';
+            const _appEl = document.getElementById('app');
+            if (_appEl) { _appEl.style.display = 'none'; _appEl.classList.remove('visible'); }
+            updateDots(1);
+          }
+        } catch(e2) {
+          console.warn('EddFit: Firestore retry ' + attempt + ' failed', e2);
+          _retryLoad(attempt + 1);
+        }
+      }, attempt * 1500);
+    };
+    _retryLoad(1);
   }
 };
 
@@ -5866,23 +5918,17 @@ function startApp() {
   initUI();
   navigate('dashboard', document.querySelector('.nav-item'));
   calcStreak();
-  // The dashboard page has a fadeUp CSS animation (0.3s). While it runs, browsers
-  // suppress SVG stroke transitions on elements animating from opacity:0 — the ring
-  // gets set to the right value in JS but visually stays blank until navigating away.
-  // Fix: wait for the animation to finish (350ms), then re-paint with transition
-  // disabled so the correct dashoffset is applied instantly and sticks.
-  setTimeout(() => {
-    const ring = document.getElementById('calorie-ring-fill');
-    if (ring) {
-      const prev = ring.style.transition;
-      ring.style.transition = 'none';
+  // Use double-rAF to ensure the browser has rendered the page before refreshing,
+  // then a 400ms safety net to catch any slow paints.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const ring = document.getElementById('calorie-ring-fill');
+      if (ring) ring.style.transition = 'none';
       refreshDashboard();
-      ring.getBoundingClientRect(); // force reflow so value sticks before re-enabling
-      ring.style.transition = prev;
-    } else {
-      refreshDashboard();
-    }
-  }, 350);
+      if (ring) { ring.getBoundingClientRect(); ring.style.transition = ''; }
+    });
+  });
+  setTimeout(() => { refreshDashboard(); }, 400);
   // Always check username gate — handles Google users, old accounts, and new email sign-ups
   // Use a short delay so Firestore write from _fbEmailSignUp has time to propagate
   setTimeout(async () => {
@@ -6056,18 +6102,18 @@ function navigate(page, el) {
   if (page === 'goals')       renderGoals();
   if (page === 'calendar')  { renderCalendar(); renderCalLegend(); }
   if (page === 'dashboard') {
-    refreshDashboard(); // update text values immediately
-    // Re-paint the ring after the 300ms fadeUp animation so strokeDashoffset
-    // is applied when the element is fully opaque (not suppressed by the animation)
-    setTimeout(() => {
-      const ring = document.getElementById('calorie-ring-fill');
-      if (!ring) return;
-      const prev = ring.style.transition;
-      ring.style.transition = 'none';
-      refreshDashboard();
-      ring.getBoundingClientRect();
-      ring.style.transition = prev;
-    }, 350);
+    // Use double-rAF so the browser has rendered the page before we update values.
+    // This prevents the animation from suppressing SVG and DOM visual updates.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const ring = document.getElementById('calorie-ring-fill');
+        if (ring) ring.style.transition = 'none';
+        refreshDashboard();
+        if (ring) { ring.getBoundingClientRect(); ring.style.transition = ''; }
+      });
+    });
+    // Safety net repaint after animation completes
+    setTimeout(() => { refreshDashboard(); }, 350);
   }
   if (page === 'bodymap')     setTimeout(function(){ if (typeof bmSetView === 'function') bmSetView('front'); }, 50);
   if (page === 'mealplan')  { if (typeof renderMealPlan     === 'function') renderMealPlan(); }
@@ -12028,6 +12074,16 @@ function _enhancedRenderWorkoutPage() {
   // Auth screen is shown by default (display:flex in HTML)
   // Firebase auth listener fires and handles everything from there
 })();
+
+// Refresh dashboard when user returns to the tab (fixes data not showing after tab switch)
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && window._currentUser) {
+    const dashPage = document.getElementById('page-dashboard');
+    if (dashPage && dashPage.classList.contains('active')) {
+      refreshDashboard();
+    }
+  }
+});
 </script>
 <!-- Workout Detail Modal -->
 <div class="modal-overlay" id="modal-workout-detail">
