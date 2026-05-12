@@ -15125,7 +15125,13 @@ function renderLeaderboard(entries) {
 
     // Populate friend list
     _renderShareFriendList();
-    document.getElementById('modal-share-food').style.display = 'flex';
+    openModal('modal-share-food');
+    // Register overlay-click-close once
+    const _ov = document.getElementById('modal-share-food');
+    if (_ov && !_ov._closeRegistered) {
+      _ov.addEventListener('click', e => { if (e.target === _ov) closeModal('modal-share-food'); });
+      _ov._closeRegistered = true;
+    }
   };
 
   function _renderShareFriendList() {
@@ -15284,7 +15290,8 @@ function renderLeaderboard(entries) {
             </div>
           </div>
           <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" onclick="importSharedItem('${id}', this)">⬇️ Import to My ${isRecipe?'Recipes':'Foods'}</button>
+            <button class="btn btn-primary btn-sm" onclick="importSharedItem('${id}', this, false)">⬇️ Import</button>
+            <button class="btn btn-outline btn-sm" onclick="importSharedItem('${id}', this, true)">✏️ Import & Edit</button>
             <button class="btn btn-ghost btn-sm" onclick="deleteSharedItem('${id}', this)">🗑 Dismiss</button>
           </div>
         </div>`;
@@ -15305,7 +15312,7 @@ function renderLeaderboard(entries) {
   };
 
   // ── Import a shared item into your own State ──────────────
-  window.importSharedItem = async function(docId, btn) {
+  window.importSharedItem = async function(docId, btn, openEditor) {
     const itemEl = document.getElementById('shared-item-' + docId);
     if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; btn.style.opacity = '0.6'; }
 
@@ -15318,7 +15325,6 @@ function renderLeaderboard(entries) {
       const item = d.data;
 
       if (d.type === 'recipe') {
-        // Check for duplicate name
         const exists = State.recipes.some(r => r.name.toLowerCase() === item.name.toLowerCase());
         const newRecipe = { ...item, id: Date.now(), importedFrom: d.fromName || 'Friend' };
         if (exists) newRecipe.name = item.name + ' (from ' + (d.fromName || 'friend') + ')';
@@ -15326,6 +15332,15 @@ function renderLeaderboard(entries) {
         save();
         if (typeof renderRecipesPage === 'function') renderRecipesPage();
         if (typeof showToast === 'function') showToast(`"${newRecipe.name}" added to your recipes! 📖`, 'success');
+
+        if (openEditor) {
+          // Navigate to recipes tab and open editor
+          const newIdx = State.recipes.length - 1;
+          if (typeof navigate === 'function') navigate('recipes', document.querySelector('[onclick*="navigate(\'recipes"]'));
+          setTimeout(() => {
+            if (typeof editRecipe === 'function') editRecipe(newIdx);
+          }, 300);
+        }
       } else {
         const exists = State.customFoods.some(f => f.name.toLowerCase() === item.name.toLowerCase());
         const newFood = { ...item, id: Date.now(), importedFrom: d.fromName || 'Friend' };
@@ -15334,12 +15349,25 @@ function renderLeaderboard(entries) {
         save();
         if (typeof renderCustomFoods === 'function') renderCustomFoods();
         if (typeof showToast === 'function') showToast(`"${newFood.name}" added to your custom foods! 🥫`, 'success');
+
+        if (openEditor) {
+          const newIdx = State.customFoods.length - 1;
+          if (typeof navigate === 'function') navigate('recipes', document.querySelector('[onclick*="navigate(\'recipes"]'));
+          setTimeout(() => {
+            // Switch to custom tab then open editor
+            const customTab = document.querySelector('[onclick*="switchRecipeTab(\'custom"]');
+            if (customTab) customTab.click();
+            setTimeout(() => {
+              if (typeof editCustomFood === 'function') editCustomFood(newIdx);
+            }, 200);
+          }, 300);
+        }
       }
 
       // Update UI
       if (itemEl) {
         itemEl.style.opacity = '0.5';
-        itemEl.innerHTML = `<div style="text-align:center;padding:10px;font-size:0.82rem;color:var(--green);font-weight:700">✅ Imported successfully!</div>`;
+        itemEl.innerHTML = `<div style="text-align:center;padding:10px;font-size:0.82rem;color:var(--green);font-weight:700">✅ Imported${openEditor?' — opening editor…':''}!</div>`;
       }
 
     } catch(e) {
