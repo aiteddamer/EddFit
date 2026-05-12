@@ -104,7 +104,12 @@
             fullName: displayName || cred.user.email || '',
             photoURL: cred.user.photoURL || '',
           }, { merge: true });
-        } catch(ex) { console.warn('username save failed', ex); }
+          // Mark that username was saved during sign-up so the gate skips the modal
+          window._emailSignUpUsernameSaved = true;
+        } catch(ex) {
+          console.warn('username save failed during sign-up — gate will retry', ex);
+          window._emailSignUpUsernameSaved = false;
+        }
       }
     } catch(e) {
       if (btn) { btn.style.opacity = '1'; btn.disabled = false; }
@@ -1967,6 +1972,7 @@ html.dark .macro-warning.warn-red {
           onfocus="this.style.borderColor='var(--accent)'"
           onblur="this.style.borderColor='var(--border-active)'"
           oninput="window._validateSignupUsername(this.value)"
+          onkeydown="if(event.key==='Enter'){document.getElementById('email-input').focus()}"
         />
       </div>
       <div id="email-username-status" style="display:none;font-size:0.72rem;margin-top:-4px;min-height:14px;color:var(--text-muted);padding-left:2px"></div>
@@ -5457,6 +5463,8 @@ function launchApp() {
     obData.presetProgram = null;
   }
   save();
+  // _checkUsernameGate is called inside startApp() — it will show the username
+  // setup modal for Google users or any user whose username wasn't saved yet.
   startApp();
 }
 
@@ -5927,13 +5935,15 @@ function startApp() {
   if (_ring0) { _ring0.getBoundingClientRect(); _ring0.style.transition = ''; }
   // Safety net in case first paint is still deferred
   setTimeout(() => { refreshDashboard(); }, 100);
-  // Always check username gate — handles Google users, old accounts, and new email sign-ups
-  // Use a short delay so Firestore write from _fbEmailSignUp has time to propagate
+  // Always check username gate — handles Google users, old accounts, and new email sign-ups.
+  // Email sign-ups already wrote the username doc before onAuthStateChanged fired,
+  // so the gate will find it and skip the modal. 600 ms is enough for Firestore propagation.
   setTimeout(async () => {
     if (typeof window._checkUsernameGate === 'function') {
       await window._checkUsernameGate();
     }
-  }, 1200);
+    window._emailSignUpUsernameSaved = false; // reset flag after gate runs
+  }, 600);
   // Show weight reminder once per day if not yet logged
   setTimeout(checkWeightReminder, 2500);
 }
