@@ -3347,61 +3347,22 @@ function dismissSplash() {
         </div>
       </div>
 
+
       <!-- ═════════ SETTINGS ═════════ -->
       <div class="page" id="page-settings">
         <div class="section-title">Settings</div>
-        <div class="grid-2">
-          <div>
-            <div class="card settings-section">
-              <div class="settings-section-title">Profile</div>
-              <div class="form-grid" style="gap:12px">
-                <div class="form-group">
-                  <label class="form-label">Display Name</label>
-                  <input type="text" class="form-input" id="s-name" />
-                </div>
-                <div class="form-grid form-grid-2">
-                  <div class="form-group">
-                    <label class="form-label" id="s-weight-label">Weight (kg)</label>
-                    <input type="number" class="form-input" id="s-weight" />
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" id="s-height-label">Height (cm)</label>
-                    <input type="number" class="form-input" id="s-height" />
-                  </div>
-                </div>
-                <button class="btn btn-primary btn-sm" onclick="saveSettings()" style="align-self:flex-start">Save Changes</button>
-              </div>
-            </div>
 
-            <div class="card settings-section">
-              <div class="settings-section-title">Targets</div>
-              <div class="form-grid" style="gap:12px">
-                <div class="form-group">
-                  <label class="form-label">Daily Calories</label>
-                  <input type="number" class="form-input" id="s-cal" />
-                </div>
-                <div class="form-grid form-grid-2">
-                  <div class="form-group">
-                    <label class="form-label">Protein (g)</label>
-                    <input type="number" class="form-input" id="s-protein" />
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Carbs (g)</label>
-                    <input type="number" class="form-input" id="s-carbs" />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Fat (g)</label>
-                  <input type="number" class="form-input" id="s-fat" />
-                </div>
-                <div style="display:flex;gap:8px">
-                  <button class="btn btn-outline btn-sm" onclick="openAdjustMacrosModal()" style="flex:1">🎚 Use Sliders</button>
-                  <button class="btn btn-primary btn-sm" onclick="saveTargets()" style="flex:1">Update Targets</button>
-                </div>
-              </div>
-            </div>
+        <!-- Redirect banner -->
+        <div style="display:flex;align-items:center;gap:14px;background:var(--bg-elevated);border-radius:var(--radius);padding:14px 16px;margin-bottom:20px;border:1px solid var(--border)">
+          <span style="font-size:1.4rem">👤</span>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:0.9rem">Profile &amp; FitProfile</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Name, weight, height, age and nutrition targets are in My Account</div>
           </div>
+          <button class="btn btn-primary btn-sm" onclick="openAccountModal()">Open →</button>
+        </div>
 
+        <div class="grid-2">
           <div>
             <div class="card settings-section">
               <div class="settings-section-title">Preferences</div>
@@ -10920,37 +10881,214 @@ function openAdjustMacrosModal() {
 }
 
 function amUpdate(changed) {
-  const cal = +document.getElementById('am-cal-slider').value;
-  let pro = +document.getElementById('am-pro-slider').value;
-  let carb = +document.getElementById('am-carb-slider').value;
-  let fat = +document.getElementById('am-fat-slider').value;
-  if (changed === undefined) {
-    const fromP = pro*4, fromF = fat*9;
-    carb = Math.max(20, Math.round((cal-fromP-fromF)/4));
-    document.getElementById('am-carb-slider').value = carb;
+  const calSlider = document.getElementById('am-cal-slider');
+  const proSlider = document.getElementById('am-pro-slider');
+  const carbSlider = document.getElementById('am-carb-slider');
+  const fatSlider = document.getElementById('am-fat-slider');
+
+  let cal  = +calSlider.value;
+  let pro  = +proSlider.value;
+  let carb = +carbSlider.value;
+  let fat  = +fatSlider.value;
+
+  // When protein, carbs or fat changes → recalculate calories from macros
+  if (changed === 'protein' || changed === 'carbs' || changed === 'fat') {
+    cal = Math.round(pro * 4 + carb * 4 + fat * 9);
+    cal = Math.min(5000, Math.max(1000, cal));
+    calSlider.value = cal;
   }
-  document.getElementById('am-cal-lbl').textContent = cal;
-  document.getElementById('am-pro-lbl').textContent = pro+'g';
-  document.getElementById('am-carb-lbl').textContent = carb+'g';
-  document.getElementById('am-fat-lbl').textContent = fat+'g';
-  document.getElementById('am-cal-preview').textContent = cal;
-  document.getElementById('am-pro-preview').textContent = pro+'g';
-  document.getElementById('am-carb-preview').textContent = carb+'g';
-  document.getElementById('am-fat-preview').textContent = fat+'g';
-  const total = pro*4 + carb*4 + fat*9;
-  document.getElementById('am-breakdown').textContent = `Macro calories: ${total} kcal (P:${pro*4} + C:${carb*4} + F:${Math.round(fat*9)})`;
+  // When calories change → redistribute remaining to carbs
+  if (changed === 'calories') {
+    const fromP = pro * 4, fromF = fat * 9;
+    carb = Math.max(20, Math.round((cal - fromP - fromF) / 4));
+    carb = Math.min(600, carb);
+    carbSlider.value = carb;
+  }
+  // On init (no changed) → derive carbs from cal/pro/fat
+  if (changed === undefined) {
+    const fromP = pro * 4, fromF = fat * 9;
+    carb = Math.max(20, Math.round((cal - fromP - fromF) / 4));
+    carb = Math.min(600, carb);
+    carbSlider.value = carb;
+  }
+
+  // Labels
+  document.getElementById('am-cal-lbl').textContent  = cal;
+  document.getElementById('am-pro-lbl').textContent  = pro + 'g';
+  document.getElementById('am-carb-lbl').textContent = carb + 'g';
+  document.getElementById('am-fat-lbl').textContent  = fat + 'g';
+
+  // Preview strip
+  document.getElementById('am-cal-preview').textContent  = cal;
+  document.getElementById('am-pro-preview').textContent  = pro + 'g';
+  document.getElementById('am-carb-preview').textContent = carb + 'g';
+  document.getElementById('am-fat-preview').textContent  = fat + 'g';
+
+  // Macro % bar
+  const macroTotal = pro * 4 + carb * 4 + fat * 9;
+  const proPct  = macroTotal > 0 ? Math.round(pro * 4  / macroTotal * 100) : 0;
+  const carbPct = macroTotal > 0 ? Math.round(carb * 4 / macroTotal * 100) : 0;
+  const fatPct  = macroTotal > 0 ? Math.round(fat * 9  / macroTotal * 100) : 0;
+  const barPro  = document.getElementById('am-bar-pro');
+  const barCarb = document.getElementById('am-bar-carb');
+  const barFat  = document.getElementById('am-bar-fat');
+  if (barPro)  barPro.style.flex  = proPct;
+  if (barCarb) barCarb.style.flex = carbPct;
+  if (barFat)  barFat.style.flex  = fatPct;
+  const el = (id) => document.getElementById(id);
+  if (el('am-bar-pro-pct'))  el('am-bar-pro-pct').textContent  = proPct;
+  if (el('am-bar-carb-pct')) el('am-bar-carb-pct').textContent = carbPct;
+  if (el('am-bar-fat-pct'))  el('am-bar-fat-pct').textContent  = fatPct;
+
+  // Breakdown text
+  if (el('am-breakdown')) el('am-breakdown').textContent =
+    `Macro calories: ${macroTotal} kcal  (P: ${pro*4} + C: ${carb*4} + F: ${Math.round(fat*9)})`;
+
+  // ── TDEE hint ──
+  const wKg = State.profile?.weight || 70;
+  const age  = State.profile?.age    || 25;
+  const isMale = (State.profile?.gender || 'male') === 'male';
+  const hCm  = State.profile?.height || 170;
+  const bmr  = isMale
+    ? 10 * wKg + 6.25 * hCm - 5 * age + 5
+    : 10 * wKg + 6.25 * hCm - 5 * age - 161;
+  const tdee = Math.round(bmr * 1.55); // moderate activity
+  if (el('am-tdee-label')) el('am-tdee-label').textContent = `Est. TDEE: ${tdee} kcal`;
+  if (el('am-cal-tdee-hint')) el('am-cal-tdee-hint').textContent = `TDEE ~${tdee}`;
+
+  // ── Medical Benchmarks ──
+  const proPerKg = wKg > 0 ? (pro / wKg).toFixed(2) : '—';
+  const proRating = proPerKg === '—' ? '—'
+    : proPerKg < 0.8  ? '⚠️ Below minimum (0.8g/kg)'
+    : proPerKg < 1.6  ? '✅ Adequate (0.8–1.6g/kg)'
+    : proPerKg < 2.2  ? '💪 Optimal for athletes'
+    : '⚠️ Very high (>2.2g/kg)';
+  if (el('am-bm-pro-kg'))     el('am-bm-pro-kg').textContent     = wKg > 0 ? proPerKg + 'g/kg' : '—';
+  if (el('am-bm-pro-rating')) el('am-bm-pro-rating').textContent = proRating;
+
+  const diff = cal - tdee;
+  const sign = diff >= 0 ? '+' : '';
+  const weeklyChange = ((Math.abs(diff) * 7) / 7700).toFixed(2);
+  const surplusLabel = diff === 0 ? 'Maintenance'
+    : diff > 0 ? `+${diff} kcal surplus` : `${diff} kcal deficit`;
+  const weeklyLabel = diff !== 0 ? `~${weeklyChange}kg/week ${diff > 0 ? 'gain' : 'loss'}` : 'No change';
+  if (el('am-bm-surplus')) el('am-bm-surplus').textContent = sign + diff + ' kcal';
+  if (el('am-bm-weekly'))  el('am-bm-weekly').textContent  = weeklyLabel;
+
+  const fatCalPct = cal > 0 ? Math.round(fat * 9 / cal * 100) : 0;
+  const fatColor  = fatCalPct < 20 || fatCalPct > 35 ? 'var(--red)' : 'var(--green)';
+  if (el('am-bm-fat-pct')) {
+    el('am-bm-fat-pct').textContent = fatCalPct + '%';
+    el('am-bm-fat-pct').style.color = fatColor;
+  }
+
+  // Balance score (0–100 based on WHO macro ranges)
+  let score = 100;
+  if (proPct < 10 || proPct > 35) score -= 25;
+  if (carbPct < 45 || carbPct > 65) score -= 25;
+  if (fatPct < 20 || fatPct > 35) score -= 25;
+  if (cal < 1200 || cal > 4000) score -= 25;
+  const scoreLabel = score >= 100 ? '🏆 Excellent' : score >= 75 ? '✅ Good' : score >= 50 ? '⚠️ Fair' : '❌ Needs work';
+  if (el('am-bm-balance')) {
+    el('am-bm-balance').textContent = scoreLabel;
+    el('am-bm-balance').style.color = score >= 75 ? 'var(--green)' : score >= 50 ? 'var(--orange)' : 'var(--red)';
+  }
+
+  // ── Smart insight ──
+  const insightEl = el('am-smart-insight');
+  const iconEl    = el('am-insight-icon');
+  const titleEl   = el('am-insight-title');
+  const bodyEl    = el('am-insight-body');
+  if (insightEl && iconEl && titleEl && bodyEl) {
+    let icon = '💡', title = '', body = '', bg = 'var(--bg-elevated)', border = 'var(--border)';
+    if (proPerKg < 0.8) {
+      icon='⚠️'; title='Low Protein'; body='Below 0.8g/kg bodyweight — consider increasing protein to preserve muscle mass.'; bg='rgba(255,100,60,0.08)'; border='var(--red)';
+    } else if (diff > 500) {
+      icon='📈'; title='Large Surplus'; body=`${diff} kcal above TDEE. Expect ~${weeklyChange}kg gain/week — may include fat. Consider reducing by 200–300 kcal for a cleaner bulk.`; bg='rgba(255,160,0,0.08)'; border='var(--orange)';
+    } else if (diff < -700) {
+      icon='🔥'; title='Aggressive Deficit'; body=`${Math.abs(diff)} kcal below TDEE. May cause muscle loss. A moderate deficit of 300–500 kcal is safer long-term.`; bg='rgba(255,100,60,0.08)'; border='var(--red)';
+    } else if (fatCalPct < 15) {
+      icon='⚠️'; title='Very Low Fat'; body='Fat below 15% of calories can impair hormone production and fat-soluble vitamin absorption.'; bg='rgba(255,100,60,0.08)'; border='var(--red)';
+    } else if (score >= 100) {
+      icon='🏆'; title='Excellent Balance'; body='Your macro split follows WHO guidelines perfectly. Great job!'; bg='rgba(60,200,100,0.08)'; border='var(--green)';
+    } else {
+      icon='💡'; title='Tip'; body='Adjust sliders to hit your goals. Aim for protein 1.6–2.2g/kg for body recomposition.'; bg='var(--bg-elevated)'; border='var(--border)';
+    }
+    insightEl.style.display = 'block';
+    insightEl.style.background = bg;
+    insightEl.style.borderColor = border;
+    iconEl.textContent  = icon;
+    titleEl.textContent = title;
+    bodyEl.textContent  = body;
+  }
+}
+
+// ── Smart Presets ─────────────────────────────────────────────────────
+function amApplyPreset(preset) {
+  const wKg  = State.profile?.weight || 70;
+  const age  = State.profile?.age    || 25;
+  const isMale = (State.profile?.gender || 'male') === 'male';
+  const hCm  = State.profile?.height || 170;
+  const bmr  = isMale
+    ? 10 * wKg + 6.25 * hCm - 5 * age + 5
+    : 10 * wKg + 6.25 * hCm - 5 * age - 161;
+  const tdee = Math.round(bmr * 1.55);
+
+  let cal, pro, carb, fat;
+  switch(preset) {
+    case 'recommended':
+      cal = tdee; pro = Math.round(wKg * 1.8); fat = Math.round(cal * 0.25 / 9); carb = Math.round((cal - pro*4 - fat*9) / 4); break;
+    case 'high-protein':
+      cal = tdee; pro = Math.round(wKg * 2.2); fat = Math.round(cal * 0.25 / 9); carb = Math.round((cal - pro*4 - fat*9) / 4); break;
+    case 'lean-bulk':
+      cal = tdee + 300; pro = Math.round(wKg * 2.0); fat = Math.round(cal * 0.25 / 9); carb = Math.round((cal - pro*4 - fat*9) / 4); break;
+    case 'fat-loss':
+      cal = tdee - 500; pro = Math.round(wKg * 2.2); fat = Math.round(cal * 0.28 / 9); carb = Math.round((cal - pro*4 - fat*9) / 4); break;
+    case 'keto':
+      cal = tdee - 200; fat = Math.round(cal * 0.70 / 9); pro = Math.round(wKg * 1.8); carb = Math.max(20, Math.round((cal - pro*4 - fat*9) / 4)); break;
+    case 'performance':
+      cal = tdee + 200; pro = Math.round(wKg * 1.8); carb = Math.round(cal * 0.50 / 4); fat = Math.round((cal - pro*4 - carb*4) / 9); break;
+    default: return;
+  }
+
+  // Clamp to slider ranges
+  cal  = Math.min(5000, Math.max(1000, cal));
+  pro  = Math.min(400,  Math.max(50,  pro));
+  carb = Math.min(600,  Math.max(20,  carb));
+  fat  = Math.min(200,  Math.max(20,  fat));
+
+  document.getElementById('am-cal-slider').value  = cal;
+  document.getElementById('am-pro-slider').value  = pro;
+  document.getElementById('am-carb-slider').value = carb;
+  document.getElementById('am-fat-slider').value  = fat;
+
+  // Highlight active preset button
+  document.querySelectorAll('.am-preset-btn').forEach(b => {
+    b.style.background   = 'var(--bg-elevated)';
+    b.style.borderColor  = 'var(--border)';
+    b.style.color        = 'var(--text-primary)';
+  });
+  const activeBtn = document.querySelector(`.am-preset-btn[onclick*="${preset}"]`);
+  if (activeBtn) {
+    activeBtn.style.background  = 'var(--accent-dim)';
+    activeBtn.style.borderColor = 'var(--accent)';
+    activeBtn.style.color       = 'var(--accent)';
+  }
+
+  amUpdate();
 }
 
 function saveAdjustedMacros() {
   State.targets.calories = +document.getElementById('am-cal-slider').value;
-  State.targets.protein = +document.getElementById('am-pro-slider').value;
-  State.targets.carbs = +document.getElementById('am-carb-slider').value;
-  State.targets.fat = +document.getElementById('am-fat-slider').value;
+  State.targets.protein  = +document.getElementById('am-pro-slider').value;
+  State.targets.carbs    = +document.getElementById('am-carb-slider').value;
+  State.targets.fat      = +document.getElementById('am-fat-slider').value;
   save();
   closeModal('modal-adjust-macros');
   initUI();
-  refreshDashboard();
-  refreshNutritionPage();
+  if (typeof refreshDashboard  === 'function') refreshDashboard();
+  if (typeof refreshNutritionPage === 'function') refreshNutritionPage();
+  if (typeof updateGoalDisplays === 'function') updateGoalDisplays();
 }
 
 // ═══════════════════════════════════════════════════════════════════
