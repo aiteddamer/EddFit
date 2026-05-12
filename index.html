@@ -12615,7 +12615,7 @@ document.addEventListener('click', function(e) {
      ACCOUNT MANAGEMENT MODAL
 ═══════════════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-account" style="z-index:999">
-  <div class="modal" style="max-width:500px;padding:0;overflow:hidden">
+  <div class="modal" style="max-width:500px;padding:0;overflow:hidden;display:flex;flex-direction:column;max-height:90vh">
 
     <!-- Header -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 0">
@@ -12644,7 +12644,7 @@ document.addEventListener('click', function(e) {
     </div>
 
     <!-- ── TAB: ACCOUNT ── -->
-    <div id="acct-tab-account" style="padding:18px 20px 20px;display:flex;flex-direction:column;gap:14px">
+    <div id="acct-tab-account" style="padding:18px 20px 20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1">
       <div class="form-group">
         <label class="form-label">Full Name</label>
         <input type="text" class="form-input" id="acct-fullname" placeholder="e.g. Ayman Ait Eddamer" />
@@ -12691,7 +12691,7 @@ document.addEventListener('click', function(e) {
     </div>
 
     <!-- ── TAB: FITPROFILE ── -->
-    <div id="acct-tab-fitprofile" style="padding:18px 20px 20px;display:none;flex-direction:column;gap:14px">
+    <div id="acct-tab-fitprofile" style="padding:18px 20px 20px;display:none;flex-direction:column;gap:14px;overflow-y:auto;flex:1">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group">
           <label class="form-label" id="fp-weight-label">Weight (kg)</label>
@@ -12746,7 +12746,7 @@ document.addEventListener('click', function(e) {
     </div>
 
     <!-- ── TAB: SETTINGS ── -->
-    <div id="acct-tab-settings" style="padding:18px 20px 20px;display:none;flex-direction:column;gap:0">
+    <div id="acct-tab-settings" style="padding:18px 20px 20px;display:none;flex-direction:column;gap:0;overflow-y:auto;flex:1">
 
       <div style="font-size:0.72rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Appearance</div>
       <div class="settings-row" style="padding:10px 0;border-bottom:1px solid var(--border)">
@@ -12899,9 +12899,11 @@ function switchAcctTab(tab) {
     if (!panel || !btn) return;
     const active = t === tab;
     panel.style.display = active ? 'flex' : 'none';
+    panel.style.flex    = active ? '1' : '';
     btn.style.color = active ? 'var(--accent)' : 'var(--text-secondary)';
     btn.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
     btn.style.fontWeight = active ? '700' : '600';
+    if (active) panel.scrollTop = 0;
   });
 }
 
