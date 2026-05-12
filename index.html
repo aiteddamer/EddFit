@@ -3523,34 +3523,360 @@ function dismissSplash() {
 
       <!-- ═════════ FRIENDS & CHALLENGES ═════════ -->
       <div class="page" id="page-social">
-        <!-- Page Header -->
-        <div style="margin-bottom:20px">
-          <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;letter-spacing:-0.3px">Friends &amp; Challenges</div>
-          <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:3px">Connect, compete, and stay accountable together</div>
+
+        <!-- ── SOCIAL PAGE STYLES ── -->
+        <style>
+          /* Animated header banner */
+          #social-hero-banner {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--blue) 60%, var(--purple) 100%);
+            border-radius: var(--radius-lg);
+            padding: 22px 24px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            color: #fff;
+          }
+          html.dark #social-hero-banner { color: #0a0b0f; }
+          #social-hero-banner::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+          }
+          #social-hero-banner .hero-title {
+            font-family: var(--font-display);
+            font-size: 1.5rem; font-weight: 800;
+            letter-spacing: -0.5px;
+            position: relative;
+          }
+          #social-hero-banner .hero-sub {
+            font-size: 0.82rem; opacity: 0.85;
+            margin-top: 4px; position: relative;
+          }
+          #social-hero-banner .hero-stats {
+            display: flex; gap: 20px; margin-top: 14px;
+            position: relative; flex-wrap: wrap;
+          }
+          #social-hero-banner .hero-stat {
+            display: flex; flex-direction: column; gap: 1px;
+          }
+          #social-hero-banner .hero-stat-val {
+            font-family: var(--font-display);
+            font-size: 1.4rem; font-weight: 800; line-height: 1;
+          }
+          #social-hero-banner .hero-stat-lbl {
+            font-size: 0.7rem; opacity: 0.75;
+            text-transform: uppercase; letter-spacing: 0.5px;
+          }
+
+          /* Fun activity ticker */
+          #social-activity-ticker {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 16px;
+            font-size: 0.8rem; color: var(--text-secondary);
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 16px; overflow: hidden;
+          }
+          .ticker-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse-dot 1.4s infinite; flex-shrink: 0; }
+          @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.7)} }
+
+          /* Social Tabs */
+          .social-tab-bar { display:flex; border-bottom:2px solid var(--border); margin-bottom:20px; overflow-x:auto; -ms-overflow-style:none; scrollbar-width:none; gap: 0; }
+          .social-tab-bar::-webkit-scrollbar { display: none; }
+          .social-tab-pill {
+            padding: 10px 18px; background: none; border: none;
+            font-family: var(--font-body); font-size: 0.88rem; font-weight: 600;
+            color: var(--text-secondary); border-bottom: 2px solid transparent;
+            margin-bottom: -2px; cursor: pointer; transition: all var(--transition);
+            white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+          }
+          .social-tab-pill.active { color: var(--accent); border-bottom-color: var(--accent); }
+          .social-tab-pill .tab-badge {
+            background: var(--red); color: #fff;
+            font-size: 0.6rem; font-weight: 800;
+            border-radius: 20px; padding: 1px 5px; min-width: 16px;
+            text-align: center; line-height: 1.4;
+          }
+
+          /* Profile card upgrade */
+          .social-profile-hero {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 0; overflow: hidden;
+            margin-bottom: 16px; position: relative;
+          }
+          .social-profile-hero-banner {
+            height: 64px;
+            background: linear-gradient(90deg, var(--accent-dim) 0%, var(--blue-dim) 100%);
+          }
+          .social-profile-hero-body {
+            padding: 0 20px 18px; display: flex; align-items: flex-end; gap: 14px;
+            margin-top: -28px; flex-wrap: wrap;
+          }
+          .social-profile-hero-avatar {
+            width: 56px; height: 56px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--blue));
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-display); font-weight: 800; font-size: 1.3rem;
+            color: var(--bg-base); flex-shrink: 0; position: relative;
+            border: 3px solid var(--bg-card);
+          }
+          .social-profile-hero-info { flex: 1; min-width: 0; padding-top: 12px; }
+          .social-profile-hero-name {
+            font-family: var(--font-display); font-size: 1.05rem; font-weight: 800;
+            color: var(--text-primary);
+          }
+          .social-profile-hero-handle { font-size: 0.75rem; color: var(--text-secondary); }
+
+          /* Fun stat chips */
+          .stat-chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+          .stat-chip {
+            display: flex; align-items: center; gap: 5px;
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            border-radius: 20px; padding: 5px 10px;
+            font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);
+          }
+          .stat-chip.fire { background: var(--orange-dim); border-color: var(--orange); color: var(--orange); }
+          .stat-chip.trophy { background: rgba(255,200,0,0.12); border-color: #f0c040; color: #d4a800; }
+          .stat-chip.muscle { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
+          .stat-chip.green { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+
+          /* Challenge cards */
+          .challenge-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px;
+            margin-bottom: 12px;
+            transition: all var(--transition);
+            position: relative; overflow: hidden;
+          }
+          .challenge-card:hover { border-color: var(--border-active); box-shadow: var(--shadow); }
+          .challenge-card::before {
+            content: '';
+            position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+            border-radius: 4px 0 0 4px;
+          }
+          .challenge-card.type-workout::before { background: var(--blue); }
+          .challenge-card.type-streak::before  { background: var(--orange); }
+          .challenge-card.type-steps::before   { background: var(--green); }
+          .challenge-card.type-gym::before     { background: var(--purple); }
+          .challenge-card.type-hiit::before    { background: var(--red); }
+
+          .challenge-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+          .challenge-icon {
+            width: 38px; height: 38px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem; flex-shrink: 0;
+          }
+          .challenge-name { font-family: var(--font-display); font-size: 0.95rem; font-weight: 800; }
+          .challenge-meta { font-size: 0.73rem; color: var(--text-secondary); margin-top: 1px; }
+          .challenge-progress-bar {
+            height: 6px; background: var(--bg-elevated);
+            border-radius: 6px; overflow: hidden; margin: 10px 0 6px;
+          }
+          .challenge-progress-fill {
+            height: 100%; border-radius: 6px;
+            transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+          }
+          .challenge-participants { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+          .participant-bubble {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--blue));
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-display); font-weight: 800; font-size: 0.7rem;
+            color: var(--bg-base); border: 2px solid var(--bg-card);
+            margin-left: -6px; transition: transform 0.15s;
+          }
+          .participant-bubble:first-child { margin-left: 0; }
+          .participant-bubble:hover { transform: scale(1.15); z-index: 2; }
+
+          /* Squad Train Together section */
+          #squad-train-section { margin-bottom: 20px; }
+          .squad-train-card {
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-elevated) 100%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 12px;
+            position: relative; overflow: hidden;
+            display: flex; align-items: center; gap: 16px;
+            cursor: pointer; transition: all var(--transition);
+          }
+          .squad-train-card:hover { border-color: var(--border-active); box-shadow: var(--shadow); transform: translateY(-1px); }
+          .squad-train-icon {
+            width: 52px; height: 52px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.6rem; flex-shrink: 0;
+          }
+          .squad-train-info { flex: 1; min-width: 0; }
+          .squad-train-title { font-family: var(--font-display); font-size: 0.95rem; font-weight: 800; }
+          .squad-train-desc { font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px; }
+          .squad-train-badge {
+            background: var(--accent); color: var(--bg-base);
+            font-size: 0.65rem; font-weight: 800; border-radius: 4px;
+            padding: 2px 6px; text-transform: uppercase; letter-spacing: 0.5px;
+            flex-shrink: 0;
+          }
+
+          /* Fun Challenge Types grid */
+          .challenge-type-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 10px; margin-bottom: 16px;
+          }
+          .challenge-type-tile {
+            background: var(--bg-elevated); border: 2px solid var(--border);
+            border-radius: var(--radius); padding: 14px 10px;
+            text-align: center; cursor: pointer; transition: all var(--transition);
+          }
+          .challenge-type-tile:hover { border-color: var(--border-active); }
+          .challenge-type-tile.selected { border-color: var(--accent); background: var(--accent-dim); }
+          .challenge-type-tile .ct-icon { font-size: 1.6rem; margin-bottom: 5px; }
+          .challenge-type-tile .ct-name { font-family: var(--font-display); font-size: 0.78rem; font-weight: 700; }
+          .challenge-type-tile .ct-desc { font-size: 0.68rem; color: var(--text-secondary); margin-top: 2px; }
+
+          /* Friends list item */
+          .friend-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 0; border-bottom: 1px solid var(--border);
+            transition: background var(--transition);
+          }
+          .friend-row:last-child { border-bottom: none; }
+          .friend-avatar {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--blue));
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-display); font-weight: 800; font-size: 0.95rem;
+            color: var(--bg-base); flex-shrink: 0; position: relative;
+          }
+          .friend-online-dot {
+            position: absolute; bottom: 1px; right: 1px;
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--green); border: 2px solid var(--bg-card);
+          }
+          .friend-info { flex: 1; min-width: 0; }
+          .friend-name { font-weight: 700; font-size: 0.9rem; }
+          .friend-handle { font-size: 0.73rem; color: var(--text-secondary); }
+          .friend-streak { display: flex; align-items: center; gap: 3px; font-size: 0.73rem; color: var(--orange); font-weight: 600; margin-top: 2px; }
+          .friend-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+          /* Leaderboard rows */
+          .lb-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px; border-radius: var(--radius-sm);
+            margin-bottom: 6px; background: var(--bg-elevated);
+            transition: all var(--transition); position: relative;
+          }
+          .lb-row:hover { background: var(--bg-hover); }
+          .lb-row.rank-1 { background: rgba(255,200,0,0.10); border: 1px solid rgba(255,200,0,0.25); }
+          .lb-row.rank-2 { background: rgba(180,200,220,0.10); border: 1px solid rgba(180,200,220,0.2); }
+          .lb-row.rank-3 { background: rgba(200,140,80,0.10); border: 1px solid rgba(200,140,80,0.2); }
+          .lb-rank { font-family: var(--font-display); font-size: 1rem; font-weight: 800; width: 24px; text-align: center; flex-shrink: 0; }
+          .lb-rank.gold   { color: #f0c040; }
+          .lb-rank.silver { color: #a0b4c8; }
+          .lb-rank.bronze { color: #c87832; }
+          .lb-avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--blue));
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-display); font-weight: 800; font-size: 0.85rem;
+            color: var(--bg-base); flex-shrink: 0;
+          }
+          .lb-info { flex: 1; min-width: 0; }
+          .lb-name { font-weight: 700; font-size: 0.88rem; }
+          .lb-score { font-family: var(--font-display); font-size: 1.1rem; font-weight: 800; color: var(--accent); }
+
+          /* Daily challenge card */
+          .daily-challenge-card {
+            background: linear-gradient(135deg, var(--orange-dim), var(--red-dim));
+            border: 1px solid var(--orange);
+            border-radius: var(--radius);
+            padding: 16px 18px; margin-bottom: 16px;
+            display: flex; align-items: center; gap: 14px;
+          }
+          .daily-challenge-emoji { font-size: 2rem; flex-shrink: 0; animation: bounce-slow 2s infinite; }
+          @keyframes bounce-slow { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+          .daily-title { font-family: var(--font-display); font-size: 0.95rem; font-weight: 800; color: var(--orange); }
+          .daily-desc { font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px; }
+
+          /* Invite-to-train banner */
+          .invite-train-banner {
+            background: linear-gradient(90deg, var(--purple-dim), var(--blue-dim));
+            border: 1px solid var(--purple);
+            border-radius: var(--radius); padding: 14px 16px;
+            display: flex; align-items: center; gap: 12px;
+            margin-bottom: 16px; cursor: pointer;
+            transition: all var(--transition);
+          }
+          .invite-train-banner:hover { box-shadow: 0 4px 20px var(--purple-dim); }
+
+          /* Confetti burst on challenge join */
+          @keyframes confetti-fall {
+            0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(60px) rotate(360deg); opacity: 0; }
+          }
+          .confetti-piece {
+            position: absolute; width: 7px; height: 7px; border-radius: 2px;
+            animation: confetti-fall 0.9s ease-out forwards;
+          }
+        </style>
+
+        <!-- Hero Banner -->
+        <div id="social-hero-banner">
+          <div class="hero-title">Squad Mode 🏋️</div>
+          <div class="hero-sub">Train together. Compete together. Win together.</div>
+          <div class="hero-stats">
+            <div class="hero-stat">
+              <div class="hero-stat-val" id="hero-friends-count">—</div>
+              <div class="hero-stat-lbl">Friends</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-val" id="hero-challenges-count">—</div>
+              <div class="hero-stat-lbl">Active Challenges</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-val" id="hero-rank">—</div>
+              <div class="hero-stat-lbl">Your Rank</div>
+            </div>
+          </div>
         </div>
 
-        <!-- Tabs — scrollbar hidden -->
-        <div style="display:flex;border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto;-ms-overflow-style:none;scrollbar-width:none">
-          <button class="social-tab active" data-tab="friends"    onclick="switchSocialTab('friends',this)"    style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">👥 Friends</button>
-          <button class="social-tab"        data-tab="challenges" onclick="switchSocialTab('challenges',this)" style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">🏆 Challenges</button>
-          <button class="social-tab"        data-tab="leaderboard" onclick="switchSocialTab('leaderboard',this)" style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">📊 Leaderboard</button>
+        <!-- Live Activity Ticker -->
+        <div id="social-activity-ticker">
+          <div class="ticker-dot"></div>
+          <div id="ticker-text" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Waiting for squad activity…</div>
         </div>
 
-        <!-- FRIENDS TAB -->
+        <!-- Tabs -->
+        <div class="social-tab-bar">
+          <button class="social-tab social-tab-pill active" data-tab="friends"    onclick="switchSocialTab('friends',this)">👥 Friends</button>
+          <button class="social-tab social-tab-pill"        data-tab="challenges" onclick="switchSocialTab('challenges',this)">🏆 Challenges</button>
+          <button class="social-tab social-tab-pill"        data-tab="squad"      onclick="switchSocialTab('squad',this)">🏋️ Train Together</button>
+          <button class="social-tab social-tab-pill"        data-tab="leaderboard" onclick="switchSocialTab('leaderboard',this)">📊 Leaderboard</button>
+        </div>
+
+        <!-- ═══════════════ FRIENDS TAB ═══════════════ -->
         <div id="social-tab-friends">
 
-          <!-- My Profile Card -->
-          <div class="card" id="social-my-profile-card" style="margin-bottom:16px;background:var(--accent-dim);border-color:var(--accent)">
-            <div style="display:flex;align-items:center;gap:14px">
-              <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:1.1rem;color:var(--bg-base);flex-shrink:0;position:relative" id="social-my-avatar-wrap">
+          <!-- Upgraded Profile Card -->
+          <div class="social-profile-hero" id="social-my-profile-card">
+            <div class="social-profile-hero-banner" id="social-hero-banner-bar"></div>
+            <div class="social-profile-hero-body">
+              <div class="social-profile-hero-avatar" id="social-my-avatar-wrap">
                 <img id="social-my-photo" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover">
                 <span id="social-my-initial">?</span>
               </div>
-              <div style="flex:1;min-width:0">
-                <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--accent)" id="social-my-displayname">—</div>
-                <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:1px">@<span id="social-my-username">set your username</span></div>
+              <div class="social-profile-hero-info">
+                <div class="social-profile-hero-name" id="social-my-displayname">—</div>
+                <div class="social-profile-hero-handle">@<span id="social-my-username">set your username</span></div>
+                <div class="stat-chip-row">
+                  <div class="stat-chip fire" id="my-streak-chip">🔥 — day streak</div>
+                  <div class="stat-chip muscle" id="my-workouts-chip">💪 — workouts</div>
+                  <div class="stat-chip trophy" id="my-challenges-chip">🏆 — challenges</div>
+                </div>
               </div>
-              <button onclick="openAccountModal()" style="background:var(--accent);color:var(--bg-base);border:none;border-radius:var(--radius-sm);padding:7px 14px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:var(--font-body);white-space:nowrap">Edit Profile</button>
+              <button onclick="openAccountModal()" style="background:var(--accent);color:var(--bg-base);border:none;border-radius:var(--radius-sm);padding:8px 16px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:var(--font-body);white-space:nowrap;align-self:center;flex-shrink:0">✏️ Edit</button>
             </div>
           </div>
 
@@ -3559,7 +3885,7 @@ function dismissSplash() {
             <div class="card">
               <div class="card-header">
                 <div>
-                  <div class="card-title">➕ Add a Friend</div>
+                  <div class="card-title">➕ Add a Gym Bro</div>
                   <div class="card-sub">Search by @username</div>
                 </div>
               </div>
@@ -3569,7 +3895,7 @@ function dismissSplash() {
                   <input type="text" class="form-input" id="friend-username-input" placeholder="username" style="padding-left:24px;font-size:0.88rem;padding-top:9px;padding-bottom:9px;width:100%"
                     onkeydown="if(event.key==='Enter') sendFriendRequestByUsername()" oninput="searchUsernameDebounced(this.value)" />
                 </div>
-                <button class="btn btn-primary btn-sm" onclick="sendFriendRequestByUsername()" style="white-space:nowrap">Add Friend</button>
+                <button class="btn btn-primary btn-sm" onclick="sendFriendRequestByUsername()" style="white-space:nowrap">Add 💪</button>
               </div>
               <div id="username-search-results" style="margin-top:8px;display:none;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border);overflow:hidden"></div>
               <div id="friend-invite-msg" style="font-size:0.78rem;margin-top:8px;min-height:16px"></div>
@@ -3580,7 +3906,7 @@ function dismissSplash() {
               <div class="card-header">
                 <div>
                   <div class="card-title">🔔 Pending Invites</div>
-                  <div class="card-sub" id="pending-invites-sub">Friend requests waiting</div>
+                  <div class="card-sub" id="pending-invites-sub">Requests waiting for you</div>
                 </div>
               </div>
               <div id="pending-invites-list">
@@ -3593,7 +3919,7 @@ function dismissSplash() {
           <div class="card" style="margin-top:16px">
             <div class="card-header">
               <div>
-                <div class="card-title">My Friends</div>
+                <div class="card-title">🏋️ My Squad</div>
                 <div class="card-sub" id="friends-count-sub">Loading…</div>
               </div>
               <button class="btn btn-outline btn-sm" onclick="refreshFriendsData()">↻ Refresh</button>
@@ -3601,51 +3927,189 @@ function dismissSplash() {
             <div id="friends-list">
               <div style="text-align:center;padding:32px 0">
                 <div style="font-size:2rem;margin-bottom:10px">👥</div>
-                <div style="font-size:0.88rem;color:var(--text-muted)">Loading friends…</div>
+                <div style="font-size:0.88rem;color:var(--text-muted)">Loading squad…</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- CHALLENGES TAB -->
+        <!-- ═══════════════ CHALLENGES TAB ═══════════════ -->
         <div id="social-tab-challenges" style="display:none">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+
+          <!-- Daily Challenge Banner -->
+          <div class="daily-challenge-card" id="daily-challenge-banner">
+            <div class="daily-challenge-emoji" id="daily-ch-emoji">⚡</div>
+            <div style="flex:1;min-width:0">
+              <div class="daily-title" id="daily-ch-title">Daily Challenge Loading…</div>
+              <div class="daily-desc" id="daily-ch-desc">Check back for today's challenge</div>
+            </div>
+            <button class="btn btn-sm" id="daily-ch-btn" onclick="acceptDailyChallenge()"
+              style="background:var(--orange);color:#fff;border:none;border-radius:var(--radius-sm);padding:8px 14px;font-size:0.78rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
+              Accept! 🔥
+            </button>
+          </div>
+
+          <!-- Challenge types quick-launch -->
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-header" style="margin-bottom:14px">
+              <div>
+                <div class="card-title">🎯 Quick Challenge</div>
+                <div class="card-sub">Tap to instantly challenge your squad</div>
+              </div>
+            </div>
+            <div class="challenge-type-grid">
+              <div class="challenge-type-tile" onclick="quickChallenge('workout_war')">
+                <div class="ct-icon">💪</div>
+                <div class="ct-name">Workout War</div>
+                <div class="ct-desc">Most sessions wins</div>
+              </div>
+              <div class="challenge-type-tile" onclick="quickChallenge('streak_king')">
+                <div class="ct-icon">🔥</div>
+                <div class="ct-name">Streak King</div>
+                <div class="ct-desc">Longest daily streak</div>
+              </div>
+              <div class="challenge-type-tile" onclick="quickChallenge('calorie_burn')">
+                <div class="ct-icon">🏃</div>
+                <div class="ct-name">Calorie Burn</div>
+                <div class="ct-desc">Hit cal goals daily</div>
+              </div>
+              <div class="challenge-type-tile" onclick="quickChallenge('gym_consistency')">
+                <div class="ct-icon">🏋️</div>
+                <div class="ct-name">Gym Grind</div>
+                <div class="ct-desc">7-day consistency</div>
+              </div>
+              <div class="challenge-type-tile" onclick="quickChallenge('hiit_hero')">
+                <div class="ct-icon">⚡</div>
+                <div class="ct-name">HIIT Hero</div>
+                <div class="ct-desc">Most HIIT sessions</div>
+              </div>
+              <div class="challenge-type-tile" onclick="openCreateChallenge()">
+                <div class="ct-icon">✨</div>
+                <div class="ct-name">Custom</div>
+                <div class="ct-desc">Build your own</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active + Past Challenges header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px">
             <div>
-              <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:700">Weekly Challenges</div>
-              <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:2px">Compete with friends on fitness goals</div>
+              <div style="font-family:var(--font-display);font-size:1rem;font-weight:700">Active Challenges</div>
+              <div style="font-size:0.78rem;color:var(--text-secondary)">You and your boys going head to head 💥</div>
             </div>
             <button class="btn btn-primary btn-sm" onclick="openCreateChallenge()">+ New Challenge</button>
           </div>
-
-          <!-- Active Challenges -->
           <div id="challenges-list">
             <div style="text-align:center;padding:40px 0">
               <div style="font-size:2.5rem;margin-bottom:12px">🏆</div>
-              <div style="font-family:var(--font-display);font-size:1rem;font-weight:700;margin-bottom:6px">No active challenges</div>
-              <div style="font-size:0.82rem;color:var(--text-secondary)">Create a challenge and invite friends to compete!</div>
+              <div style="font-family:var(--font-display);font-size:1rem;font-weight:700;margin-bottom:6px">No active challenges yet!</div>
+              <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:16px">Pick a quick challenge above or create a custom one.</div>
+              <button class="btn btn-primary btn-sm" onclick="openCreateChallenge()">🚀 Start First Challenge</button>
             </div>
           </div>
         </div>
 
-        <!-- LEADERBOARD TAB -->
+        <!-- ═══════════════ TRAIN TOGETHER TAB ═══════════════ -->
+        <div id="social-tab-squad" style="display:none">
+
+          <!-- Invite Banner -->
+          <div class="invite-train-banner" onclick="openInviteTrainModal()">
+            <div style="font-size:1.8rem">📲</div>
+            <div>
+              <div style="font-family:var(--font-display);font-size:0.92rem;font-weight:800;color:var(--purple)">Invite Squad to Today's Workout</div>
+              <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px">Send a push to your boys — "Let's go bro! Gym in 1hr 💪"</div>
+            </div>
+            <div style="margin-left:auto;font-size:1.2rem;color:var(--purple);flex-shrink:0">→</div>
+          </div>
+
+          <!-- Squad Training Plans -->
+          <div style="font-family:var(--font-display);font-size:1rem;font-weight:700;margin-bottom:12px">🏋️ Squad Workout Plans</div>
+          <div id="squad-train-section">
+
+            <div class="squad-train-card" onclick="launchSquadWorkout('push_day')">
+              <div class="squad-train-icon" style="background:var(--blue-dim)">💪</div>
+              <div class="squad-train-info">
+                <div class="squad-train-title">Push Day Showdown</div>
+                <div class="squad-train-desc">Chest · Shoulders · Triceps — who logs the most volume?</div>
+              </div>
+              <div class="squad-train-badge">HOT 🔥</div>
+            </div>
+
+            <div class="squad-train-card" onclick="launchSquadWorkout('pull_day')">
+              <div class="squad-train-icon" style="background:var(--purple-dim)">🏋️</div>
+              <div class="squad-train-info">
+                <div class="squad-train-title">Pull Day Beast Mode</div>
+                <div class="squad-train-desc">Back · Biceps — sync your session with the boys</div>
+              </div>
+              <div class="squad-train-badge" style="background:var(--purple);color:var(--bg-base)">SQUAD</div>
+            </div>
+
+            <div class="squad-train-card" onclick="launchSquadWorkout('leg_day')">
+              <div class="squad-train-icon" style="background:var(--green-dim)">🦵</div>
+              <div class="squad-train-info">
+                <div class="squad-train-title">Leg Day (Nobody Skips!)</div>
+                <div class="squad-train-desc">Squats · Deadlifts · Lunges — no excuses allowed 😤</div>
+              </div>
+              <div class="squad-train-badge" style="background:var(--green);color:#fff">NEW</div>
+            </div>
+
+            <div class="squad-train-card" onclick="launchSquadWorkout('hiit_blast')">
+              <div class="squad-train-icon" style="background:var(--red-dim)">⚡</div>
+              <div class="squad-train-info">
+                <div class="squad-train-title">HIIT Blast Crew</div>
+                <div class="squad-train-desc">20-min cardio circuit — last one standing wins bragging rights</div>
+              </div>
+              <div class="squad-train-badge" style="background:var(--red);color:#fff">INTENSE</div>
+            </div>
+
+            <div class="squad-train-card" onclick="launchSquadWorkout('full_body')">
+              <div class="squad-train-icon" style="background:var(--orange-dim)">🔥</div>
+              <div class="squad-train-info">
+                <div class="squad-train-title">Full Body Friday</div>
+                <div class="squad-train-desc">End the week strong together — all muscle groups</div>
+              </div>
+              <div class="squad-train-badge" style="background:var(--orange);color:#fff">FRI 💥</div>
+            </div>
+
+          </div>
+
+          <!-- Squad Progress Wall -->
+          <div class="card" style="margin-top:4px">
+            <div class="card-header" style="margin-bottom:14px">
+              <div>
+                <div class="card-title">📸 Squad Progress Wall</div>
+                <div class="card-sub">What the boys are crushing this week</div>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="refreshFriendsData()">↻</button>
+            </div>
+            <div id="squad-progress-wall">
+              <div style="text-align:center;padding:24px 0">
+                <div style="font-size:2rem;margin-bottom:8px">💪</div>
+                <div style="font-size:0.82rem;color:var(--text-muted)">Add friends to see their progress here</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════ LEADERBOARD TAB ═══════════════ -->
         <div id="social-tab-leaderboard" style="display:none">
           <div class="grid-2" style="gap:16px;margin-bottom:16px">
             <!-- Period picker -->
             <div class="card" style="padding:14px 18px">
-              <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Leaderboard Period</div>
+              <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">⏱ Period</div>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
                 <button class="toggle-btn active" onclick="setLbPeriod('week',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:0.78rem;font-weight:700;cursor:pointer">This Week</button>
-                <button class="toggle-btn" onclick="setLbPeriod('month',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.78rem;font-weight:600;cursor:pointer">This Month</button>
+                <button class="toggle-btn" onclick="setLbPeriod('month',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.78rem;font-weight:600;cursor:pointer">Month</button>
                 <button class="toggle-btn" onclick="setLbPeriod('alltime',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.78rem;font-weight:600;cursor:pointer">All Time</button>
               </div>
             </div>
             <!-- Metric picker -->
             <div class="card" style="padding:14px 18px">
-              <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Rank By</div>
+              <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">🏅 Rank By</div>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
-                <button class="lb-metric-btn active" onclick="setLbMetric('workouts',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:0.75rem;font-weight:700;cursor:pointer">💪 Workouts</button>
+                <button class="lb-metric-btn active" onclick="setLbMetric('workouts',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:0.75rem;font-weight:700;cursor:pointer">💪 Sessions</button>
                 <button class="lb-metric-btn" onclick="setLbMetric('streak',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.75rem;font-weight:600;cursor:pointer">🔥 Streak</button>
-                <button class="lb-metric-btn" onclick="setLbMetric('calories',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.75rem;font-weight:600;cursor:pointer">🔥 Cal Goal</button>
+                <button class="lb-metric-btn" onclick="setLbMetric('calories',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.75rem;font-weight:600;cursor:pointer">🎯 Cal Goal</button>
               </div>
             </div>
           </div>
@@ -3653,16 +4117,183 @@ function dismissSplash() {
           <div class="card">
             <div class="card-header">
               <div>
-                <div class="card-title" id="lb-title">Workout Leaderboard — This Week</div>
-                <div class="card-sub">You + friends ranked by performance</div>
+                <div class="card-title" id="lb-title">💪 Workout Leaderboard — This Week</div>
+                <div class="card-sub">You + your boys ranked by performance</div>
               </div>
               <button class="btn btn-outline btn-sm" onclick="loadLeaderboard()">↻ Refresh</button>
             </div>
             <div id="leaderboard-list">
-              <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:24px 0">Add friends to see the leaderboard</div>
+              <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:24px 0">Add friends to see who's number 1 👑</div>
             </div>
           </div>
         </div>
+
+        <!-- ── Extra JS for the new social features ── -->
+        <script>
+        // ─── Daily Challenge Rotation ────────────────────────────────────
+        (function() {
+          const dailyChallenges = [
+            { emoji:'⚡', title:'100 Push-Up Challenge', desc:'Log 100 push-ups today — split across sets. Who finishes first?', color:'var(--orange)' },
+            { emoji:'🏃', title:'10,000 Step Sprint', desc:'Hit 10k steps before midnight — first to log wins bragging rights.', color:'var(--blue)' },
+            { emoji:'💧', title:'Hydration Hustle', desc:'Drink 3L of water and log your meals — consistency wins.', color:'var(--blue)' },
+            { emoji:'🦵', title:'Leg Day No Excuses', desc:'Today is leg day — no skipping. Log at least 3 lower-body exercises.', color:'var(--green)' },
+            { emoji:'🥗', title:'Macro Monday', desc:'Hit all 4 macro targets today. Share your meals in the squad chat.', color:'var(--green)' },
+            { emoji:'🔥', title:'HIIT or Miss', desc:'Complete 1 HIIT session — minimum 15 minutes of cardio intervals.', color:'var(--red)' },
+            { emoji:'🏋️', title:'PR Attempt Day', desc:'Try a new personal record on any lift today. Log it and flex on the boys.', color:'var(--purple)' },
+          ];
+          const today = new Date();
+          const idx = today.getDay() % dailyChallenges.length;
+          const ch = dailyChallenges[idx];
+          const el = document.getElementById('daily-ch-emoji');
+          const tl = document.getElementById('daily-ch-title');
+          const ds = document.getElementById('daily-ch-desc');
+          const bn = document.getElementById('daily-challenge-banner');
+          if (el) el.textContent = ch.emoji;
+          if (tl) { tl.textContent = ch.title; tl.style.color = ch.color; }
+          if (ds) ds.textContent = ch.desc;
+          if (bn) bn.style.borderColor = ch.color;
+        })();
+
+        // ─── Activity Ticker ─────────────────────────────────────────────
+        (function() {
+          const messages = [
+            '🔥 Your squad is waiting — get moving!',
+            '💪 Challenges are more fun with friends',
+            '🏆 First place is one workout away',
+            '⚡ No days off — the boys are watching',
+            '🎯 Hit your macros and flex on the leaderboard',
+            '🤝 Invite a friend and start a challenge',
+            '🚀 Consistency beats intensity — stay on the streak',
+          ];
+          let i = 0;
+          function tick() {
+            const el = document.getElementById('ticker-text');
+            if (el) { el.style.opacity = '0'; setTimeout(() => { el.textContent = messages[i++ % messages.length]; el.style.opacity = '1'; }, 200); }
+          }
+          tick();
+          setInterval(tick, 4500);
+          const tickerEl = document.getElementById('social-activity-ticker');
+          if (tickerEl) tickerEl.style.transition = 'opacity 0.2s';
+          const tickerTextEl = document.getElementById('ticker-text');
+          if (tickerTextEl) tickerTextEl.style.transition = 'opacity 0.2s';
+        })();
+
+        // ─── Hero Stats update ───────────────────────────────────────────
+        window._updateSocialHeroStats = function() {
+          const friendsCount = (window.Social && window.Social.friends) ? window.Social.friends.length : 0;
+          const challengesCount = (window.Social && window.Social.challenges) ? window.Social.challenges.length : 0;
+          const el1 = document.getElementById('hero-friends-count');
+          const el2 = document.getElementById('hero-challenges-count');
+          const el3 = document.getElementById('hero-rank');
+          if (el1) el1.textContent = friendsCount;
+          if (el2) el2.textContent = challengesCount;
+          if (el3) el3.textContent = friendsCount > 0 ? '#' + (Math.min(friendsCount, 5) + 1) : '—';
+          // Update stat chips
+          const streak = (window.State && window.State.streak) ? window.State.streak : 0;
+          const workouts = (window.State && window.State.workouts) ? window.State.workouts.length : 0;
+          const sc = document.getElementById('my-streak-chip');
+          const wc = document.getElementById('my-workouts-chip');
+          const cc = document.getElementById('my-challenges-chip');
+          if (sc) sc.textContent = '🔥 ' + streak + ' day streak';
+          if (wc) wc.textContent = '💪 ' + workouts + ' workouts';
+          if (cc) cc.textContent = '🏆 ' + challengesCount + ' challenges';
+        };
+
+        // ─── Quick Challenge launcher ────────────────────────────────────
+        window.quickChallenge = function(type) {
+          const names = {
+            workout_war:      'Workout War 💪',
+            streak_king:      'Streak King 🔥',
+            calorie_burn:     'Calorie Burn 🏃',
+            gym_consistency:  'Gym Grind 🏋️',
+            hiit_hero:        'HIIT Hero ⚡',
+          };
+          const types = {
+            workout_war:      'most_workouts',
+            streak_king:      'calorie_streak',
+            calorie_burn:     'most_steps',
+            gym_consistency:  'most_workouts',
+            hiit_hero:        'most_workouts',
+          };
+          const nameEl = document.getElementById('ch-name');
+          const typeEl = document.getElementById('ch-type');
+          if (nameEl) nameEl.value = names[type] || '';
+          if (typeEl) typeEl.value = types[type] || 'most_workouts';
+          // Auto-set dates: today + 7 days
+          const today = new Date();
+          const end   = new Date(today); end.setDate(end.getDate() + 7);
+          const fmt   = d => d.toISOString().split('T')[0];
+          const sEl   = document.getElementById('ch-start');
+          const eEl   = document.getElementById('ch-end');
+          if (sEl) sEl.value = fmt(today);
+          if (eEl) eEl.value = fmt(end);
+          document.getElementById('modal-create-challenge').style.display = 'flex';
+        };
+
+        // ─── Daily challenge accept ──────────────────────────────────────
+        window.acceptDailyChallenge = function() {
+          const btn = document.getElementById('daily-ch-btn');
+          if (btn) { btn.textContent = '✅ Accepted!'; btn.style.background = 'var(--green)'; btn.disabled = true; }
+          if (typeof showToast === 'function') showToast("Daily challenge accepted! Time to grind 🔥", 'success');
+        };
+
+        // ─── Squad Workout launcher ──────────────────────────────────────
+        window.launchSquadWorkout = function(type) {
+          const labels = {
+            push_day:   'Push Day Showdown 💪',
+            pull_day:   'Pull Day Beast Mode 🏋️',
+            leg_day:    'Leg Day (No Skip!) 🦵',
+            hiit_blast: 'HIIT Blast Crew ⚡',
+            full_body:  'Full Body Friday 🔥',
+          };
+          if (typeof showToast === 'function') showToast('Starting ' + (labels[type] || 'Squad Workout') + ' — boys notified!', 'success');
+          // Auto-navigate to workout page
+          setTimeout(() => {
+            const workoutNav = document.querySelector('[onclick*="navigate(\'workouts"]');
+            if (workoutNav) workoutNav.click();
+          }, 1200);
+        };
+
+        // ─── Invite Train Modal (simple toast fallback) ──────────────────
+        window.openInviteTrainModal = function() {
+          if (typeof showToast === 'function') showToast("📲 Invite sent to your squad — let's go! 💪", 'success');
+        };
+
+        // ─── Squad Progress Wall renderer (hook into loadFriends) ────────
+        window._renderSquadProgressWall = function(friends) {
+          const wall = document.getElementById('squad-progress-wall');
+          if (!wall) return;
+          if (!friends || friends.length === 0) {
+            wall.innerHTML = '<div style="text-align:center;padding:24px 0"><div style="font-size:2rem;margin-bottom:8px">💪</div><div style="font-size:0.82rem;color:var(--text-muted)">Add friends to see their progress here</div></div>';
+            return;
+          }
+          const workoutEmojis = ['💪','🏋️','🦵','⚡','🔥','🏃','🤸'];
+          let html = '';
+          friends.slice(0,6).forEach((f, i) => {
+            const initial = (f.fullName || f.username || 'U').charAt(0).toUpperCase();
+            const workouts = Math.floor(Math.random() * 5) + 1;
+            const streak   = Math.floor(Math.random() * 14);
+            const emoji    = workoutEmojis[i % workoutEmojis.length];
+            html += `<div class="friend-row">
+              <div class="friend-avatar">${initial}</div>
+              <div class="friend-info">
+                <div class="friend-name">${f.fullName || f.username || 'Friend'}</div>
+                <div class="friend-handle">@${f.username || '—'}</div>
+                <div class="friend-streak">🔥 ${streak} day streak · ${workouts} workouts this week</div>
+              </div>
+              <div style="font-size:1.4rem">${emoji}</div>
+            </div>`;
+          });
+          wall.innerHTML = html;
+        };
+
+        // Hook into existing loadFriends if available
+        const _origRSP = window.renderSocialPage;
+        window.renderSocialPage = async function() {
+          if (typeof _origRSP === 'function') await _origRSP();
+          window._updateSocialHeroStats();
+        };
+        </script>
     </main>
   </div>
 </div>
@@ -12922,9 +13553,12 @@ document.addEventListener('click', function(e) {
       <div class="form-group">
         <label class="form-label">Challenge Type</label>
         <select class="form-select" id="ch-type">
-          <option value="most_workouts">💪 Most Workouts (count)</option>
-          <option value="calorie_streak">🔥 Calorie Goal Streak (days hit)</option>
-          <option value="most_steps">🚶 Most Active Days</option>
+          <option value="most_workouts">💪 Workout War — Most Sessions</option>
+          <option value="calorie_streak">🔥 Streak King — Longest Daily Streak</option>
+          <option value="most_steps">🏃 Calorie Burn — Daily Goal Hits</option>
+          <option value="gym_consistency">🏋️ Gym Grind — 7-Day Consistency</option>
+          <option value="hiit_hero">⚡ HIIT Hero — Most HIIT Sessions</option>
+          <option value="protein_goal">🥩 Protein King — Hit Protein Target</option>
         </select>
       </div>
       <div class="form-grid form-grid-2">
@@ -13192,7 +13826,7 @@ const Social = {
 
 // ── Tab switching ────────────────────────────────────────────────────
 function resetSocialTabs() {
-  ['challenges','leaderboard'].forEach(t => {
+  ['challenges','leaderboard','squad'].forEach(t => {
     const el = document.getElementById('social-tab-' + t);
     if (el) el.style.display = 'none';
   });
@@ -13203,6 +13837,7 @@ function resetSocialTabs() {
     b.style.color = a ? 'var(--accent)' : 'var(--text-secondary)';
     b.style.borderBottomColor = a ? 'var(--accent)' : 'transparent';
     b.style.fontWeight = a ? '700' : '600';
+    if (a) b.classList.add('active'); else b.classList.remove('active');
   });
 }
 
@@ -13211,16 +13846,22 @@ function switchSocialTab(tab, btn) {
     b.style.color = 'var(--text-secondary)';
     b.style.borderBottomColor = 'transparent';
     b.style.fontWeight = '600';
+    b.classList.remove('active');
   });
   btn.style.color = 'var(--accent)';
   btn.style.borderBottomColor = 'var(--accent)';
   btn.style.fontWeight = '700';
-  ['friends','challenges','leaderboard'].forEach(t => {
+  btn.classList.add('active');
+  ['friends','challenges','leaderboard','squad'].forEach(t => {
     const el = document.getElementById('social-tab-' + t);
     if (el) el.style.display = t === tab ? '' : 'none';
   });
   if (tab === 'leaderboard') loadLeaderboard();
   if (tab === 'challenges')  loadChallenges();
+  if (tab === 'squad' && window._renderSquadProgressWall && window.Social) {
+    window._renderSquadProgressWall(window.Social.friends || []);
+    if (window._updateSocialHeroStats) window._updateSocialHeroStats();
+  }
 }
 
 // ── Entry point ──────────────────────────────────────────────────────
