@@ -16374,6 +16374,150 @@ const BADGE_DEFS = [
       });
     }},
 
+  // ══════════════════════════════════════════════
+  //  💀  RARE & HARD — serious long-term effort
+  // ══════════════════════════════════════════════
+
+  // ── Iron Consistency ──────────────────────────
+  { id:'hard_streak_200', cat:'💀 Rare & Hard', icon:'🩸', color:'#b91c1c',
+    name:'Blood & Iron',    desc:'200-day streak — almost no one gets here',
+    check: () => (State.streak||0) >= 200 },
+
+  { id:'hard_streak_500', cat:'💀 Rare & Hard', icon:'💀', color:'#b91c1c',
+    name:'The Undying',     desc:'500-day streak — you are not human',
+    check: () => (State.streak||0) >= 500 },
+
+  { id:'hard_combo_100', cat:'💀 Rare & Hard', icon:'⛓️', color:'#b91c1c',
+    name:'Locked In',       desc:'Log both food AND a workout on 100 same days',
+    check: () => {
+      const wDates = new Set(_bdgWorkoutDays());
+      return _bdgLoggedDays().filter(d => wDates.has(d)).length >= 100;
+    }},
+
+  { id:'hard_combo_365', cat:'💀 Rare & Hard', icon:'🗡️', color:'#b91c1c',
+    name:'Full Year Warrior', desc:'Log both food AND a workout on 365 same days — elite dedication',
+    check: () => {
+      const wDates = new Set(_bdgWorkoutDays());
+      return _bdgLoggedDays().filter(d => wDates.has(d)).length >= 365;
+    }},
+
+  // ── Volume Monsters ───────────────────────────
+  { id:'hard_vol_500k', cat:'💀 Rare & Hard', icon:'🏗️', color:'#b91c1c',
+    name:'Half a Million KG', desc:'Lift 500,000 kg total volume — industrial-level output',
+    check: () => _bdgTotalVolume() >= 500000 },
+
+  { id:'hard_vol_1m', cat:'💀 Rare & Hard', icon:'🌋', color:'#b91c1c',
+    name:'One Million KG',   desc:'Lift 1,000,000 kg total — a literal metric million',
+    check: () => _bdgTotalVolume() >= 1000000 },
+
+  { id:'hard_reps_50k', cat:'💀 Rare & Hard', icon:'♾️', color:'#b91c1c',
+    name:'50K Reps',         desc:'Complete 50,000 total reps across all workouts',
+    check: () => _bdgTotalReps() >= 50000 },
+
+  { id:'hard_sets_5000', cat:'💀 Rare & Hard', icon:'🔩', color:'#b91c1c',
+    name:'5000 Sets',        desc:'Complete 5,000 total sets — relentless grind',
+    check: () => _bdgTotalSets() >= 5000 },
+
+  // ── Workout Milestones ────────────────────────
+  { id:'hard_workouts_250', cat:'💀 Rare & Hard', icon:'🦣', color:'#b91c1c',
+    name:'250 Strong',       desc:'Complete 250 workouts without stopping',
+    check: () => (State.workouts||[]).length >= 250 },
+
+  { id:'hard_workouts_750', cat:'💀 Rare & Hard', icon:'🏔️', color:'#b91c1c',
+    name:'Mountain Mover',   desc:'Complete 750 workouts — barely 1 in 1,000 users reach this',
+    check: () => (State.workouts||[]).length >= 750 },
+
+  { id:'hard_workouts_1000', cat:'💀 Rare & Hard', icon:'👁️', color:'#b91c1c',
+    name:'The 1000',         desc:'Complete 1,000 workouts — a truly legendary achievement',
+    check: () => (State.workouts||[]).length >= 1000 },
+
+  // ── Lifting Thresholds ────────────────────────
+  { id:'hard_lift_180kg', cat:'💀 Rare & Hard', icon:'🐉', color:'#b91c1c',
+    name:'Dragon Lifter',    desc:'Lift 180 kg in a single set',
+    check: () => _bdgExerciseWithWeight(180) },
+
+  { id:'hard_lift_220kg', cat:'💀 Rare & Hard', icon:'⚡', color:'#b91c1c',
+    name:'Thunder God',      desc:'Lift 220 kg in a single set — elite powerlifter territory',
+    check: () => _bdgExerciseWithWeight(220) },
+
+  { id:'hard_lift_250kg', cat:'💀 Rare & Hard', icon:'💀', color:'#b91c1c',
+    name:'Quarter Tonne',    desc:'Lift 250 kg in a single set — world-class strength',
+    check: () => _bdgExerciseWithWeight(250) },
+
+  // ── Nutrition Extremes ────────────────────────
+  { id:'hard_food_5000', cat:'💀 Rare & Hard', icon:'🔬', color:'#b91c1c',
+    name:'5000 Entries',     desc:'Log 5,000 food entries — obsessive-level data',
+    check: () => _bdgTotalFoodEntries() >= 5000 },
+
+  { id:'hard_protein_50k', cat:'💀 Rare & Hard', icon:'🥩', color:'#b91c1c',
+    name:'Protein God',      desc:'Log 50,000 g of protein across all days',
+    check: () => _bdgProteinLogged() >= 50000 },
+
+  { id:'hard_cal_goal_100', cat:'💀 Rare & Hard', icon:'🎯', color:'#b91c1c',
+    name:'Sniper Nutrition', desc:'Hit your calorie goal (±10%) on 100 different days',
+    check: () => _bdgCalHitDays(0.9, 1.1) >= 100 },
+
+  { id:'hard_protein_goal_60', cat:'💀 Rare & Hard', icon:'💊', color:'#b91c1c',
+    name:'Protein Precision', desc:'Hit your protein goal on 60 different days',
+    check: () => _bdgProteinHitDays(0.9) >= 60 },
+
+  // ── PR Machines ───────────────────────────────
+  { id:'hard_pr_100', cat:'💀 Rare & Hard', icon:'📈', color:'#b91c1c',
+    name:'Record Destroyer', desc:'Break 100 personal records — constantly improving',
+    check: () => _bdgPRCount() >= 100 },
+
+  { id:'hard_pr_ex_20', cat:'💀 Rare & Hard', icon:'🏅', color:'#b91c1c',
+    name:'Jack of All PRs',  desc:'Break PRs on 20 different exercises',
+    check: () => _bdgPRExercises() >= 20 },
+
+  // ── Muscle Mastery ────────────────────────────
+  { id:'hard_chest_50', cat:'💀 Rare & Hard', icon:'🫀', color:'#b91c1c',
+    name:'Chest Obsessed',   desc:'Complete 50 chest workouts',
+    check: () => _bdgWorkoutsWithMuscle('chest') >= 50 },
+
+  { id:'hard_legs_50', cat:'💀 Rare & Hard', icon:'🦵', color:'#b91c1c',
+    name:'Leg Day Fanatic',  desc:'Complete 50 leg workouts — no excuses, ever',
+    check: () => _bdgWorkoutsWithMuscle('leg') >= 50 },
+
+  { id:'hard_variety_100', cat:'💀 Rare & Hard', icon:'🌐', color:'#b91c1c',
+    name:'100 Exercises',    desc:'Try 100 different exercises — true fitness explorer',
+    check: () => _bdgUniqueExercises() >= 100 },
+
+  // ── Goals Completionist ───────────────────────
+  { id:'hard_goals_25', cat:'💀 Rare & Hard', icon:'🏁', color:'#b91c1c',
+    name:'Relentless Closer', desc:'Complete 25 goals — disciplined follow-through',
+    check: () => _bdgGoalsCount(true) >= 25 },
+
+  { id:'hard_goals_50', cat:'💀 Rare & Hard', icon:'🎖️', color:'#b91c1c',
+    name:'Goal Machine',     desc:'Complete 50 goals — you set it, you crush it',
+    check: () => _bdgGoalsCount(true) >= 50 },
+
+  // ── Body Transformation ───────────────────────
+  { id:'hard_weight_loss_15', cat:'💀 Rare & Hard', icon:'🌊', color:'#b91c1c',
+    name:'15 Kilos Down',    desc:'Lose 15 kg from your starting weight',
+    check: () => _bdgWeightLost() >= 15 },
+
+  { id:'hard_weight_loss_25', cat:'💀 Rare & Hard', icon:'🌀', color:'#b91c1c',
+    name:'Total Transformation', desc:'Lose 25 kg from your starting weight — life-changing',
+    check: () => _bdgWeightLost() >= 25 },
+
+  { id:'hard_metrics_100', cat:'💀 Rare & Hard', icon:'📊', color:'#b91c1c',
+    name:'100 Weigh-Ins',    desc:'Log 100 weight measurements — consistent self-monitoring',
+    check: () => _bdgMetricEntries() >= 100 },
+
+  // ── The Impossible ────────────────────────────
+  { id:'hard_the_grind', cat:'💀 Rare & Hard', icon:'💎', color:'#b91c1c',
+    name:'The Grind',        desc:'500 workouts + 365-day food log + 25 goals completed — the full package',
+    check: () => (State.workouts||[]).length >= 500
+              && _bdgLoggedDays().length >= 365
+              && _bdgGoalsCount(true) >= 25 },
+
+  { id:'hard_ultimate', cat:'💀 Rare & Hard', icon:'👑', color:'#b91c1c',
+    name:'EddFit Legend',    desc:'1,000 workouts + 1M kg volume + 365-day streak — less than 0.1% of users',
+    check: () => (State.workouts||[]).length >= 1000
+              && _bdgTotalVolume() >= 1000000
+              && (State.streak||0) >= 365 },
+
 ];
 
 // ── Init badges in State ──────────────────────────────────────────────────────
