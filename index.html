@@ -190,8 +190,8 @@
     const stat = document.getElementById('email-username-status');
     window._signupUsername = cleaned;
     window._signupUsernameValid = false;
-    if (!cleaned || cleaned.length < 3) {
-      if (stat) { stat.textContent = cleaned.length > 0 ? '⚠️ Too short (min 3 chars)' : '3–30 chars · letters, numbers, underscores'; stat.style.color = cleaned.length > 0 ? 'var(--red)' : 'var(--text-muted)'; }
+    if (!cleaned || cleaned.length < 5) {
+      if (stat) { stat.textContent = cleaned.length > 0 ? '⚠️ Too short (min 5 chars)' : '5–30 chars · letters, numbers, underscores'; stat.style.color = cleaned.length > 0 ? 'var(--red)' : 'var(--text-muted)'; }
       return;
     }
     if (stat) { stat.textContent = 'Checking…'; stat.style.color = 'var(--text-muted)'; }
@@ -218,7 +218,7 @@
     if (!password) { if (errEl) errEl.textContent = '⚠️ Please enter your password.'; return; }
     if (window._emailAuthMode === 'signup') {
       const un = window._signupUsername;
-      if (!un || un.length < 3) { if (errEl) errEl.textContent = '⚠️ Choose a username (min 3 chars).'; return; }
+      if (!un || un.length < 5) { if (errEl) errEl.textContent = '⚠️ Choose a username (min 5 chars).'; return; }
       if (!window._signupUsernameValid) { if (errEl) errEl.textContent = '⚠️ Username is taken or not yet checked.'; return; }
       window._fbEmailSignUp(email, password, name, un);
     } else {
@@ -12634,7 +12634,7 @@ document.addEventListener('click', function(e) {
           <input type="text" class="form-input" id="acct-username" placeholder="your_username" style="padding-left:28px"
             oninput="validateUsernameInput(this.value)" maxlength="30" />
         </div>
-        <div id="acct-username-status" style="font-size:0.72rem;margin-top:4px;min-height:16px;color:var(--text-muted)">3–30 chars · letters, numbers, underscores only · unique per user</div>
+        <div id="acct-username-status" style="font-size:0.72rem;margin-top:4px;min-height:16px;color:var(--text-muted)">5–30 chars · letters, numbers, underscores only · unique per user</div>
       </div>
     </div>
 
@@ -12812,7 +12812,7 @@ async function saveAccountProfile() {
   const btn      = document.getElementById('acct-save-btn');
 
   msgEl.textContent = '';
-  if (!username || username.length < 3) { msgEl.textContent = '⚠️ Username must be at least 3 characters.'; msgEl.style.color = 'var(--red)'; return; }
+  if (!username || username.length < 5) { msgEl.textContent = '⚠️ Username must be at least 5 characters.'; msgEl.style.color = 'var(--red)'; return; }
   if (!/^[a-z0-9_]+$/.test(username))  { msgEl.textContent = '⚠️ Letters, numbers, underscores only.'; msgEl.style.color = 'var(--red)'; return; }
   if (!_acctUsernameValid && username !== _acctCurrentUsername) { msgEl.textContent = '⚠️ Wait for username check or pick another.'; msgEl.style.color = 'var(--red)'; return; }
 
@@ -13508,9 +13508,30 @@ function renderLeaderboard(entries) {
     <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;letter-spacing:-0.5px;margin-bottom:8px">
       Choose your username
     </div>
-    <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:28px;line-height:1.5">
-      Your username is how friends find you on EddFit.<br>
-      You <strong>must</strong> set one before using the app.
+    <!-- Signed-in user info banner -->
+    <div id="mus-user-banner" style="
+      display:flex;align-items:center;gap:12px;
+      background:var(--bg-elevated);border-radius:var(--radius-sm);
+      padding:10px 14px;margin-bottom:20px;text-align:left;
+    ">
+      <div id="mus-avatar" style="
+        width:40px;height:40px;border-radius:50%;flex-shrink:0;
+        background:linear-gradient(135deg,var(--accent),var(--blue));
+        display:flex;align-items:center;justify-content:center;
+        font-family:var(--font-display);font-weight:800;font-size:1rem;
+        color:var(--bg-base);position:relative;overflow:hidden;
+      ">
+        <img id="mus-avatar-photo" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%">
+        <span id="mus-avatar-letter">?</span>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div id="mus-display-name" style="font-size:0.88rem;font-weight:700;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
+        <div id="mus-display-email" style="font-size:0.72rem;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
+      </div>
+    </div>
+    <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:20px;line-height:1.5">
+      Your username is how friends find and challenge you.<br>
+      <strong>You must set one before using the app.</strong>
     </div>
 
     <!-- Full name (editable) -->
@@ -13532,7 +13553,7 @@ function renderLeaderboard(entries) {
       </div>
     </div>
     <div id="mus-status" style="font-size:0.72rem;min-height:18px;text-align:left;padding-left:2px;margin-bottom:20px;color:var(--text-muted)">
-      3–30 chars · letters, numbers, underscores only
+      5–30 chars · letters, numbers, underscores only
     </div>
 
     <div id="mus-error" style="font-size:0.78rem;color:var(--red);min-height:16px;margin-bottom:12px;text-align:center"></div>
@@ -13554,6 +13575,7 @@ function renderLeaderboard(entries) {
 </div>
 
 
+<script>
 // ═══════════════════════════════════════════════════════════════
 //  MANDATORY USERNAME SETUP
 // ═══════════════════════════════════════════════════════════════
@@ -13566,9 +13588,28 @@ function renderLeaderboard(entries) {
     const me = window._currentUser;
     const modal = document.getElementById('modal-username-setup');
     if (!modal) return;
+
     // Pre-fill full name from auth provider
     const fnEl = document.getElementById('mus-fullname');
     if (fnEl && me) fnEl.value = me.displayName || '';
+
+    // Populate the user info banner
+    const nameEl   = document.getElementById('mus-display-name');
+    const emailEl  = document.getElementById('mus-display-email');
+    const letterEl = document.getElementById('mus-avatar-letter');
+    const photoEl  = document.getElementById('mus-avatar-photo');
+    if (me) {
+      if (nameEl)   nameEl.textContent  = me.displayName || 'No display name';
+      if (emailEl)  emailEl.textContent = me.email || '';
+      if (letterEl) letterEl.textContent = (me.displayName || me.email || 'U').charAt(0).toUpperCase();
+      if (photoEl && me.photoURL) {
+        photoEl.src = me.photoURL;
+        photoEl.style.display = 'block';
+        const lEl = document.getElementById('mus-avatar-letter');
+        if (lEl) lEl.style.visibility = 'hidden';
+      }
+    }
+
     modal.style.display = 'flex';
   };
 
@@ -13579,8 +13620,8 @@ function renderLeaderboard(entries) {
     const stat = document.getElementById('mus-status');
     _musValid = false;
     _musChecked = false;
-    if (!cleaned || cleaned.length < 3) {
-      if (stat) { stat.textContent = cleaned.length > 0 ? '⚠️ Too short (min 3 chars)' : '3–30 chars · letters, numbers, underscores only'; stat.style.color = cleaned.length > 0 ? 'var(--red)' : 'var(--text-muted)'; }
+    if (!cleaned || cleaned.length < 5) {
+      if (stat) { stat.textContent = cleaned.length > 0 ? '⚠️ Too short (min 5 chars)' : '5–30 chars · letters, numbers, underscores only'; stat.style.color = cleaned.length > 0 ? 'var(--red)' : 'var(--text-muted)'; }
       return;
     }
     if (stat) { stat.textContent = 'Checking availability…'; stat.style.color = 'var(--text-muted)'; }
@@ -13609,7 +13650,7 @@ function renderLeaderboard(entries) {
     const btn      = document.getElementById('mus-save-btn');
     if (errEl) errEl.textContent = '';
 
-    if (!username || username.length < 3) { if (errEl) errEl.textContent = '⚠️ Please enter a username (min 3 chars).'; return; }
+    if (!username || username.length < 5) { if (errEl) errEl.textContent = '⚠️ Please enter a username (min 5 chars).'; return; }
     if (!/^[a-z0-9_]+$/.test(username))  { if (errEl) errEl.textContent = '⚠️ Letters, numbers and underscores only.'; return; }
     if (!_musValid && !_musChecked)        { if (errEl) errEl.textContent = '⚠️ Wait for the availability check.'; return; }
     if (!_musValid)                        { if (errEl) errEl.textContent = '⚠️ That username is taken — pick another.'; return; }
@@ -13672,6 +13713,7 @@ function renderLeaderboard(entries) {
     }
   };
 })();
+</script>
 
 </body>
 </html>
