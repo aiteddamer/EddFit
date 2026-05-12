@@ -252,11 +252,16 @@
         photoEl.style.left = '0';
         if (avatarEl) avatarEl.style.visibility = 'hidden';
       }
+      // Always reset sidebar username so previous user's handle never bleeds in
       const sidebarSubEl = document.getElementById('sidebar-name');
-      if (sidebarSubEl && !sidebarSubEl.textContent) sidebarSubEl.textContent = user.email || '';
+      if (sidebarSubEl) sidebarSubEl.textContent = user.email || '';
+      // Reset Social.myProfile so cached data from a previous session is cleared
+      if (window.Social) window.Social.myProfile = null;
       await window._loadFirestore();
     } else {
       window._currentUser = null;
+      // Clear Social profile so next user starts fresh
+      if (window.Social) window.Social.myProfile = null;
       document.getElementById('auth-screen').style.display = 'flex';
       document.getElementById('app-wrapper').style.display = 'none';
     }
@@ -5861,10 +5866,15 @@ function startApp() {
   initUI();
   navigate('dashboard', document.querySelector('.nav-item'));
   calcStreak();
-  // Check username gate — Google users and old users who never set one
-  setTimeout(() => { if (typeof window._checkUsernameGate === 'function') window._checkUsernameGate(); }, 800);
+  // Always check username gate — handles Google users, old accounts, and new email sign-ups
+  // Use a short delay so Firestore write from _fbEmailSignUp has time to propagate
+  setTimeout(async () => {
+    if (typeof window._checkUsernameGate === 'function') {
+      await window._checkUsernameGate();
+    }
+  }, 1200);
   // Show weight reminder once per day if not yet logged
-  setTimeout(checkWeightReminder, 2000);
+  setTimeout(checkWeightReminder, 2500);
 }
 
 function checkWeightReminder() {
@@ -5930,9 +5940,8 @@ function showWeightReminder() {
 
 function initUI() {
   const p = State.profile;
-  // Sidebar — show profile name as subtitle under Google account
-  const sidebarNameEl = document.getElementById('sidebar-name');
-  if (sidebarNameEl) sidebarNameEl.textContent = p.name || '';
+  // NOTE: sidebar-name (@username) is managed exclusively by _checkUsernameGate
+  // and loadMyProfile — do not overwrite it here with the display name.
   // Don't touch auth-user-avatar/auth-user-name — those are set by Firebase auth listener
   // Date
   const now = new Date();
@@ -13140,14 +13149,13 @@ async function openAccountModal() {
   if (!me) return;
   if (typeof closeSidebar === 'function') closeSidebar();
 
-  // Load social profile if missing
-  if (!Social.myProfile) {
-    try {
-      const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'users_public', me.uid));
-      Social.myProfile = snap.exists() ? snap.data() : { username: '', fullName: me.displayName || '', photoURL: me.photoURL || '' };
-    } catch(e) {
-      Social.myProfile = { username: '', fullName: me.displayName || '', photoURL: me.photoURL || '' };
-    }
+  // Always re-fetch from Firestore to guarantee we show this user's own profile,
+  // never a cached profile that might belong to a previously signed-in user.
+  try {
+    const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'users_public', me.uid));
+    Social.myProfile = snap.exists() ? snap.data() : { username: '', fullName: me.displayName || '', photoURL: me.photoURL || '' };
+  } catch(e) {
+    if (!Social.myProfile) Social.myProfile = { username: '', fullName: me.displayName || '', photoURL: me.photoURL || '' };
   }
 
   const fullname = Social.myProfile?.fullName || me.displayName || '';
@@ -14213,13 +14221,20 @@ function renderLeaderboard(entries) {
         // No username yet — show mandatory setup
         window._showUsernameSetup();
       } else {
-        // Has username — update Social.myProfile quietly
+        // Has username — update Social.myProfile and sidebar
         if (window.Social) window.Social.myProfile = data;
         const sidebarSub = document.getElementById('sidebar-name');
         if (sidebarSub) sidebarSub.textContent = '@' + data.username;
       }
     } catch(e) {
-      // On error, still show the setup so it isn't silently skipped
+      // Only show the setup modal for genuine "missing doc" scenarios.
+      // For network/permission errors, log and skip — don't trap the user.
+      const code = e?.code || '';
+      if (code === 'permission-denied' || code === 'unavailable' || code === 'network-request-failed') {
+        console.warn('_checkUsernameGate skipped due to:', code);
+        return;
+      }
+      // Unknown error — show setup as fallback
       window._showUsernameSetup();
     }
   };
