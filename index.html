@@ -6025,13 +6025,14 @@ function initUI() {
   document.getElementById('n-carb-goal').textContent = State.targets.carbs;
   document.getElementById('n-fat-goal').textContent = State.targets.fat;
   // Settings fields
-  document.getElementById('s-name').value = p.name||'';
-  document.getElementById('s-weight').value = p.weight||'';
-  document.getElementById('s-height').value = p.height||'';
-  document.getElementById('s-cal').value = State.targets.calories;
-  document.getElementById('s-protein').value = State.targets.protein;
-  document.getElementById('s-carbs').value = State.targets.carbs;
-  document.getElementById('s-fat').value = State.targets.fat;
+  const _sv = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  _sv('s-name', p.name||'');
+  _sv('s-weight', p.weight||'');
+  _sv('s-height', p.height||'');
+  _sv('s-cal', State.targets.calories);
+  _sv('s-protein', State.targets.protein);
+  _sv('s-carbs', State.targets.carbs);
+  _sv('s-fat', State.targets.fat);
   loadApiKeyStatus();
   // Dash label
   document.getElementById('dash-date-label').textContent = now.toLocaleDateString('en-US',{weekday:'long'});
