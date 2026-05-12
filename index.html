@@ -7966,8 +7966,24 @@ function saveTargets() {
 }
 
 function savePrefs() {
-  State.prefs.reminders = document.getElementById('pref-reminders').checked;
-  State.prefs.macros = document.getElementById('pref-macros').checked;
+  const remPage  = document.getElementById('pref-reminders');
+  const remModal = document.getElementById('acct-pref-reminders');
+  const macPage  = document.getElementById('pref-macros');
+  const macModal = document.getElementById('acct-pref-macros');
+  if (remModal && document.activeElement === remModal) {
+    State.prefs.reminders = remModal.checked;
+    if (remPage) remPage.checked = remModal.checked;
+  } else if (remPage) {
+    State.prefs.reminders = remPage.checked;
+    if (remModal) remModal.checked = remPage.checked;
+  }
+  if (macModal && document.activeElement === macModal) {
+    State.prefs.macros = macModal.checked;
+    if (macPage) macPage.checked = macModal.checked;
+  } else if (macPage) {
+    State.prefs.macros = macPage.checked;
+    if (macModal) macModal.checked = macPage.checked;
+  }
   save();
 }
 
@@ -12599,57 +12615,213 @@ document.addEventListener('click', function(e) {
      ACCOUNT MANAGEMENT MODAL
 ═══════════════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-account" style="z-index:999">
-  <div class="modal" style="max-width:480px">
-    <div class="modal-title">
-      👤 My Account
+  <div class="modal" style="max-width:500px;padding:0;overflow:hidden">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 0">
+      <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:800">My Account</div>
       <button class="btn-icon" onclick="closeModal('modal-account')">✕</button>
     </div>
 
-    <!-- Profile Preview -->
-    <div style="display:flex;align-items:center;gap:14px;background:var(--bg-elevated);border-radius:var(--radius);padding:16px;margin-bottom:20px">
-      <div style="position:relative;width:56px;height:56px;flex-shrink:0">
-        <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:1.2rem;color:var(--bg-base)" id="acct-avatar-letter">?</div>
+    <!-- User banner -->
+    <div style="display:flex;align-items:center;gap:12px;margin:14px 20px;background:var(--bg-elevated);border-radius:var(--radius);padding:12px 14px">
+      <div style="position:relative;width:46px;height:46px;flex-shrink:0">
+        <div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--bg-base)" id="acct-avatar-letter">?</div>
         <img id="acct-avatar-photo" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover">
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="acct-preview-fullname">—</div>
-        <div style="font-size:0.8rem;color:var(--accent);margin-top:2px;font-weight:600">@<span id="acct-preview-username">—</span></div>
-        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px" id="acct-preview-email">—</div>
+        <div style="font-weight:700;font-size:0.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="acct-preview-fullname">—</div>
+        <div style="font-size:0.75rem;color:var(--accent);font-weight:600">@<span id="acct-preview-username">—</span></div>
+        <div style="font-size:0.7rem;color:var(--text-muted)" id="acct-preview-email">—</div>
       </div>
     </div>
 
-    <div class="form-grid" style="gap:14px">
-      <!-- Full Name -->
+    <!-- Tab bar -->
+    <div style="display:flex;border-bottom:1px solid var(--border);padding:0 20px;gap:4px">
+      <button id="acct-tab-btn-account" onclick="switchAcctTab('account')" style="padding:9px 14px;border:none;background:none;font-size:0.82rem;font-weight:700;color:var(--accent);border-bottom:2px solid var(--accent);cursor:pointer;font-family:var(--font-body);transition:all 0.15s">👤 Account</button>
+      <button id="acct-tab-btn-fitprofile" onclick="switchAcctTab('fitprofile')" style="padding:9px 14px;border:none;background:none;font-size:0.82rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;cursor:pointer;font-family:var(--font-body);transition:all 0.15s">🏋️ FitProfile</button>
+      <button id="acct-tab-btn-settings" onclick="switchAcctTab('settings')" style="padding:9px 14px;border:none;background:none;font-size:0.82rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;cursor:pointer;font-family:var(--font-body);transition:all 0.15s">⚙️ Settings</button>
+    </div>
+
+    <!-- ── TAB: ACCOUNT ── -->
+    <div id="acct-tab-account" style="padding:18px 20px 20px;display:flex;flex-direction:column;gap:14px">
       <div class="form-group">
         <label class="form-label">Full Name</label>
         <input type="text" class="form-input" id="acct-fullname" placeholder="e.g. Ayman Ait Eddamer" />
-        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">Shown to friends in their friend list</div>
+        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">Visible to friends</div>
       </div>
-
-      <!-- Username (locked — cannot be changed after set) -->
       <div class="form-group">
-        <label class="form-label">Username <span style="color:var(--text-muted);font-size:0.7rem;font-weight:500">🔒 permanent</span></label>
+        <label class="form-label">Username <span style="color:var(--text-muted);font-size:0.68rem;font-weight:500">🔒 permanent</span></label>
         <div style="position:relative">
           <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-weight:600">@</span>
-          <input type="text" class="form-input" id="acct-username" placeholder="your_username" style="padding-left:28px;opacity:0.6;cursor:not-allowed;pointer-events:none"
-            readonly maxlength="30" tabindex="-1" />
+          <input type="text" class="form-input" id="acct-username" readonly tabindex="-1"
+            style="padding-left:28px;opacity:0.55;cursor:not-allowed;pointer-events:none" />
         </div>
-        <div id="acct-username-status" style="font-size:0.72rem;margin-top:4px;min-height:16px;color:var(--text-muted)">Usernames are permanent and cannot be changed.</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:3px">Cannot be changed after set</div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:14px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Password & Security</div>
+        <button class="btn btn-outline" onclick="acctSendPasswordReset()" style="width:100%;text-align:left;justify-content:flex-start;gap:10px;display:flex;align-items:center">
+          <span>🔑</span> Send Password Reset Email
+        </button>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:14px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Data</div>
+        <button class="btn btn-outline" onclick="exportData();closeModal('modal-account')" style="width:100%;text-align:left;justify-content:flex-start;gap:10px;display:flex;align-items:center">
+          <span>📤</span> Export All Data (JSON)
+        </button>
+        <button class="btn btn-outline" onclick="importData();closeModal('modal-account')" style="width:100%;text-align:left;justify-content:flex-start;gap:10px;display:flex;align-items:center">
+          <span>📥</span> Import / Restore Data (JSON)
+        </button>
+        <button class="btn btn-outline" onclick="gdriveBackup();closeModal('modal-account')" style="width:100%;text-align:left;justify-content:flex-start;gap:10px;display:flex;align-items:center">
+          <span>☁️</span> Back up to Google Drive
+        </button>
+        <button class="btn btn-outline" onclick="gdriveRestore();closeModal('modal-account')" style="width:100%;text-align:left;justify-content:flex-start;gap:10px;display:flex;align-items:center">
+          <span>🔄</span> Restore from Google Drive
+        </button>
+      </div>
+
+      <div id="acct-save-msg" style="font-size:0.78rem;min-height:16px;text-align:center"></div>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-ghost" onclick="closeModal('modal-account')">Cancel</button>
+        <button class="btn btn-primary" id="acct-save-btn" onclick="saveAccountProfile()">💾 Save Name</button>
       </div>
     </div>
 
-    <!-- Locked info note -->
-    <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:10px 14px;margin-top:14px;font-size:0.75rem;color:var(--text-secondary);display:flex;gap:8px;align-items:flex-start">
-      <span style="flex-shrink:0">🔒</span>
-      <span>Your <strong>email address</strong> is never visible to other users — only you can see it. Friends see your username and full name only.</span>
+    <!-- ── TAB: FITPROFILE ── -->
+    <div id="acct-tab-fitprofile" style="padding:18px 20px 20px;display:none;flex-direction:column;gap:14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label class="form-label" id="fp-weight-label">Weight (kg)</label>
+          <input type="number" class="form-input" id="fp-weight" placeholder="70" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" id="fp-height-label">Height (cm)</label>
+          <input type="number" class="form-input" id="fp-height" placeholder="175" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Age</label>
+          <input type="number" class="form-input" id="fp-age" placeholder="25" min="10" max="100" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Gender</label>
+          <select class="form-input" id="fp-gender">
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:14px">
+        <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Daily Targets</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Calories (kcal)</label>
+            <input type="number" class="form-input" id="fp-cal" placeholder="2000" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Protein (g)</label>
+            <input type="number" class="form-input" id="fp-protein" placeholder="150" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Carbs (g)</label>
+            <input type="number" class="form-input" id="fp-carbs" placeholder="225" />
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label class="form-label">Fat (g)</label>
+            <input type="number" class="form-input" id="fp-fat" placeholder="67" />
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openAdjustMacrosModal();closeModal('modal-account')" style="width:100%;margin-top:8px">🎚 Use Macro Sliders Instead</button>
+      </div>
+
+      <div id="fp-save-msg" style="font-size:0.78rem;min-height:16px;text-align:center"></div>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-ghost" onclick="closeModal('modal-account')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveFitProfile()">💾 Save FitProfile</button>
+      </div>
     </div>
 
-    <div id="acct-save-msg" style="font-size:0.78rem;margin-top:10px;min-height:16px;text-align:center"></div>
+    <!-- ── TAB: SETTINGS ── -->
+    <div id="acct-tab-settings" style="padding:18px 20px 20px;display:none;flex-direction:column;gap:0">
 
-    <div class="btn-row">
-      <button class="btn btn-ghost" onclick="closeModal('modal-account')">Cancel</button>
-      <button class="btn btn-primary" id="acct-save-btn" onclick="saveAccountProfile()">💾 Save Profile</button>
+      <div style="font-size:0.72rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Appearance</div>
+      <div class="settings-row" style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div class="settings-row-info">
+          <div class="settings-row-label">Dark Mode</div>
+          <div class="settings-row-desc">Switch between light and dark theme</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="acct-pref-darkmode" onchange="toggleDarkMode(this.checked);savePrefs()">
+          <div class="switch-track"></div><div class="switch-thumb"></div>
+        </label>
+      </div>
+      <div class="settings-row" style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div class="settings-row-info">
+          <div class="settings-row-label">Unit System</div>
+          <div class="settings-row-desc">Metric (kg/cm) or Imperial (lbs/in)</div>
+        </div>
+        <div class="toggle-wrap" style="width:130px">
+          <button class="toggle-btn active" id="acct-unit-metric" onclick="setUnitSystem('metric');syncAcctUnitBtns('metric')">kg/cm</button>
+          <button class="toggle-btn" id="acct-unit-imperial" onclick="setUnitSystem('imperial');syncAcctUnitBtns('imperial')">lbs/in</button>
+        </div>
+      </div>
+
+      <div style="font-size:0.72rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 10px">Notifications</div>
+      <div class="settings-row" style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div class="settings-row-info">
+          <div class="settings-row-label">Reminders</div>
+          <div class="settings-row-desc">Daily meal logging reminders</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="acct-pref-reminders" onchange="savePrefs()">
+          <div class="switch-track"></div><div class="switch-thumb"></div>
+        </label>
+      </div>
+      <div class="settings-row" style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div class="settings-row-info">
+          <div class="settings-row-label">Show Macros on Dashboard</div>
+          <div class="settings-row-desc">Display macro breakdown prominently</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="acct-pref-macros" onchange="savePrefs()">
+          <div class="switch-track"></div><div class="switch-thumb"></div>
+        </label>
+      </div>
+
+      <div style="font-size:0.72rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin:16px 0 10px">AI Provider</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <button onclick="selectAIProvider('claude')" id="acct-ai-claude"
+          style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--bg-elevated);cursor:pointer;font-size:0.8rem;font-weight:600;color:var(--text-secondary);font-family:var(--font-body);transition:all 0.2s">
+          🟣 Claude
+        </button>
+        <button onclick="selectAIProvider('gemini')" id="acct-ai-gemini"
+          style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--bg-elevated);cursor:pointer;font-size:0.8rem;font-weight:600;color:var(--text-secondary);font-family:var(--font-body);transition:all 0.2s">
+          🔵 Gemini
+        </button>
+        <button onclick="selectAIProvider('openai')" id="acct-ai-openai"
+          style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--bg-elevated);cursor:pointer;font-size:0.8rem;font-weight:600;color:var(--text-secondary);font-family:var(--font-body);transition:all 0.2s">
+          🟢 ChatGPT
+        </button>
+        <button onclick="selectAIProvider('perplexity')" id="acct-ai-perplexity"
+          style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--bg-elevated);cursor:pointer;font-size:0.8rem;font-weight:600;color:var(--text-secondary);font-family:var(--font-body);transition:all 0.2s">
+          🟡 Perplexity
+        </button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+        <input type="password" class="form-input" id="acct-api-key" style="flex:1;font-size:0.82rem" placeholder="Paste your API key…" />
+        <button class="btn btn-primary btn-sm" onclick="saveApiKey()">Save</button>
+      </div>
+      <div id="acct-api-key-status" style="font-size:0.72rem;color:var(--text-muted);min-height:16px"></div>
+
+      <div style="margin-top:16px">
+        <button class="btn btn-ghost" onclick="closeModal('modal-account')" style="width:100%">Close</button>
+      </div>
     </div>
+
   </div>
 </div>
 
@@ -12715,14 +12887,31 @@ async function renderSocialPage() {
 // ─────────────────────────────────────────────────────────────────────
 //  ACCOUNT MANAGEMENT
 // ─────────────────────────────────────────────────────────────────────
-let _acctUsernameTimer  = null;
-let _acctUsernameValid  = false;
+let _acctUsernameTimer   = null;
+let _acctUsernameValid   = false;
 let _acctCurrentUsername = '';
 
+// ── Tab switching ─────────────────────────────────────────────────────
+function switchAcctTab(tab) {
+  ['account','fitprofile','settings'].forEach(t => {
+    const panel = document.getElementById('acct-tab-' + t);
+    const btn   = document.getElementById('acct-tab-btn-' + t);
+    if (!panel || !btn) return;
+    const active = t === tab;
+    panel.style.display = active ? 'flex' : 'none';
+    btn.style.color = active ? 'var(--accent)' : 'var(--text-secondary)';
+    btn.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
+    btn.style.fontWeight = active ? '700' : '600';
+  });
+}
+
+// ── Open modal ────────────────────────────────────────────────────────
 async function openAccountModal() {
   const me = window._currentUser;
   if (!me) return;
   if (typeof closeSidebar === 'function') closeSidebar();
+
+  // Load social profile if missing
   if (!Social.myProfile) {
     try {
       const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'users_public', me.uid));
@@ -12731,22 +12920,17 @@ async function openAccountModal() {
       Social.myProfile = { username: '', fullName: me.displayName || '', photoURL: me.photoURL || '' };
     }
   }
+
   const fullname = Social.myProfile?.fullName || me.displayName || '';
   const username = Social.myProfile?.username || '';
   _acctCurrentUsername = username;
   _acctUsernameValid   = !!username;
 
+  // ── Account tab ──
   document.getElementById('acct-fullname').value = fullname;
   document.getElementById('acct-username').value = username;
   document.getElementById('acct-save-msg').textContent = '';
-
-  const statusEl = document.getElementById('acct-username-status');
-  if (statusEl) {
-    statusEl.textContent = username ? '✅ Your current username' : '3–30 chars · letters, numbers, underscores only';
-    statusEl.style.color = username ? 'var(--green)' : 'var(--text-muted)';
-  }
-
-  document.getElementById('acct-preview-fullname').textContent = fullname || me.displayName || '—';
+  document.getElementById('acct-preview-fullname').textContent = fullname || '—';
   document.getElementById('acct-preview-username').textContent = username || 'not set';
   document.getElementById('acct-preview-email').textContent   = me.email || '';
   document.getElementById('acct-avatar-letter').textContent   = (fullname || me.displayName || 'U').charAt(0).toUpperCase();
@@ -12757,8 +12941,93 @@ async function openAccountModal() {
     document.getElementById('acct-avatar-photo').style.display = 'none';
   }
 
+  // ── FitProfile tab ──
+  const isImp = (State.prefs && State.prefs.units === 'imperial');
+  document.getElementById('fp-weight-label').textContent = isImp ? 'Weight (lbs)' : 'Weight (kg)';
+  document.getElementById('fp-height-label').textContent = isImp ? 'Height (in)' : 'Height (cm)';
+  const w = State.profile?.weight || '';
+  const h = State.profile?.height || '';
+  document.getElementById('fp-weight').value = w ? (isImp ? Math.round(w * 2.20462) : w) : '';
+  document.getElementById('fp-height').value = h ? (isImp ? Math.round(h / 2.54) : h) : '';
+  document.getElementById('fp-age').value    = State.profile?.age || '';
+  document.getElementById('fp-gender').value = State.profile?.gender || 'male';
+  document.getElementById('fp-cal').value    = State.targets?.calories || '';
+  document.getElementById('fp-protein').value= State.targets?.protein  || '';
+  document.getElementById('fp-carbs').value  = State.targets?.carbs    || '';
+  document.getElementById('fp-fat').value    = State.targets?.fat      || '';
+  document.getElementById('fp-save-msg').textContent = '';
+
+  // ── Settings tab ──
+  const isDark = State.prefs?.darkMode === true;
+  const dmEl = document.getElementById('acct-pref-darkmode');
+  if (dmEl) dmEl.checked = isDark;
+  const remEl = document.getElementById('acct-pref-reminders');
+  if (remEl) remEl.checked = !!(State.prefs?.reminders);
+  const macEl = document.getElementById('acct-pref-macros');
+  if (macEl) macEl.checked = State.prefs?.macros !== false;
+  syncAcctUnitBtns(isImp ? 'imperial' : 'metric');
+
+  // Reset to Account tab
+  switchAcctTab('account');
   document.getElementById('modal-account').classList.add('open');
 }
+
+// ── Sync unit toggle buttons in Settings tab ──────────────────────────
+function syncAcctUnitBtns(system) {
+  const m = document.getElementById('acct-unit-metric');
+  const i = document.getElementById('acct-unit-imperial');
+  if (!m || !i) return;
+  if (system === 'imperial') {
+    i.classList.add('active'); m.classList.remove('active');
+  } else {
+    m.classList.add('active'); i.classList.remove('active');
+  }
+}
+
+// ── Password reset from Account tab ──────────────────────────────────
+async function acctSendPasswordReset() {
+  const me = window._currentUser;
+  if (!me || !me.email) return;
+  const msgEl = document.getElementById('acct-save-msg');
+  try {
+    await window._fbResetPassword(me.email);
+    if (msgEl) { msgEl.style.color = 'var(--green)'; msgEl.textContent = '✅ Reset email sent to ' + me.email; }
+  } catch(e) {
+    if (msgEl) { msgEl.style.color = 'var(--red)'; msgEl.textContent = '⚠️ Could not send reset email.'; }
+  }
+}
+
+// ── Save FitProfile ───────────────────────────────────────────────────
+function saveFitProfile() {
+  const msgEl = document.getElementById('fp-save-msg');
+  const isImp = (State.prefs && State.prefs.units === 'imperial');
+  let w = parseFloat(document.getElementById('fp-weight').value) || 0;
+  let h = parseFloat(document.getElementById('fp-height').value) || 0;
+  if (isImp) { w = w / 2.20462; h = h * 2.54; }
+  if (w) State.profile.weight = Math.round(w * 10) / 10;
+  if (h) State.profile.height = Math.round(h * 10) / 10;
+  const age = parseInt(document.getElementById('fp-age').value);
+  if (age) State.profile.age = age;
+  State.profile.gender = document.getElementById('fp-gender').value;
+
+  const cal  = parseInt(document.getElementById('fp-cal').value);
+  const pro  = parseInt(document.getElementById('fp-protein').value);
+  const carb = parseInt(document.getElementById('fp-carbs').value);
+  const fat  = parseInt(document.getElementById('fp-fat').value);
+  if (cal)  State.targets.calories = cal;
+  if (pro)  State.targets.protein  = pro;
+  if (carb) State.targets.carbs    = carb;
+  if (fat)  State.targets.fat      = fat;
+
+  if (typeof saveData === 'function') saveData();
+  if (typeof updateGoalDisplays === 'function') updateGoalDisplays();
+  if (msgEl) { msgEl.style.color = 'var(--green)'; msgEl.textContent = '✅ FitProfile saved!'; }
+  setTimeout(() => closeModal('modal-account'), 1000);
+  if (typeof showToast === 'function') showToast('FitProfile updated! 💪', 'success');
+}
+
+
+
 
 function validateUsernameInput(val) {
   const statusEl = document.getElementById('acct-username-status');
