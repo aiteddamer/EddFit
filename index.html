@@ -15480,163 +15480,900 @@ function renderLeaderboard(entries) {
 (function() {
 
 // ── Badge definitions ─────────────────────────────────────────────────────────
-const BADGE_DEFS = [
-  // ── WORKOUT MILESTONES ──
-  { id:'first_workout',  cat:'Workout', icon:'💪', color:'var(--orange)',
-    name:'First Rep', desc:'Log your very first workout',
-    check: () => (State.workouts||[]).length >= 1 },
+// ── Shared helpers used by badge checks (defined once, used many times) ──────
+function _bdgTotalFoodEntries() {
+  let t = 0;
+  Object.values(State.logs||{}).forEach(d => Object.values(d.meals||{}).forEach(m => t += m.length));
+  return t;
+}
+function _bdgLoggedDays() {
+  return Object.entries(State.logs||{}).filter(([,d]) =>
+    Object.values(d.meals||{}).some(m => m.length > 0)).map(([k]) => k);
+}
+function _bdgWorkoutDays() {
+  return [...new Set((State.workouts||[]).map(w => w.date))];
+}
+function _bdgAllSets() {
+  const sets = [];
+  (State.workouts||[]).forEach(w => (w.exercises||[]).forEach(ex =>
+    (ex.sets||[]).forEach(s => sets.push({ ...s, exName: ex.name, muscle: ex.muscle, date: w.date }))));
+  return sets;
+}
+function _bdgExerciseMap() {
+  const m = {};
+  (State.workouts||[]).forEach(w => (w.exercises||[]).forEach(ex => {
+    if (!m[ex.name]) m[ex.name] = { muscle: ex.muscle, sets: [] };
+    (ex.sets||[]).forEach(s => m[ex.name].sets.push({ w: +s.weight||0, r: +s.reps||0, date: w.date }));
+  }));
+  return m;
+}
+function _bdgPRCount() {
+  const exMap = _bdgExerciseMap();
+  let count = 0;
+  Object.values(exMap).forEach(({ sets }) => {
+    if (sets.length < 2) return;
+    const sorted = [...sets].sort((a,b) => new Date(a.date)-new Date(b.date));
+    let best = 0;
+    sorted.forEach((s,i) => { if (i > 0 && s.w > best) count++; if (s.w > best) best = s.w; });
+  });
+  return count;
+}
+function _bdgPRExercises() {
+  const exMap = _bdgExerciseMap();
+  let exCount = 0;
+  Object.values(exMap).forEach(({ sets }) => {
+    if (sets.length < 2) return;
+    const sorted = [...sets].sort((a,b) => new Date(a.date)-new Date(b.date));
+    let best = 0, hadPR = false;
+    sorted.forEach((s,i) => { if (i > 0 && s.w > best) hadPR = true; if (s.w > best) best = s.w; });
+    if (hadPR) exCount++;
+  });
+  return exCount;
+}
+function _bdgCalHitDays(pctLow, pctHigh) {
+  let hits = 0;
+  const goal = (State.targets||{}).calories || 2000;
+  Object.values(State.logs||{}).forEach(d => {
+    let cal = 0;
+    Object.values(d.meals||{}).forEach(m => m.forEach(f => cal += (f.cal||0)));
+    if (cal >= goal * pctLow && cal <= goal * pctHigh) hits++;
+  });
+  return hits;
+}
+function _bdgProteinHitDays(pctLow) {
+  let hits = 0;
+  const goal = (State.targets||{}).protein || 150;
+  Object.values(State.logs||{}).forEach(d => {
+    let p = 0;
+    Object.values(d.meals||{}).forEach(m => m.forEach(f => p += (f.protein||0)));
+    if (p >= goal * pctLow) hits++;
+  });
+  return hits;
+}
+function _bdgTotalVolume() {
+  let vol = 0;
+  (State.workouts||[]).forEach(w => (w.exercises||[]).forEach(ex =>
+    (ex.sets||[]).forEach(s => vol += (+s.weight||0) * (+s.reps||0))));
+  return vol;
+}
+function _bdgTotalSets() {
+  let t = 0;
+  (State.workouts||[]).forEach(w => (w.exercises||[]).forEach(ex => t += (ex.sets||[]).length));
+  return t;
+}
+function _bdgTotalReps() {
+  let t = 0;
+  (State.workouts||[]).forEach(w => (w.exercises||[]).forEach(ex =>
+    (ex.sets||[]).forEach(s => t += (+s.reps||0))));
+  return t;
+}
+function _bdgUniqueMuscles() {
+  return new Set((State.workouts||[]).flatMap(w => (w.exercises||[]).map(e => e.muscle))).size;
+}
+function _bdgUniqueExercises() {
+  return new Set((State.workouts||[]).flatMap(w => (w.exercises||[]).map(e => e.name))).size;
+}
+function _bdgWeightLost() {
+  const metrics = (State.metrics||[]).filter(m => m.weight).sort((a,b) => new Date(a.date)-new Date(b.date));
+  if (metrics.length < 2) return 0;
+  return metrics[0].weight - metrics[metrics.length-1].weight;
+}
+function _bdgWeightGained() {
+  const metrics = (State.metrics||[]).filter(m => m.weight).sort((a,b) => new Date(a.date)-new Date(b.date));
+  if (metrics.length < 2) return 0;
+  return metrics[metrics.length-1].weight - metrics[0].weight;
+}
+function _bdgMetricEntries() {
+  return (State.metrics||[]).filter(m => m.weight).length;
+}
+function _bdgMealsInMealType(type) {
+  let t = 0;
+  Object.values(State.logs||{}).forEach(d => t += ((d.meals||{})[type]||[]).length);
+  return t;
+}
+function _bdgDaysWithAllMeals() {
+  let t = 0;
+  Object.values(State.logs||{}).forEach(d => {
+    const meals = d.meals || {};
+    if ((meals.breakfast||[]).length && (meals.lunch||[]).length &&
+        (meals.dinner||[]).length && (meals.snacks||[]).length) t++;
+  });
+  return t;
+}
+function _bdgWorkoutsThisWeek() {
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+  return (State.workouts||[]).filter(w => new Date(w.date) >= weekStart).length;
+}
+function _bdgConsecutiveWorkoutDays(n) {
+  const dates = [...new Set((State.workouts||[]).map(w => w.date))].sort().reverse();
+  if (!dates.length) return false;
+  let streak = 1, best = 1;
+  for (let i = 1; i < dates.length; i++) {
+    const diff = (new Date(dates[i-1]) - new Date(dates[i])) / 86400000;
+    if (diff === 1) { streak++; best = Math.max(best, streak); }
+    else streak = 1;
+  }
+  return best >= n;
+}
+function _bdgExerciseWithWeight(weightKg) {
+  return (State.workouts||[]).some(w => (w.exercises||[]).some(ex =>
+    (ex.sets||[]).some(s => (+s.weight||0) >= weightKg)));
+}
+function _bdgMaxSingleSetReps() {
+  let max = 0;
+  (State.workouts||[]).forEach(w => (w.exercises||[]).forEach(ex =>
+    (ex.sets||[]).forEach(s => { if (+s.reps > max) max = +s.reps; })));
+  return max;
+}
+function _bdgGoalsCount(done) {
+  const goals = State.goals||[];
+  if (done === undefined) return goals.length;
+  return goals.filter(g => done ? (g.done||g.completed) : !(g.done||g.completed)).length;
+}
+function _bdgWorkoutsWithMuscle(muscle) {
+  return (State.workouts||[]).filter(w => (w.exercises||[]).some(e =>
+    (e.muscle||'').toLowerCase().includes(muscle.toLowerCase()))).length;
+}
+function _bdgCaloriesLogged() {
+  let total = 0;
+  Object.values(State.logs||{}).forEach(d =>
+    Object.values(d.meals||{}).forEach(m => m.forEach(f => total += (f.cal||0))));
+  return total;
+}
+function _bdgProteinLogged() {
+  let total = 0;
+  Object.values(State.logs||{}).forEach(d =>
+    Object.values(d.meals||{}).forEach(m => m.forEach(f => total += (f.protein||0))));
+  return total;
+}
+function _bdgWorkoutsOnDay(dayNum) {
+  return (State.workouts||[]).filter(w => new Date(w.date).getDay() === dayNum).length;
+}
+function _bdgEarlyMorningWorkouts() {
+  // workouts saved before noon on their date — we track by date only so approximate
+  return (State.workouts||[]).filter(w => {
+    const d = new Date(w.date);
+    return d.getDay() >= 1 && d.getDay() <= 5; // weekday proxy for "early"
+  }).length;
+}
+function _bdgLongWorkout() {
+  return (State.workouts||[]).some(w => (w.exercises||[]).length >= 8);
+}
+function _bdgWorkoutWithManyExercises(n) {
+  return (State.workouts||[]).some(w => (w.exercises||[]).length >= n);
+}
+function _bdgSetsInSingleWorkout(n) {
+  return (State.workouts||[]).some(w => {
+    const sets = (w.exercises||[]).reduce((t,e)=>t+(e.sets||[]).length,0);
+    return sets >= n;
+  });
+}
 
-  { id:'workouts_5',     cat:'Workout', icon:'🔥', color:'var(--orange)',
+const BADGE_DEFS = [
+
+  // ══════════════════════════════════════════════
+  //  💪  WORKOUT COUNT
+  // ══════════════════════════════════════════════
+  { id:'workout_1',    cat:'💪 Workout Count', icon:'🌱', color:'var(--orange)',
+    name:'First Rep',       desc:'Log your very first workout',
+    check: () => (State.workouts||[]).length >= 1 },
+  { id:'workout_3',    cat:'💪 Workout Count', icon:'🔥', color:'var(--orange)',
+    name:'Hat Trick',       desc:'Complete 3 workouts',
+    check: () => (State.workouts||[]).length >= 3 },
+  { id:'workout_5',    cat:'💪 Workout Count', icon:'⚡', color:'var(--orange)',
     name:'Five & Counting', desc:'Complete 5 workouts',
     check: () => (State.workouts||[]).length >= 5 },
-
-  { id:'workouts_25',    cat:'Workout', icon:'⚡', color:'var(--orange)',
-    name:'Gym Regular', desc:'Complete 25 workouts',
+  { id:'workout_10',   cat:'💪 Workout Count', icon:'🔟', color:'var(--orange)',
+    name:'Perfect Ten',     desc:'Complete 10 workouts',
+    check: () => (State.workouts||[]).length >= 10 },
+  { id:'workout_20',   cat:'💪 Workout Count', icon:'🥊', color:'var(--orange)',
+    name:'Committed',       desc:'Complete 20 workouts',
+    check: () => (State.workouts||[]).length >= 20 },
+  { id:'workout_25',   cat:'💪 Workout Count', icon:'🏅', color:'var(--orange)',
+    name:'Quarter Century', desc:'Complete 25 workouts',
     check: () => (State.workouts||[]).length >= 25 },
-
-  { id:'workouts_100',   cat:'Workout', icon:'💯', color:'var(--orange)',
-    name:'Century Club', desc:'Complete 100 workouts — you\'re a machine',
+  { id:'workout_50',   cat:'💪 Workout Count', icon:'🦾', color:'var(--orange)',
+    name:'Gym Regular',     desc:'Complete 50 workouts',
+    check: () => (State.workouts||[]).length >= 50 },
+  { id:'workout_75',   cat:'💪 Workout Count', icon:'🏋️', color:'var(--orange)',
+    name:'Iron Devotee',    desc:'Complete 75 workouts',
+    check: () => (State.workouts||[]).length >= 75 },
+  { id:'workout_100',  cat:'💪 Workout Count', icon:'💯', color:'var(--orange)',
+    name:'Century Club',    desc:'Complete 100 workouts',
     check: () => (State.workouts||[]).length >= 100 },
+  { id:'workout_150',  cat:'💪 Workout Count', icon:'🌟', color:'var(--orange)',
+    name:'Unstoppable',     desc:'Complete 150 workouts',
+    check: () => (State.workouts||[]).length >= 150 },
+  { id:'workout_200',  cat:'💪 Workout Count', icon:'🚀', color:'var(--orange)',
+    name:'Bicentennial Beast', desc:'Complete 200 workouts',
+    check: () => (State.workouts||[]).length >= 200 },
+  { id:'workout_365',  cat:'💪 Workout Count', icon:'👑', color:'var(--orange)',
+    name:'Year of Iron',    desc:'Complete 365 workouts — a full year\'s worth',
+    check: () => (State.workouts||[]).length >= 365 },
+  { id:'workout_500',  cat:'💪 Workout Count', icon:'🏆', color:'var(--orange)',
+    name:'Hall of Fame',    desc:'Complete 500 workouts — legendary status',
+    check: () => (State.workouts||[]).length >= 500 },
 
-  // ── STREAK MILESTONES ──
-  { id:'streak_3',   cat:'Streak', icon:'🔥', color:'var(--red)',
-    name:'Triplet', desc:'3-day activity streak',
+  // ══════════════════════════════════════════════
+  //  🔥  STREAKS
+  // ══════════════════════════════════════════════
+  { id:'streak_2',   cat:'🔥 Streaks', icon:'✨', color:'var(--red)',
+    name:'Back to Back',    desc:'2-day activity streak',
+    check: () => (State.streak||0) >= 2 },
+  { id:'streak_3',   cat:'🔥 Streaks', icon:'🔥', color:'var(--red)',
+    name:'Triplet',         desc:'3-day activity streak',
     check: () => (State.streak||0) >= 3 },
-
-  { id:'streak_7',   cat:'Streak', icon:'📅', color:'var(--red)',
-    name:'Week Warrior', desc:'7-day streak — a full week of consistency',
+  { id:'streak_5',   cat:'🔥 Streaks', icon:'💥', color:'var(--red)',
+    name:'Work Week',       desc:'5-day streak — full work week done',
+    check: () => (State.streak||0) >= 5 },
+  { id:'streak_7',   cat:'🔥 Streaks', icon:'📅', color:'var(--red)',
+    name:'Week Warrior',    desc:'7-day streak — a full week of consistency',
     check: () => (State.streak||0) >= 7 },
-
-  { id:'streak_14',  cat:'Streak', icon:'🗓️', color:'var(--red)',
-    name:'Two-Week Titan', desc:'14-day streak without missing a day',
+  { id:'streak_10',  cat:'🔥 Streaks', icon:'🌡️', color:'var(--red)',
+    name:'On Fire',         desc:'10-day streak — nothing stops you',
+    check: () => (State.streak||0) >= 10 },
+  { id:'streak_14',  cat:'🔥 Streaks', icon:'🗓️', color:'var(--red)',
+    name:'Two-Week Titan',  desc:'14-day streak without missing a day',
     check: () => (State.streak||0) >= 14 },
-
-  { id:'streak_30',  cat:'Streak', icon:'🌙', color:'var(--red)',
-    name:'Month of Gains', desc:'30-day streak — a full month of dedication',
+  { id:'streak_21',  cat:'🔥 Streaks', icon:'🧠', color:'var(--red)',
+    name:'Habit Formed',    desc:'21-day streak — habits take 21 days',
+    check: () => (State.streak||0) >= 21 },
+  { id:'streak_30',  cat:'🔥 Streaks', icon:'🌙', color:'var(--red)',
+    name:'Month of Gains',  desc:'30-day streak — a full month of dedication',
     check: () => (State.streak||0) >= 30 },
-
-  { id:'streak_100', cat:'Streak', icon:'💎', color:'var(--red)',
-    name:'Diamond Grind', desc:'100-day streak — absolutely elite',
+  { id:'streak_45',  cat:'🔥 Streaks', icon:'⛰️', color:'var(--red)',
+    name:'Mountain Mind',   desc:'45-day streak — discipline over motivation',
+    check: () => (State.streak||0) >= 45 },
+  { id:'streak_60',  cat:'🔥 Streaks', icon:'🌊', color:'var(--red)',
+    name:'Two-Month Beast',  desc:'60-day streak — two months unbroken',
+    check: () => (State.streak||0) >= 60 },
+  { id:'streak_75',  cat:'🔥 Streaks', icon:'🦅', color:'var(--red)',
+    name:'High Flyer',      desc:'75-day streak — soaring above average',
+    check: () => (State.streak||0) >= 75 },
+  { id:'streak_90',  cat:'🔥 Streaks', icon:'🏆', color:'var(--red)',
+    name:'Quarter Year',    desc:'90-day streak — a full quarter of consistency',
+    check: () => (State.streak||0) >= 90 },
+  { id:'streak_100', cat:'🔥 Streaks', icon:'💎', color:'var(--red)',
+    name:'Diamond Grind',   desc:'100-day streak — absolutely elite',
     check: () => (State.streak||0) >= 100 },
+  { id:'streak_180', cat:'🔥 Streaks', icon:'🌠', color:'var(--red)',
+    name:'Half-Year Hero',  desc:'180-day streak — six months of no excuses',
+    check: () => (State.streak||0) >= 180 },
+  { id:'streak_365', cat:'🔥 Streaks', icon:'👑', color:'var(--red)',
+    name:'Year-Round Legend', desc:'365-day streak — a full calendar year!',
+    check: () => (State.streak||0) >= 365 },
 
-  // ── NUTRITION MILESTONES ──
-  { id:'first_meal',  cat:'Nutrition', icon:'🍽️', color:'var(--green)',
-    name:'First Bite', desc:'Log your first meal',
-    check: () => Object.values(State.logs||{}).some(d =>
-      Object.values(d.meals||{}).some(m => m.length > 0)) },
+  // ══════════════════════════════════════════════
+  //  🍽️  NUTRITION COUNT
+  // ══════════════════════════════════════════════
+  { id:'food_1',    cat:'🍽️ Nutrition Count', icon:'🌱', color:'var(--green)',
+    name:'First Bite',      desc:'Log your first meal',
+    check: () => _bdgTotalFoodEntries() >= 1 },
+  { id:'food_5',    cat:'🍽️ Nutrition Count', icon:'🥄', color:'var(--green)',
+    name:'Getting Started', desc:'Log 5 food entries',
+    check: () => _bdgTotalFoodEntries() >= 5 },
+  { id:'food_10',   cat:'🍽️ Nutrition Count', icon:'🍴', color:'var(--green)',
+    name:'Double Digits',   desc:'Log 10 food entries',
+    check: () => _bdgTotalFoodEntries() >= 10 },
+  { id:'food_25',   cat:'🍽️ Nutrition Count', icon:'🥗', color:'var(--green)',
+    name:'Nutrition Newbie', desc:'Log 25 food entries',
+    check: () => _bdgTotalFoodEntries() >= 25 },
+  { id:'food_50',   cat:'🍽️ Nutrition Count', icon:'🌿', color:'var(--green)',
+    name:'Macro Tracker',   desc:'Log 50 food entries',
+    check: () => _bdgTotalFoodEntries() >= 50 },
+  { id:'food_100',  cat:'🍽️ Nutrition Count', icon:'📊', color:'var(--green)',
+    name:'100 Logged',      desc:'Log 100 food entries — data nerd activated',
+    check: () => _bdgTotalFoodEntries() >= 100 },
+  { id:'food_200',  cat:'🍽️ Nutrition Count', icon:'🥦', color:'var(--green)',
+    name:'Food Historian',  desc:'Log 200 food entries',
+    check: () => _bdgTotalFoodEntries() >= 200 },
+  { id:'food_365',  cat:'🍽️ Nutrition Count', icon:'📅', color:'var(--green)',
+    name:'Year of Tracking', desc:'Log 365 food entries',
+    check: () => _bdgTotalFoodEntries() >= 365 },
+  { id:'food_500',  cat:'🍽️ Nutrition Count', icon:'🔬', color:'var(--green)',
+    name:'Calorie Scientist', desc:'Log 500 food entries — obsessed with data',
+    check: () => _bdgTotalFoodEntries() >= 500 },
+  { id:'food_1000', cat:'🍽️ Nutrition Count', icon:'👑', color:'var(--green)',
+    name:'1000 Entries',    desc:'Log 1,000 food entries — absolute legend',
+    check: () => _bdgTotalFoodEntries() >= 1000 },
 
-  { id:'meals_50',    cat:'Nutrition', icon:'🥗', color:'var(--green)',
-    name:'Macro Tracker', desc:'Log 50 individual food entries',
-    check: () => {
-      let total = 0;
-      Object.values(State.logs||{}).forEach(d =>
-        Object.values(d.meals||{}).forEach(m => total += m.length));
-      return total >= 50;
-    }},
+  // ══════════════════════════════════════════════
+  //  🎯  CALORIE GOALS
+  // ══════════════════════════════════════════════
+  { id:'cal_hit_1',   cat:'🎯 Calorie Goals', icon:'🎯', color:'var(--blue)',
+    name:'On Target',       desc:'Hit your calorie goal on 1 day (±10%)',
+    check: () => _bdgCalHitDays(0.9, 1.1) >= 1 },
+  { id:'cal_hit_3',   cat:'🎯 Calorie Goals', icon:'🎯', color:'var(--blue)',
+    name:'Triple Shot',     desc:'Hit your calorie goal 3 days',
+    check: () => _bdgCalHitDays(0.9, 1.1) >= 3 },
+  { id:'cal_hit_7',   cat:'🎯 Calorie Goals', icon:'⭐', color:'var(--blue)',
+    name:'Weekly Bullseye', desc:'Hit your calorie goal 7 days',
+    check: () => _bdgCalHitDays(0.9, 1.1) >= 7 },
+  { id:'cal_hit_14',  cat:'🎯 Calorie Goals', icon:'🌟', color:'var(--blue)',
+    name:'Fortnight Focus', desc:'Hit your calorie goal 14 days',
+    check: () => _bdgCalHitDays(0.9, 1.1) >= 14 },
+  { id:'cal_hit_30',  cat:'🎯 Calorie Goals', icon:'💫', color:'var(--blue)',
+    name:'Monthly Marksman', desc:'Hit your calorie goal 30 days',
+    check: () => _bdgCalHitDays(0.9, 1.1) >= 30 },
+  { id:'cal_hit_60',  cat:'🎯 Calorie Goals', icon:'🏹', color:'var(--blue)',
+    name:'Precision Machine', desc:'Hit your calorie goal 60 days',
+    check: () => _bdgCalHitDays(0.9, 1.1) >= 60 },
+  { id:'cal_hit_100', cat:'🎯 Calorie Goals', icon:'💯', color:'var(--blue)',
+    name:'Centurion Diet',  desc:'Hit your calorie goal 100 days',
+    check: () => _bdgCalHitDays(0.9, 1.1) >= 100 },
+  { id:'cal_days_7',  cat:'🎯 Calorie Goals', icon:'📆', color:'var(--blue)',
+    name:'Week Logged',     desc:'Log calories on 7 different days',
+    check: () => _bdgLoggedDays().length >= 7 },
+  { id:'cal_days_30', cat:'🎯 Calorie Goals', icon:'🗓️', color:'var(--blue)',
+    name:'30 Days Tracked', desc:'Log calories on 30 different days',
+    check: () => _bdgLoggedDays().length >= 30 },
+  { id:'cal_days_100',cat:'🎯 Calorie Goals', icon:'📋', color:'var(--blue)',
+    name:'100 Days of Data', desc:'Log calories on 100 different days',
+    check: () => _bdgLoggedDays().length >= 100 },
 
-  { id:'meals_100',   cat:'Nutrition', icon:'🌿', color:'var(--green)',
-    name:'100 Meals Logged', desc:'Log 100 food entries — data nerd status achieved',
-    check: () => {
-      let total = 0;
-      Object.values(State.logs||{}).forEach(d =>
-        Object.values(d.meals||{}).forEach(m => total += m.length));
-      return total >= 100;
-    }},
+  // ══════════════════════════════════════════════
+  //  🥩  PROTEIN GOALS
+  // ══════════════════════════════════════════════
+  { id:'pro_hit_1',   cat:'🥩 Protein Goals', icon:'🥩', color:'#e65c00',
+    name:'Protein Pioneer',  desc:'Hit your protein goal for the first time',
+    check: () => _bdgProteinHitDays(0.9) >= 1 },
+  { id:'pro_hit_5',   cat:'🥩 Protein Goals', icon:'🍗', color:'#e65c00',
+    name:'Protein Pusher',   desc:'Hit your protein goal 5 days',
+    check: () => _bdgProteinHitDays(0.9) >= 5 },
+  { id:'pro_hit_14',  cat:'🥩 Protein Goals', icon:'🥚', color:'#e65c00',
+    name:'Protein Consistency', desc:'Hit your protein goal 14 days',
+    check: () => _bdgProteinHitDays(0.9) >= 14 },
+  { id:'pro_hit_30',  cat:'🥩 Protein Goals', icon:'💪', color:'#e65c00',
+    name:'Gains Guaranteed', desc:'Hit your protein goal 30 days',
+    check: () => _bdgProteinHitDays(0.9) >= 30 },
+  { id:'pro_hit_60',  cat:'🥩 Protein Goals', icon:'🔴', color:'#e65c00',
+    name:'Anabolic Machine', desc:'Hit your protein goal 60 days',
+    check: () => _bdgProteinHitDays(0.9) >= 60 },
+  { id:'pro_total_5k', cat:'🥩 Protein Goals', icon:'🧬', color:'#e65c00',
+    name:'Protein Milestone', desc:'Log 5,000g of protein total',
+    check: () => _bdgProteinLogged() >= 5000 },
+  { id:'pro_total_25k', cat:'🥩 Protein Goals', icon:'⚗️', color:'#e65c00',
+    name:'Protein Scientist', desc:'Log 25,000g of protein total',
+    check: () => _bdgProteinLogged() >= 25000 },
 
-  { id:'cal_goal_3',  cat:'Nutrition', icon:'🎯', color:'var(--green)',
-    name:'On Target', desc:'Hit your calorie goal 3 different days',
-    check: () => {
-      let hits = 0;
-      const T = State.targets || {};
-      const goal = T.calories || 2000;
-      Object.values(State.logs||{}).forEach(d => {
-        let cal = 0;
-        Object.values(d.meals||{}).forEach(m => m.forEach(f => cal += (f.cal||0)));
-        if (cal >= goal * 0.9 && cal <= goal * 1.1) hits++;
-      });
-      return hits >= 3;
-    }},
+  // ══════════════════════════════════════════════
+  //  🍳  MEAL TYPE SPECIALISTS
+  // ══════════════════════════════════════════════
+  { id:'breakfast_1',  cat:'🍳 Meal Types', icon:'🌅', color:'#f59e0b',
+    name:'Rise & Dine',     desc:'Log your first breakfast',
+    check: () => _bdgMealsInMealType('breakfast') >= 1 },
+  { id:'breakfast_30', cat:'🍳 Meal Types', icon:'☀️', color:'#f59e0b',
+    name:'Morning Routine', desc:'Log 30 breakfasts',
+    check: () => _bdgMealsInMealType('breakfast') >= 30 },
+  { id:'lunch_1',      cat:'🍳 Meal Types', icon:'🥙', color:'#f59e0b',
+    name:'Midday Meal',     desc:'Log your first lunch',
+    check: () => _bdgMealsInMealType('lunch') >= 1 },
+  { id:'lunch_30',     cat:'🍳 Meal Types', icon:'☀️', color:'#f59e0b',
+    name:'Lunch Loyalist',  desc:'Log 30 lunches',
+    check: () => _bdgMealsInMealType('lunch') >= 30 },
+  { id:'dinner_1',     cat:'🍳 Meal Types', icon:'🌙', color:'#f59e0b',
+    name:'Dinner Diarist',  desc:'Log your first dinner',
+    check: () => _bdgMealsInMealType('dinner') >= 1 },
+  { id:'dinner_30',    cat:'🍳 Meal Types', icon:'🌆', color:'#f59e0b',
+    name:'Evening Eater',   desc:'Log 30 dinners',
+    check: () => _bdgMealsInMealType('dinner') >= 30 },
+  { id:'snacks_10',    cat:'🍳 Meal Types', icon:'🍎', color:'#f59e0b',
+    name:'Snack Attacker',  desc:'Log 10 snacks',
+    check: () => _bdgMealsInMealType('snacks') >= 10 },
+  { id:'all_meals_1',  cat:'🍳 Meal Types', icon:'🍱', color:'#f59e0b',
+    name:'Full Day Tracked', desc:'Log all 4 meal types in a single day',
+    check: () => _bdgDaysWithAllMeals() >= 1 },
+  { id:'all_meals_7',  cat:'🍳 Meal Types', icon:'🏆', color:'#f59e0b',
+    name:'Complete Week',   desc:'Log all 4 meal types on 7 different days',
+    check: () => _bdgDaysWithAllMeals() >= 7 },
 
-  // ── PERSONAL RECORDS ──
-  { id:'first_pr',    cat:'Records', icon:'🥇', color:'var(--accent)',
-    name:'PR Breaker', desc:'Log a personal record on any exercise',
-    check: () => {
-      const exMap = {};
-      (State.workouts||[]).forEach(w => {
-        (w.exercises||[]).forEach(ex => {
-          (ex.sets||[]).forEach(s => {
-            if (!s.weight || !s.reps) return;
-            const key = ex.name;
-            if (!exMap[key]) exMap[key] = [];
-            exMap[key].push({ w: +s.weight, r: +s.reps, date: w.date });
-          });
-        });
-      });
-      // Check if any exercise has more than one data point where the latest beat prior best
-      return Object.values(exMap).some(sets => {
-        if (sets.length < 2) return false;
-        const sorted = [...sets].sort((a,b) => new Date(a.date)-new Date(b.date));
-        let best = 0;
-        for (let i = 0; i < sorted.length; i++) {
-          const cur = sorted[i].w;
-          if (i > 0 && cur > best) return true;
-          if (cur > best) best = cur;
-        }
-        return false;
-      });
-    }},
+  // ══════════════════════════════════════════════
+  //  📊  VOLUME & SETS
+  // ══════════════════════════════════════════════
+  { id:'sets_10',    cat:'📊 Volume & Sets', icon:'🔢', color:'var(--purple)',
+    name:'Setting Up',      desc:'Complete 10 total sets',
+    check: () => _bdgTotalSets() >= 10 },
+  { id:'sets_50',    cat:'📊 Volume & Sets', icon:'💪', color:'var(--purple)',
+    name:'Set Machine',     desc:'Complete 50 total sets',
+    check: () => _bdgTotalSets() >= 50 },
+  { id:'sets_100',   cat:'📊 Volume & Sets', icon:'💯', color:'var(--purple)',
+    name:'Century Sets',    desc:'Complete 100 total sets',
+    check: () => _bdgTotalSets() >= 100 },
+  { id:'sets_500',   cat:'📊 Volume & Sets', icon:'⚡', color:'var(--purple)',
+    name:'Set Maniac',      desc:'Complete 500 total sets',
+    check: () => _bdgTotalSets() >= 500 },
+  { id:'sets_1000',  cat:'📊 Volume & Sets', icon:'🌟', color:'var(--purple)',
+    name:'1000 Sets',       desc:'Complete 1,000 total sets — absolute beast',
+    check: () => _bdgTotalSets() >= 1000 },
+  { id:'reps_100',   cat:'📊 Volume & Sets', icon:'🔁', color:'var(--purple)',
+    name:'Rep Counter',     desc:'Complete 100 total reps',
+    check: () => _bdgTotalReps() >= 100 },
+  { id:'reps_1000',  cat:'📊 Volume & Sets', icon:'🔄', color:'var(--purple)',
+    name:'Reps Junkie',     desc:'Complete 1,000 total reps',
+    check: () => _bdgTotalReps() >= 1000 },
+  { id:'reps_10000', cat:'📊 Volume & Sets', icon:'♾️', color:'var(--purple)',
+    name:'Ten Thousand',    desc:'Complete 10,000 total reps',
+    check: () => _bdgTotalReps() >= 10000 },
+  { id:'vol_1000',   cat:'📊 Volume & Sets', icon:'📦', color:'var(--purple)',
+    name:'One Ton',         desc:'Lift 1,000 kg total volume',
+    check: () => _bdgTotalVolume() >= 1000 },
+  { id:'vol_10000',  cat:'📊 Volume & Sets', icon:'🚛', color:'var(--purple)',
+    name:'Ten Ton Truck',   desc:'Lift 10,000 kg total volume',
+    check: () => _bdgTotalVolume() >= 10000 },
+  { id:'vol_50000',  cat:'📊 Volume & Sets', icon:'🏗️', color:'var(--purple)',
+    name:'Heavy Industry',  desc:'Lift 50,000 kg total volume',
+    check: () => _bdgTotalVolume() >= 50000 },
+  { id:'vol_100000', cat:'📊 Volume & Sets', icon:'🌋', color:'var(--purple)',
+    name:'100-Tonne Club',  desc:'Lift 100,000 kg total volume — insane',
+    check: () => _bdgTotalVolume() >= 100000 },
+  { id:'big_workout', cat:'📊 Volume & Sets', icon:'🦣', color:'var(--purple)',
+    name:'Marathon Session', desc:'Complete a workout with 8+ exercises',
+    check: () => _bdgWorkoutWithManyExercises(8) },
+  { id:'mega_sets',   cat:'📊 Volume & Sets', icon:'🏋️', color:'var(--purple)',
+    name:'Set Tsunami',     desc:'Log 20+ sets in a single workout',
+    check: () => _bdgSetsInSingleWorkout(20) },
+  { id:'reps_set_30', cat:'📊 Volume & Sets', icon:'🔥', color:'var(--purple)',
+    name:'High Rep Hero',   desc:'Log a single set with 30+ reps',
+    check: () => _bdgMaxSingleSetReps() >= 30 },
+  { id:'reps_set_50', cat:'📊 Volume & Sets', icon:'🌊', color:'var(--purple)',
+    name:'Endurance Expert', desc:'Log a single set with 50+ reps',
+    check: () => _bdgMaxSingleSetReps() >= 50 },
 
-  { id:'pr_3',        cat:'Records', icon:'🏆', color:'var(--accent)',
-    name:'Record Collector', desc:'Break PRs on 3 different exercises',
-    check: () => {
-      const exMap = {};
-      (State.workouts||[]).forEach(w => {
-        (w.exercises||[]).forEach(ex => {
-          (ex.sets||[]).forEach(s => {
-            if (!s.weight || !s.reps) return;
-            if (!exMap[ex.name]) exMap[ex.name] = [];
-            exMap[ex.name].push({ w: +s.weight, date: w.date });
-          });
-        });
-      });
-      let prCount = 0;
-      Object.values(exMap).forEach(sets => {
-        if (sets.length < 2) return;
-        const sorted = [...sets].sort((a,b) => new Date(a.date)-new Date(b.date));
-        let best = 0;
-        sorted.forEach((s,i) => {
-          if (i > 0 && s.w > best) prCount++;
-          if (s.w > best) best = s.w;
-        });
-      });
-      return prCount >= 3;
-    }},
+  // ══════════════════════════════════════════════
+  //  🏆  PERSONAL RECORDS
+  // ══════════════════════════════════════════════
+  { id:'pr_first',  cat:'🏆 Personal Records', icon:'🥇', color:'var(--accent)',
+    name:'PR Breaker',      desc:'Break your first personal record',
+    check: () => _bdgPRCount() >= 1 },
+  { id:'pr_5',      cat:'🏆 Personal Records', icon:'🏅', color:'var(--accent)',
+    name:'Record Collector', desc:'Break 5 personal records',
+    check: () => _bdgPRCount() >= 5 },
+  { id:'pr_10',     cat:'🏆 Personal Records', icon:'🎖️', color:'var(--accent)',
+    name:'PR Machine',      desc:'Break 10 personal records',
+    check: () => _bdgPRCount() >= 10 },
+  { id:'pr_25',     cat:'🏆 Personal Records', icon:'🌟', color:'var(--accent)',
+    name:'Relentless Growth', desc:'Break 25 personal records',
+    check: () => _bdgPRCount() >= 25 },
+  { id:'pr_50',     cat:'🏆 Personal Records', icon:'👑', color:'var(--accent)',
+    name:'Limitless',       desc:'Break 50 personal records — no ceiling',
+    check: () => _bdgPRCount() >= 50 },
+  { id:'pr_ex_3',   cat:'🏆 Personal Records', icon:'🔑', color:'var(--accent)',
+    name:'Triple Threat',   desc:'Break PRs on 3 different exercises',
+    check: () => _bdgPRExercises() >= 3 },
+  { id:'pr_ex_5',   cat:'🏆 Personal Records', icon:'⚔️', color:'var(--accent)',
+    name:'Five Star PRs',   desc:'Break PRs on 5 different exercises',
+    check: () => _bdgPRExercises() >= 5 },
+  { id:'pr_ex_10',  cat:'🏆 Personal Records', icon:'🗡️', color:'var(--accent)',
+    name:'All-Round Beast',  desc:'Break PRs on 10 different exercises',
+    check: () => _bdgPRExercises() >= 10 },
 
-  // ── GOALS ──
-  { id:'first_goal',  cat:'Goals', icon:'🎯', color:'var(--blue)',
-    name:'Goal Setter', desc:'Create your first goal',
-    check: () => (State.goals||[]).length >= 1 },
+  // ══════════════════════════════════════════════
+  //  🦵  MUSCLE GROUP SPECIALISTS
+  // ══════════════════════════════════════════════
+  { id:'muscle_chest_5',  cat:'🦵 Muscle Specialists', icon:'🫀', color:'#be185d',
+    name:'Chest Day Champion', desc:'Complete 5 chest workouts',
+    check: () => _bdgWorkoutsWithMuscle('chest') >= 5 },
+  { id:'muscle_chest_20', cat:'🦵 Muscle Specialists', icon:'🐘', color:'#be185d',
+    name:'Pec Perfectionist', desc:'Complete 20 chest workouts',
+    check: () => _bdgWorkoutsWithMuscle('chest') >= 20 },
+  { id:'muscle_back_5',   cat:'🦵 Muscle Specialists', icon:'🪨', color:'#be185d',
+    name:'Back Builder',    desc:'Complete 5 back workouts',
+    check: () => _bdgWorkoutsWithMuscle('back') >= 5 },
+  { id:'muscle_back_20',  cat:'🦵 Muscle Specialists', icon:'🏔️', color:'#be185d',
+    name:'Back Atlas',      desc:'Complete 20 back workouts',
+    check: () => _bdgWorkoutsWithMuscle('back') >= 20 },
+  { id:'muscle_legs_5',   cat:'🦵 Muscle Specialists', icon:'🦵', color:'#be185d',
+    name:'Leg Day Survivor', desc:'Complete 5 leg workouts',
+    check: () => _bdgWorkoutsWithMuscle('leg') >= 5 },
+  { id:'muscle_legs_20',  cat:'🦵 Muscle Specialists', icon:'🦒', color:'#be185d',
+    name:'Leg Press Legend', desc:'Complete 20 leg workouts — no leg day skipping',
+    check: () => _bdgWorkoutsWithMuscle('leg') >= 20 },
+  { id:'muscle_arms_5',   cat:'🦵 Muscle Specialists', icon:'💪', color:'#be185d',
+    name:'Gun Show',        desc:'Complete 5 arm workouts',
+    check: () => (_bdgWorkoutsWithMuscle('bicep') + _bdgWorkoutsWithMuscle('tricep')) >= 5 },
+  { id:'muscle_arms_20',  cat:'🦵 Muscle Specialists', icon:'🦾', color:'#be185d',
+    name:'Mirror Muscles',  desc:'Complete 20 arm workouts',
+    check: () => (_bdgWorkoutsWithMuscle('bicep') + _bdgWorkoutsWithMuscle('tricep')) >= 20 },
+  { id:'muscle_shoulders_5', cat:'🦵 Muscle Specialists', icon:'🗿', color:'#be185d',
+    name:'Boulder Shoulders', desc:'Complete 5 shoulder workouts',
+    check: () => _bdgWorkoutsWithMuscle('shoulder') >= 5 },
+  { id:'muscle_core_5',   cat:'🦵 Muscle Specialists', icon:'🔥', color:'#be185d',
+    name:'Core Activated',  desc:'Complete 5 core/abs workouts',
+    check: () => (_bdgWorkoutsWithMuscle('core') + _bdgWorkoutsWithMuscle('abs')) >= 5 },
+  { id:'muscle_variety_5', cat:'🦵 Muscle Specialists', icon:'🌈', color:'#be185d',
+    name:'All-Round Athlete', desc:'Train 5 different muscle groups',
+    check: () => _bdgUniqueMuscles() >= 5 },
+  { id:'muscle_variety_8', cat:'🦵 Muscle Specialists', icon:'🎭', color:'#be185d',
+    name:'Complete Package', desc:'Train 8 different muscle groups',
+    check: () => _bdgUniqueMuscles() >= 8 },
+  { id:'exercise_variety_10', cat:'🦵 Muscle Specialists', icon:'🎲', color:'#be185d',
+    name:'Exercise Explorer', desc:'Try 10 different exercises',
+    check: () => _bdgUniqueExercises() >= 10 },
+  { id:'exercise_variety_25', cat:'🦵 Muscle Specialists', icon:'🗺️', color:'#be185d',
+    name:'Movement Library', desc:'Try 25 different exercises',
+    check: () => _bdgUniqueExercises() >= 25 },
+  { id:'exercise_variety_50', cat:'🦵 Muscle Specialists', icon:'📚', color:'#be185d',
+    name:'Exercise Encyclopedia', desc:'Try 50 different exercises',
+    check: () => _bdgUniqueExercises() >= 50 },
 
-  { id:'goal_done',   cat:'Goals', icon:'✅', color:'var(--blue)',
-    name:'Goal Crusher', desc:'Mark a goal as complete',
-    check: () => (State.goals||[]).some(g => g.done || g.completed) },
+  // ══════════════════════════════════════════════
+  //  ⚖️  WEIGHT & LIFTING THRESHOLDS
+  // ══════════════════════════════════════════════
+  { id:'lift_40kg',   cat:'⚖️ Lifting Thresholds', icon:'🪨', color:'#7c3aed',
+    name:'40kg Club',       desc:'Lift 40 kg in a single set',
+    check: () => _bdgExerciseWithWeight(40) },
+  { id:'lift_60kg',   cat:'⚖️ Lifting Thresholds', icon:'⚙️', color:'#7c3aed',
+    name:'60kg Club',       desc:'Lift 60 kg in a single set',
+    check: () => _bdgExerciseWithWeight(60) },
+  { id:'lift_80kg',   cat:'⚖️ Lifting Thresholds', icon:'🏋️', color:'#7c3aed',
+    name:'80kg Club',       desc:'Lift 80 kg in a single set',
+    check: () => _bdgExerciseWithWeight(80) },
+  { id:'lift_100kg',  cat:'⚖️ Lifting Thresholds', icon:'💯', color:'#7c3aed',
+    name:'100kg Club',      desc:'Lift 100 kg in a single set — three plates!',
+    check: () => _bdgExerciseWithWeight(100) },
+  { id:'lift_120kg',  cat:'⚖️ Lifting Thresholds', icon:'🦁', color:'#7c3aed',
+    name:'Elite Lifter',    desc:'Lift 120 kg in a single set',
+    check: () => _bdgExerciseWithWeight(120) },
+  { id:'lift_140kg',  cat:'⚖️ Lifting Thresholds', icon:'🐂', color:'#7c3aed',
+    name:'Powerhouse',      desc:'Lift 140 kg in a single set',
+    check: () => _bdgExerciseWithWeight(140) },
+  { id:'lift_160kg',  cat:'⚖️ Lifting Thresholds', icon:'🔩', color:'#7c3aed',
+    name:'Iron Giant',      desc:'Lift 160 kg in a single set',
+    check: () => _bdgExerciseWithWeight(160) },
+  { id:'lift_200kg',  cat:'⚖️ Lifting Thresholds', icon:'👑', color:'#7c3aed',
+    name:'200kg Warrior',   desc:'Lift 200 kg in a single set — superhuman',
+    check: () => _bdgExerciseWithWeight(200) },
 
-  // ── SOCIAL & EXTRAS ──
-  { id:'first_recipe', cat:'Extras', icon:'📖', color:'var(--purple)',
-    name:'Chef Mode', desc:'Save your first custom recipe',
-    check: () => (State.recipes||[]).length >= 1 },
+  // ══════════════════════════════════════════════
+  //  📈  BODY METRICS
+  // ══════════════════════════════════════════════
+  { id:'metric_first', cat:'📈 Body Metrics', icon:'⚖️', color:'#0891b2',
+    name:'Body Check',      desc:'Log your body metrics for the first time',
+    check: () => _bdgMetricEntries() >= 1 },
+  { id:'metric_5',     cat:'📈 Body Metrics', icon:'📏', color:'#0891b2',
+    name:'Progress Tracker', desc:'Log 5 weight measurements',
+    check: () => _bdgMetricEntries() >= 5 },
+  { id:'metric_15',    cat:'📈 Body Metrics', icon:'📐', color:'#0891b2',
+    name:'Data Devotee',    desc:'Log 15 weight measurements',
+    check: () => _bdgMetricEntries() >= 15 },
+  { id:'metric_30',    cat:'📈 Body Metrics', icon:'📊', color:'#0891b2',
+    name:'Monthly Metrics', desc:'Log 30 weight measurements',
+    check: () => _bdgMetricEntries() >= 30 },
+  { id:'metric_lose_1', cat:'📈 Body Metrics', icon:'📉', color:'#0891b2',
+    name:'First Kilo Down', desc:'Lose 1 kg from your starting weight',
+    check: () => _bdgWeightLost() >= 1 },
+  { id:'metric_lose_3', cat:'📈 Body Metrics', icon:'🍃', color:'#0891b2',
+    name:'3 Kilos Down',    desc:'Lose 3 kg from your starting weight',
+    check: () => _bdgWeightLost() >= 3 },
+  { id:'metric_lose_5', cat:'📈 Body Metrics', icon:'💧', color:'#0891b2',
+    name:'5 Kilos Down',    desc:'Lose 5 kg from your starting weight',
+    check: () => _bdgWeightLost() >= 5 },
+  { id:'metric_lose_10', cat:'📈 Body Metrics', icon:'🌊', color:'#0891b2',
+    name:'10 Kilos Down',   desc:'Lose 10 kg from your starting weight',
+    check: () => _bdgWeightLost() >= 10 },
+  { id:'metric_gain_1', cat:'📈 Body Metrics', icon:'📈', color:'#0891b2',
+    name:'Bulking Up',      desc:'Gain 1 kg from your starting weight',
+    check: () => _bdgWeightGained() >= 1 },
+  { id:'metric_gain_3', cat:'📈 Body Metrics', icon:'🏗️', color:'#0891b2',
+    name:'Solid Gains',     desc:'Gain 3 kg from your starting weight',
+    check: () => _bdgWeightGained() >= 3 },
+  { id:'metric_gain_5', cat:'📈 Body Metrics', icon:'💪', color:'#0891b2',
+    name:'Mass Monster',    desc:'Gain 5 kg from your starting weight',
+    check: () => _bdgWeightGained() >= 5 },
 
-  { id:'first_custom_food', cat:'Extras', icon:'🥫', color:'var(--purple)',
-    name:'Food Lab', desc:'Create your first custom food',
-    check: () => (State.customFoods||[]).length >= 1 },
+  // ══════════════════════════════════════════════
+  //  🎯  GOALS
+  // ══════════════════════════════════════════════
+  { id:'goal_first',  cat:'🎯 Goals', icon:'🎯', color:'var(--blue)',
+    name:'Goal Setter',     desc:'Create your first goal',
+    check: () => _bdgGoalsCount() >= 1 },
+  { id:'goal_3',      cat:'🎯 Goals', icon:'🗒️', color:'var(--blue)',
+    name:'Triple Goals',    desc:'Create 3 goals',
+    check: () => _bdgGoalsCount() >= 3 },
+  { id:'goal_5',      cat:'🎯 Goals', icon:'📋', color:'var(--blue)',
+    name:'Ambitious',       desc:'Create 5 goals',
+    check: () => _bdgGoalsCount() >= 5 },
+  { id:'goal_done_1', cat:'🎯 Goals', icon:'✅', color:'var(--blue)',
+    name:'Goal Crusher',    desc:'Complete your first goal',
+    check: () => _bdgGoalsCount(true) >= 1 },
+  { id:'goal_done_3', cat:'🎯 Goals', icon:'🏅', color:'var(--blue)',
+    name:'Triple Closer',   desc:'Complete 3 goals',
+    check: () => _bdgGoalsCount(true) >= 3 },
+  { id:'goal_done_5', cat:'🎯 Goals', icon:'🌟', color:'var(--blue)',
+    name:'Five for Five',   desc:'Complete 5 goals',
+    check: () => _bdgGoalsCount(true) >= 5 },
+  { id:'goal_done_10', cat:'🎯 Goals', icon:'👑', color:'var(--blue)',
+    name:'Dream Achiever',  desc:'Complete 10 goals',
+    check: () => _bdgGoalsCount(true) >= 10 },
 
-  { id:'metrics_logged', cat:'Extras', icon:'⚖️', color:'var(--purple)',
-    name:'Body Check', desc:'Log your body metrics for the first time',
-    check: () => (State.metrics||[]).some(m => m.weight) },
-
-  { id:'programs_started', cat:'Extras', icon:'📅', color:'var(--purple)',
-    name:'Program On', desc:'Start a structured workout program',
+  // ══════════════════════════════════════════════
+  //  📅  PROGRAMS
+  // ══════════════════════════════════════════════
+  { id:'prog_first',  cat:'📅 Programs', icon:'📅', color:'#0d9488',
+    name:'Program Starter', desc:'Start your first structured workout program',
+    check: () => (State.programs||[]).length >= 1 },
+  { id:'prog_active', cat:'📅 Programs', icon:'▶️', color:'#0d9488',
+    name:'On Program',      desc:'Have an active program running',
     check: () => (State.programs||[]).some(p => p.active) },
+  { id:'prog_3',      cat:'📅 Programs', icon:'📚', color:'#0d9488',
+    name:'Program Hopper',  desc:'Try 3 different programs',
+    check: () => (State.programs||[]).length >= 3 },
+  { id:'prog_complete', cat:'📅 Programs', icon:'🏁', color:'#0d9488',
+    name:'Program Finisher', desc:'Complete a full program',
+    check: () => (State.programs||[]).some(p => p.completed || p.done) },
+
+  // ══════════════════════════════════════════════
+  //  📖  RECIPES & CUSTOM FOODS
+  // ══════════════════════════════════════════════
+  { id:'recipe_1',   cat:'📖 Recipes', icon:'📖', color:'var(--purple)',
+    name:'Chef Mode',       desc:'Save your first custom recipe',
+    check: () => (State.recipes||[]).length >= 1 },
+  { id:'recipe_3',   cat:'📖 Recipes', icon:'🍳', color:'var(--purple)',
+    name:'Home Cook',       desc:'Save 3 custom recipes',
+    check: () => (State.recipes||[]).length >= 3 },
+  { id:'recipe_5',   cat:'📖 Recipes', icon:'👨‍🍳', color:'var(--purple)',
+    name:'Sous Chef',       desc:'Save 5 custom recipes',
+    check: () => (State.recipes||[]).length >= 5 },
+  { id:'recipe_10',  cat:'📖 Recipes', icon:'🍴', color:'var(--purple)',
+    name:'Head Chef',       desc:'Save 10 custom recipes',
+    check: () => (State.recipes||[]).length >= 10 },
+  { id:'recipe_20',  cat:'📖 Recipes', icon:'🌟', color:'var(--purple)',
+    name:'Michelin Star',   desc:'Save 20 custom recipes',
+    check: () => (State.recipes||[]).length >= 20 },
+  { id:'custom_food_1',  cat:'📖 Recipes', icon:'🥫', color:'var(--purple)',
+    name:'Food Lab',        desc:'Create your first custom food',
+    check: () => (State.customFoods||[]).length >= 1 },
+  { id:'custom_food_5',  cat:'📖 Recipes', icon:'🔬', color:'var(--purple)',
+    name:'Food Scientist',  desc:'Create 5 custom foods',
+    check: () => (State.customFoods||[]).length >= 5 },
+  { id:'custom_food_10', cat:'📖 Recipes', icon:'🧪', color:'var(--purple)',
+    name:'Nutritionist',    desc:'Create 10 custom foods',
+    check: () => (State.customFoods||[]).length >= 10 },
+
+  // ══════════════════════════════════════════════
+  //  📆  CONSISTENCY PATTERNS
+  // ══════════════════════════════════════════════
+  { id:'mon_workout',  cat:'📆 Consistency', icon:'💼', color:'#f59e0b',
+    name:'Monday Motivation', desc:'Log a workout on a Monday',
+    check: () => _bdgWorkoutsOnDay(1) >= 1 },
+  { id:'mon_habit',    cat:'📆 Consistency', icon:'💼', color:'#f59e0b',
+    name:'Monday Regular',  desc:'Log 4 Monday workouts',
+    check: () => _bdgWorkoutsOnDay(1) >= 4 },
+  { id:'fri_workout',  cat:'📆 Consistency', icon:'🎉', color:'#f59e0b',
+    name:'Friday Fighter',  desc:'Log a workout on a Friday',
+    check: () => _bdgWorkoutsOnDay(5) >= 1 },
+  { id:'fri_habit',    cat:'📆 Consistency', icon:'🎊', color:'#f59e0b',
+    name:'TGIF Gains',      desc:'Log 4 Friday workouts',
+    check: () => _bdgWorkoutsOnDay(5) >= 4 },
+  { id:'weekend_warrior', cat:'📆 Consistency', icon:'🏖️', color:'#f59e0b',
+    name:'Weekend Warrior', desc:'Log workouts on 4 weekends (Sat or Sun)',
+    check: () => (_bdgWorkoutsOnDay(0) + _bdgWorkoutsOnDay(6)) >= 4 },
+  { id:'no_rest_week', cat:'📆 Consistency', icon:'🔥', color:'#f59e0b',
+    name:'No Rest Week',    desc:'Work out 5 times in a single week',
+    check: () => _bdgConsecutiveWorkoutDays(5) },
+  { id:'back_to_back_workouts', cat:'📆 Consistency', icon:'⚡', color:'#f59e0b',
+    name:'Back-to-Back',    desc:'Work out on 2 consecutive days',
+    check: () => _bdgConsecutiveWorkoutDays(2) },
+  { id:'three_days_row', cat:'📆 Consistency', icon:'🔗', color:'#f59e0b',
+    name:'Three in a Row',  desc:'Work out 3 days in a row',
+    check: () => _bdgConsecutiveWorkoutDays(3) },
+  { id:'workouts_week_5', cat:'📆 Consistency', icon:'📅', color:'#f59e0b',
+    name:'5-Day Split',     desc:'Complete 5 workouts in a single week',
+    check: () => _bdgWorkoutsThisWeek() >= 5 },
+  { id:'cals_logged_30_days', cat:'📆 Consistency', icon:'🗓️', color:'#f59e0b',
+    name:'30-Day Logger',   desc:'Log food for 30 unique days',
+    check: () => _bdgLoggedDays().length >= 30 },
+  { id:'cals_logged_60_days', cat:'📆 Consistency', icon:'📆', color:'#f59e0b',
+    name:'60-Day Logger',   desc:'Log food for 60 unique days',
+    check: () => _bdgLoggedDays().length >= 60 },
+  { id:'cals_logged_90_days', cat:'📆 Consistency', icon:'🏅', color:'#f59e0b',
+    name:'90-Day Logger',   desc:'Log food for 90 unique days',
+    check: () => _bdgLoggedDays().length >= 90 },
+  { id:'cals_logged_180_days', cat:'📆 Consistency', icon:'🌟', color:'#f59e0b',
+    name:'Half-Year Logger', desc:'Log food for 180 unique days',
+    check: () => _bdgLoggedDays().length >= 180 },
+  { id:'cals_logged_365_days', cat:'📆 Consistency', icon:'👑', color:'#f59e0b',
+    name:'Year-Round Logger', desc:'Log food every single day for a full year',
+    check: () => _bdgLoggedDays().length >= 365 },
+
+  // ══════════════════════════════════════════════
+  //  🌟  SPECIAL ACHIEVEMENTS
+  // ══════════════════════════════════════════════
+  { id:'special_cal_1m', cat:'🌟 Special', icon:'🔥', color:'#dc2626',
+    name:'Million Calories', desc:'Log 1,000,000 total calories consumed',
+    check: () => _bdgCaloriesLogged() >= 1000000 },
+  { id:'special_early_bird', cat:'🌟 Special', icon:'🐦', color:'#dc2626',
+    name:'Early Bird',      desc:'Have 10 workouts on weekdays',
+    check: () => _bdgEarlyMorningWorkouts() >= 10 },
+  { id:'special_comeback', cat:'🌟 Special', icon:'⚡', color:'#dc2626',
+    name:'Comeback Kid',    desc:'Return after a break — log a workout after 7+ days off',
+    check: () => {
+      const dates = [...new Set((State.workouts||[]).map(w=>w.date))].sort();
+      for (let i = 1; i < dates.length; i++) {
+        if ((new Date(dates[i]) - new Date(dates[i-1])) / 86400000 >= 7) return true;
+      }
+      return false;
+    }},
+  { id:'special_symmetry', cat:'🌟 Special', icon:'⚖️', color:'#dc2626',
+    name:'Perfect Symmetry', desc:'Train at least 5 different muscle groups in workouts',
+    check: () => _bdgUniqueMuscles() >= 5 },
+  { id:'special_logged_today', cat:'🌟 Special', icon:'📅', color:'#dc2626',
+    name:'Daily Check-In',  desc:'Log both a meal and a workout on the same day',
+    check: () => {
+      const wDates = new Set(_bdgWorkoutDays());
+      return _bdgLoggedDays().some(d => wDates.has(d));
+    }},
+  { id:'special_combo_10', cat:'🌟 Special', icon:'🔥', color:'#dc2626',
+    name:'Combo King',      desc:'Log both food and a workout on 10 same days',
+    check: () => {
+      const wDates = new Set(_bdgWorkoutDays());
+      return _bdgLoggedDays().filter(d => wDates.has(d)).length >= 10;
+    }},
+  { id:'special_combo_30', cat:'🌟 Special', icon:'💫', color:'#dc2626',
+    name:'Lifestyle Lock-In', desc:'Log both food and a workout on 30 same days',
+    check: () => {
+      const wDates = new Set(_bdgWorkoutDays());
+      return _bdgLoggedDays().filter(d => wDates.has(d)).length >= 30;
+    }},
+  { id:'special_all_rounder', cat:'🌟 Special', icon:'🌈', color:'#dc2626',
+    name:'All-Rounder',     desc:'Have at least 10 of: workouts, meals, metrics, goals, recipes',
+    check: () => {
+      const score = [
+        (State.workouts||[]).length >= 10,
+        _bdgTotalFoodEntries() >= 10,
+        _bdgMetricEntries() >= 1,
+        (State.goals||[]).length >= 1,
+        (State.recipes||[]).length >= 1,
+      ].filter(Boolean).length;
+      return score >= 5;
+    }},
+  { id:'special_profile_set', cat:'🌟 Special', icon:'👤', color:'#dc2626',
+    name:'Identity Established', desc:'Fill in your name and weight in settings',
+    check: () => !!(State.profile && State.profile.name && State.profile.weight) },
+  { id:'special_dark_mode',  cat:'🌟 Special', icon:'🌙', color:'#dc2626',
+    name:'Night Owl',       desc:'Use dark mode — true gym rat aesthetics',
+    check: () => !!(State.prefs && State.prefs.darkMode) },
+
+  // ══════════════════════════════════════════════
+  //  🌡️  CALORIE TOTALS
+  // ══════════════════════════════════════════════
+  { id:'cal_total_10k',  cat:'🌡️ Calorie Totals', icon:'🌱', color:'#65a30d',
+    name:'10k Calories',    desc:'Log 10,000 total calories',
+    check: () => _bdgCaloriesLogged() >= 10000 },
+  { id:'cal_total_50k',  cat:'🌡️ Calorie Totals', icon:'🌿', color:'#65a30d',
+    name:'50k Calories',    desc:'Log 50,000 total calories',
+    check: () => _bdgCaloriesLogged() >= 50000 },
+  { id:'cal_total_100k', cat:'🌡️ Calorie Totals', icon:'🔥', color:'#65a30d',
+    name:'100k Calories',   desc:'Log 100,000 total calories',
+    check: () => _bdgCaloriesLogged() >= 100000 },
+  { id:'cal_total_250k', cat:'🌡️ Calorie Totals', icon:'⚡', color:'#65a30d',
+    name:'250k Calories',   desc:'Log 250,000 total calories — a quarter million!',
+    check: () => _bdgCaloriesLogged() >= 250000 },
+  { id:'cal_total_500k', cat:'🌡️ Calorie Totals', icon:'🌟', color:'#65a30d',
+    name:'Half Million',    desc:'Log 500,000 total calories',
+    check: () => _bdgCaloriesLogged() >= 500000 },
+
+  // ══════════════════════════════════════════════
+  //  🤝  SOCIAL
+  // ══════════════════════════════════════════════
+  { id:'social_friend',    cat:'🤝 Social', icon:'👥', color:'#2563eb',
+    name:'Squad Member',    desc:'Add your first friend',
+    check: () => (window.Social && window.Social.friends && window.Social.friends.length >= 1) },
+  { id:'social_5friends',  cat:'🤝 Social', icon:'🫂', color:'#2563eb',
+    name:'Crew Commander',  desc:'Have 5 friends on EddFit',
+    check: () => (window.Social && window.Social.friends && window.Social.friends.length >= 5) },
+  { id:'social_challenge', cat:'🤝 Social', icon:'⚔️', color:'#2563eb',
+    name:'Challenge Accepted', desc:'Join your first fitness challenge',
+    check: () => (window.Social && window.Social.challenges && window.Social.challenges.length >= 1) },
+  { id:'social_share',     cat:'🤝 Social', icon:'📤', color:'#2563eb',
+    name:'Sharing is Caring', desc:'Share a recipe or food with a friend',
+    check: () => !!(State.badges && State.badges._sharedItem) },
+
+  // ══════════════════════════════════════════════
+  //  🧘  WELLNESS
+  // ══════════════════════════════════════════════
+  { id:'wellness_water',   cat:'🧘 Wellness', icon:'💧', color:'#0284c7',
+    name:'Stay Hydrated',   desc:'Log 8 cups of water on any day',
+    check: () => Object.values(State.logs||{}).some(d => (d.water||0) >= 8) },
+  { id:'wellness_water_7', cat:'🧘 Wellness', icon:'🌊', color:'#0284c7',
+    name:'Hydration Hero',  desc:'Log full water on 7 different days',
+    check: () => Object.values(State.logs||{}).filter(d => (d.water||0) >= 8).length >= 7 },
+  { id:'wellness_mealplan', cat:'🧘 Wellness', icon:'🗓️', color:'#0284c7',
+    name:'Meal Planner',    desc:'Create your first meal plan entry',
+    check: () => Object.keys(State.mealPlan||{}).length >= 1 },
+  { id:'wellness_mealplan_7', cat:'🧘 Wellness', icon:'📋', color:'#0284c7',
+    name:'Weekly Prep King', desc:'Plan meals for 7 different days',
+    check: () => Object.keys(State.mealPlan||{}).length >= 7 },
+  { id:'wellness_no_skip', cat:'🧘 Wellness', icon:'🧘', color:'#0284c7',
+    name:'No Excuses',      desc:'Log activity 5 days this week',
+    check: () => _bdgWorkoutsThisWeek() >= 5 || _bdgLoggedDays().filter(d => {
+      const dd = new Date(d), now = new Date();
+      const ws = new Date(now); ws.setDate(now.getDate()-now.getDay());
+      return dd >= ws;
+    }).length >= 5 },
+
+  // ══════════════════════════════════════════════
+  //  🌈  FUN & HIDDEN
+  // ══════════════════════════════════════════════
+  { id:'fun_early_adopter', cat:'🌈 Fun', icon:'🚀', color:'#7c3aed',
+    name:'Early Adopter',   desc:'One of the first to use EddFit — welcome aboard!',
+    check: () => !!(State.profile && State.profile.name) },
+  { id:'fun_data_hoarder',  cat:'🌈 Fun', icon:'🗄️', color:'#7c3aed',
+    name:'Data Hoarder',    desc:'Have 50+ workout, food, and metric entries combined',
+    check: () => (State.workouts||[]).length + _bdgTotalFoodEntries() + _bdgMetricEntries() >= 50 },
+  { id:'fun_obsessed',      cat:'🌈 Fun', icon:'🤓', color:'#7c3aed',
+    name:'Gym Obsessed',    desc:'Have 200+ combined entries — you live here now',
+    check: () => (State.workouts||[]).length + _bdgTotalFoodEntries() + _bdgMetricEntries() >= 200 },
+  { id:'fun_5_goals_active', cat:'🌈 Fun', icon:'🎯', color:'#7c3aed',
+    name:'Goal Hoarder',    desc:'Have 5 active goals at once',
+    check: () => _bdgGoalsCount(false) >= 5 },
+  { id:'fun_recipe_cook',   cat:'🌈 Fun', icon:'🍲', color:'#7c3aed',
+    name:'Recipe Used',     desc:'Log a recipe as a meal entry',
+    check: () => {
+      const recipeNames = (State.recipes||[]).map(r => r.name.toLowerCase());
+      return Object.values(State.logs||{}).some(d =>
+        Object.values(d.meals||{}).some(m =>
+          m.some(f => recipeNames.some(n => (f.name||'').toLowerCase().includes(n)))
+        ));
+    }},
+  { id:'fun_metric_waist',  cat:'🌈 Fun', icon:'📏', color:'#7c3aed',
+    name:'Tape Measure',    desc:'Log your waist measurement',
+    check: () => (State.metrics||[]).some(m => m.waist) },
+  { id:'fun_all_metrics',   cat:'🌈 Fun', icon:'🗂️', color:'#7c3aed',
+    name:'Full Body Scan',  desc:'Log all 6 body measurements at once',
+    check: () => (State.metrics||[]).some(m => m.weight && m.chest && m.waist && m.hips && m.arms && m.thighs) },
+  { id:'fun_night_owl',     cat:'🌈 Fun', icon:'🦉', color:'#7c3aed',
+    name:'Night Tracker',   desc:'Log more than 5 snack entries',
+    check: () => _bdgMealsInMealType('snacks') >= 5 },
+  { id:'fun_planner',       cat:'🌈 Fun', icon:'📐', color:'#7c3aed',
+    name:'The Planner',     desc:'Have both a meal plan and a workout program',
+    check: () => Object.keys(State.mealPlan||{}).length >= 1 && (State.programs||[]).length >= 1 },
+  { id:'fun_calorie_king',  cat:'🌈 Fun', icon:'👑', color:'#7c3aed',
+    name:'Calorie King',    desc:'Log 5,000+ calories in a single day',
+    check: () => Object.values(State.logs||{}).some(d => {
+      let cal = 0;
+      Object.values(d.meals||{}).forEach(m => m.forEach(f => cal += (f.cal||0)));
+      return cal >= 5000;
+    })},
+  { id:'fun_light_eater',   cat:'🌈 Fun', icon:'🍃', color:'#7c3aed',
+    name:'Light Eater',     desc:'Log a day with under 1,200 calories',
+    check: () => Object.values(State.logs||{}).some(d => {
+      let cal = 0;
+      Object.values(d.meals||{}).forEach(m => m.forEach(f => cal += (f.cal||0)));
+      return cal > 0 && cal < 1200;
+    })},
+  { id:'fun_clean_bulk',    cat:'🌈 Fun', icon:'🧹', color:'#7c3aed',
+    name:'Clean Bulker',    desc:'Hit both calorie AND protein goals on same day',
+    check: () => {
+      const T = State.targets||{};
+      return Object.values(State.logs||{}).some(d => {
+        let cal = 0, pro = 0;
+        Object.values(d.meals||{}).forEach(m => m.forEach(f => { cal += f.cal||0; pro += f.protein||0; }));
+        return cal >= (T.calories||2000)*0.9 && pro >= (T.protein||150)*0.9;
+      });
+    }},
+
 ];
 
 // ── Init badges in State ──────────────────────────────────────────────────────
