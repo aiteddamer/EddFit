@@ -12647,10 +12647,20 @@ let _acctUsernameTimer  = null;
 let _acctUsernameValid  = false;
 let _acctCurrentUsername = '';
 
-function openAccountModal() {
+async function openAccountModal() {
   const me = window._currentUser;
   if (!me) return;
   if (typeof closeSidebar === 'function') closeSidebar();
+
+  // Load profile from Firestore if not yet loaded
+  if (!Social.myProfile) {
+    try {
+      const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'users_public', me.uid));
+      Social.myProfile = snap.exists() ? snap.data() : { username: '', fullName: me.displayName || '', photoURL: me.photoURL || '' };
+    } catch(e) {
+      Social.myProfile = { username: '', fullName: me.displayName || '', photoURL: me.photoURL || '' };
+    }
+  }
 
   const fullname = Social.myProfile?.fullName || me.displayName || '';
   const username = Social.myProfile?.username || '';
@@ -12678,7 +12688,7 @@ function openAccountModal() {
     document.getElementById('acct-avatar-photo').style.display = 'none';
   }
 
-  document.getElementById('modal-account').classList.add('active');
+  document.getElementById('modal-account').classList.add('open');
 }
 
 function validateUsernameInput(val) {
