@@ -4274,7 +4274,7 @@ function dismissSplash() {
           const eEl   = document.getElementById('ch-end');
           if (sEl) sEl.value = fmt(today);
           if (eEl) eEl.value = fmt(end);
-          document.getElementById('modal-create-challenge').style.display = 'flex';
+          openModal('modal-create-challenge');
         };
 
         // ─── Daily challenge accept ──────────────────────────────────────
@@ -13877,6 +13877,7 @@ const Social = {
   _unsubFriends: null,
   _unsubChallenges: null,
 };
+window.Social = Social; // expose globally so share modal, badges & other scripts can access it
 
 // ── Tab switching ────────────────────────────────────────────────────
 function resetSocialTabs() {
@@ -14624,6 +14625,11 @@ function renderChallenges() {
           <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
             <span style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:${isActive?'var(--green-dim)':isEnded?'var(--bg-elevated)':'var(--orange-dim)'};color:${statusColor};font-weight:700">${statusLabel}</span>
             <span style="font-size:1rem">${medal}</span>
+            <button onclick="deleteChallenge('${ch.id}', this)" title="${ch.createdBy===me.uid?'Delete challenge':'Leave challenge'}"
+              style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:0.85rem;padding:4px 6px;border-radius:var(--radius-sm);line-height:1;transition:all 0.15s"
+              onmouseover="this.style.color='var(--red)';this.style.background='var(--red-dim)'"
+              onmouseout="this.style.color='var(--text-muted)';this.style.background='none'"
+            >${ch.createdBy===me.uid?'🗑':'🚪'}</button>
           </div>
         </div>
         <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);overflow:hidden">${rows}</div>
@@ -14633,6 +14639,49 @@ function renderChallenges() {
         </div>
       </div>`;
   }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  DELETE CHALLENGE
+// ─────────────────────────────────────────────────────────────────────
+async function deleteChallenge(id, btn) {
+  const me = window._currentUser;
+  if (!me) return;
+  const ch = Social.challenges.find(c => c.id === id);
+  if (!ch) return;
+
+  const isCreator = ch.createdBy === me.uid;
+  const label = isCreator ? 'Delete this challenge for everyone?' : 'Leave this challenge?';
+  if (!confirm(label)) return;
+
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+  try {
+    const db = window._fbDb;
+    if (isCreator) {
+      // Creator deletes the whole doc
+      await window._fbDeleteDoc(window._fbDoc(db, 'challenges', id));
+    } else {
+      // Participant leaves — remove their uid from participants + scores
+      const newParticipants = ch.participants.filter(uid => uid !== me.uid);
+      const newScores = { ...ch.scores };
+      delete newScores[me.uid];
+      const newNames = { ...(ch.participantNames || {}) };
+      delete newNames[me.uid];
+      await window._fbUpdateDoc(window._fbDoc(db, 'challenges', id), {
+        participants: newParticipants,
+        scores: newScores,
+        participantNames: newNames,
+      });
+    }
+    Social.challenges = Social.challenges.filter(c => c.id !== id);
+    renderChallenges();
+    if (window._updateSocialHeroStats) window._updateSocialHeroStats();
+    if (typeof showToast === 'function') showToast(isCreator ? 'Challenge deleted.' : 'You left the challenge.', 'info');
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    if (typeof showToast === 'function') showToast('Failed — try again.', 'error');
+    console.error('deleteChallenge', e);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -14759,7 +14808,7 @@ async function loadLeaderboard() {
         const d = snap.data();
         if (!d.period || d.period === Social.lbPeriod) {
           const score = d[metricField] || 0;
-          const name  = Social.friends.find(f => f.uid === uid)?.name || d.name || uid.slice(0,8);
+          const name  = Social.friends.find(f => f.uid === uid)?.fullName || Social.friends.find(f => f.uid === uid)?.name || Social.friends.find(f => f.uid === uid)?.username || d.name || uid.slice(0,8);
           entries.push({ uid, name, score, isMe: false });
         }
       }
@@ -15172,23 +15221,57 @@ function renderLeaderboard(entries) {
     }
   };
 
-  function _renderShareFriendList() {
+  async function _renderShareFriendList() {
     const container = document.getElementById('share-friends-list');
     if (!container) return;
-    const friends = (window.Social && window.Social.friends) ? window.Social.friends : [];
+
+    // Read from the now-global Social.friends
+    let friends = (window.Social && window.Social.friends) ? [...window.Social.friends] : [];
+
+    // If Social.friends is still empty, do a live fetch from Firestore
     if (!friends.length) {
-      container.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">Add friends first to share with them 👥</div>';
+      container.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">Loading friends…</div>';
+      try {
+        const me = window._currentUser;
+        const db = window._fbDb;
+        if (me && db) {
+          const snap = await window._fbGetDocs(
+            window._fbQuery(window._fbCollection(db, 'friendships'), window._fbWhere('users', 'array-contains', me.uid))
+          );
+          const friendUids = [];
+          snap.docs.forEach(d => d.data().users.forEach(uid => { if (uid !== me.uid) friendUids.push(uid); }));
+          const loaded = [];
+          await Promise.all(friendUids.map(async uid => {
+            try {
+              const pSnap = await window._fbGetDoc(window._fbDoc(db, 'users_public', uid));
+              if (pSnap.exists()) loaded.push({ uid, ...pSnap.data() });
+            } catch(e) {}
+          }));
+          // Write back into the shared Social object so future opens are instant
+          if (window.Social) window.Social.friends = loaded;
+          friends = loaded;
+        }
+      } catch(e) { console.warn('share friend load error', e); }
+    }
+
+    if (!friends.length) {
+      container.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">No friends yet — add friends first to share with them 👥</div>';
       return;
     }
+
     container.innerHTML = friends.map(f => {
-      const initial = (f.fullName || f.username || 'U').charAt(0).toUpperCase();
+      const displayName = f.fullName || f.name || f.username || '?';
+      const initial = displayName.charAt(0).toUpperCase();
       return `<div class="share-friend-row" data-uid="${f.uid}"
         onclick="_selectShareFriend('${f.uid}', this)"
         style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;transition:all 0.15s;background:var(--bg-elevated)">
-        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:0.8rem;color:var(--bg-base);flex-shrink:0">${initial}</div>
+        <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:0.8rem;color:var(--bg-base);flex-shrink:0;position:relative">
+          ${f.photoURL ? `<img src="${f.photoURL}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">` : ''}
+          ${initial}
+        </div>
         <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:0.88rem">${f.fullName || f.username}</div>
-          <div style="font-size:0.72rem;color:var(--text-secondary)">@${f.username}</div>
+          <div style="font-weight:700;font-size:0.88rem">${displayName}</div>
+          <div style="font-size:0.72rem;color:var(--text-secondary)">@${f.username || '—'}</div>
         </div>
         <div class="share-friend-check" style="display:none;color:var(--green);font-size:1.1rem">✓</div>
       </div>`;
