@@ -2670,6 +2670,10 @@ function dismissSplash() {
       <div class="nav-item" onclick="navigate('records',this)">
         <span class="nav-icon">🏆</span> Records
       </div>
+      <div class="nav-item" onclick="navigate('achievements',this)" id="nav-achievements">
+        <span class="nav-icon">🎖️</span> Achievements
+        <span class="nav-badge" id="achievements-nav-badge" style="display:none">!</span>
+      </div>
       <div class="nav-item" onclick="navigate('goals',this)">
         <span class="nav-icon">🎯</span> Goals
       </div>
@@ -2881,6 +2885,17 @@ function dismissSplash() {
             <div id="dash-workout-summary">
               <div class="empty-state"><div class="es-icon">💪</div><div class="es-text">No workout planned yet</div></div>
             </div>
+          </div>
+        </div>
+
+        <!-- Achievements mini-widget -->
+        <div class="card" style="margin-top:0">
+          <div class="card-header">
+            <div class="card-title">🎖️ Recent Badges</div>
+            <button class="btn btn-ghost btn-sm" onclick="navigate('achievements',document.getElementById('nav-achievements'))">View All →</button>
+          </div>
+          <div id="dash-badges-widget" style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+            <div style="font-size:0.78rem;color:var(--text-muted);padding:4px 0">No badges yet — keep tracking to unlock them!</div>
           </div>
         </div>
       </div>
@@ -3359,6 +3374,24 @@ function dismissSplash() {
             <div class="empty-state"><div class="es-icon">📉</div><div class="es-text">Need at least 2 workouts to compare</div></div>
           </div>
         </div>
+      </div>
+
+      <!-- ═════════ ACHIEVEMENTS ═════════ -->
+      <div class="page" id="page-achievements">
+        <div class="section-header">
+          <div class="section-title">🎖️ Achievements</div>
+          <div style="font-size:0.8rem;color:var(--text-muted)">Unlock badges by hitting milestones</div>
+        </div>
+        <div id="achievements-progress-bar-wrap" style="margin-bottom:20px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div style="font-family:var(--font-display);font-size:0.92rem;font-weight:800">Your Collection</div>
+            <div id="achievements-count" style="font-size:0.8rem;font-weight:700;color:var(--accent)">0 / 0 unlocked</div>
+          </div>
+          <div style="height:8px;background:var(--bg-elevated);border-radius:8px;overflow:hidden">
+            <div id="achievements-progress-fill" style="height:100%;background:linear-gradient(90deg,var(--accent),var(--orange));border-radius:8px;width:0%;transition:width 0.5s ease"></div>
+          </div>
+        </div>
+        <div id="achievements-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px"></div>
       </div>
 
       <!-- ═════════ REPORTS ═════════ -->
@@ -6730,7 +6763,8 @@ const PAGE_TITLES = {
   workouts: 'Workout Planner', calendar: 'Calendar',
   progress: 'Progress', goals: 'Goals', settings: 'Settings',
   bodymap: 'Body Map', mealplan: 'Meal Plan', recipes: 'Recipes',
-  records: 'Personal Records', reports: 'Weekly Reports', social: 'Friends & Challenges'
+  records: 'Personal Records', reports: 'Weekly Reports', social: 'Friends & Challenges',
+  achievements: 'Achievements'
 };
 
 function navigate(page, el) {
@@ -6772,6 +6806,7 @@ function navigate(page, el) {
   if (page === 'reports')   { if (typeof renderReports      === 'function') renderReports(); }
   if (page === 'settings')  { loadApiKeyStatus(); }
   if (page === 'social')    { if (typeof renderSocialPage   === 'function') renderSocialPage(); }
+  if (page === 'achievements') { if (typeof renderAchievementsPage === 'function') renderAchievementsPage(); }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -6856,6 +6891,9 @@ function refreshDashboard() {
   document.getElementById('streak-count').textContent = State.streak;
   // Macro warnings on dashboard
   renderMacroWarnings(totals, T);
+
+  // Recent badges widget
+  if (typeof renderDashBadgesWidget === 'function') renderDashBadgesWidget();
 
   // Force browser to repaint all dashboard elements immediately.
   // Without this, Chrome/Safari may defer visual updates when the page
@@ -15433,5 +15471,501 @@ function renderLeaderboard(entries) {
 })();
 </script>
 
+<!-- ═══════════════════════════════════════════════════════════════════
+     🎖️  ACHIEVEMENTS & BADGES SYSTEM
+     Hooks: saveWorkout, logSelectedFood, calcStreak, save
+     Storage: State.badges = { earned: {id: timestamp}, seen: {id: true} }
+     ════════════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+
+// ── Badge definitions ─────────────────────────────────────────────────────────
+const BADGE_DEFS = [
+  // ── WORKOUT MILESTONES ──
+  { id:'first_workout',  cat:'Workout', icon:'💪', color:'var(--orange)',
+    name:'First Rep', desc:'Log your very first workout',
+    check: () => (State.workouts||[]).length >= 1 },
+
+  { id:'workouts_5',     cat:'Workout', icon:'🔥', color:'var(--orange)',
+    name:'Five & Counting', desc:'Complete 5 workouts',
+    check: () => (State.workouts||[]).length >= 5 },
+
+  { id:'workouts_25',    cat:'Workout', icon:'⚡', color:'var(--orange)',
+    name:'Gym Regular', desc:'Complete 25 workouts',
+    check: () => (State.workouts||[]).length >= 25 },
+
+  { id:'workouts_100',   cat:'Workout', icon:'💯', color:'var(--orange)',
+    name:'Century Club', desc:'Complete 100 workouts — you\'re a machine',
+    check: () => (State.workouts||[]).length >= 100 },
+
+  // ── STREAK MILESTONES ──
+  { id:'streak_3',   cat:'Streak', icon:'🔥', color:'var(--red)',
+    name:'Triplet', desc:'3-day activity streak',
+    check: () => (State.streak||0) >= 3 },
+
+  { id:'streak_7',   cat:'Streak', icon:'📅', color:'var(--red)',
+    name:'Week Warrior', desc:'7-day streak — a full week of consistency',
+    check: () => (State.streak||0) >= 7 },
+
+  { id:'streak_14',  cat:'Streak', icon:'🗓️', color:'var(--red)',
+    name:'Two-Week Titan', desc:'14-day streak without missing a day',
+    check: () => (State.streak||0) >= 14 },
+
+  { id:'streak_30',  cat:'Streak', icon:'🌙', color:'var(--red)',
+    name:'Month of Gains', desc:'30-day streak — a full month of dedication',
+    check: () => (State.streak||0) >= 30 },
+
+  { id:'streak_100', cat:'Streak', icon:'💎', color:'var(--red)',
+    name:'Diamond Grind', desc:'100-day streak — absolutely elite',
+    check: () => (State.streak||0) >= 100 },
+
+  // ── NUTRITION MILESTONES ──
+  { id:'first_meal',  cat:'Nutrition', icon:'🍽️', color:'var(--green)',
+    name:'First Bite', desc:'Log your first meal',
+    check: () => Object.values(State.logs||{}).some(d =>
+      Object.values(d.meals||{}).some(m => m.length > 0)) },
+
+  { id:'meals_50',    cat:'Nutrition', icon:'🥗', color:'var(--green)',
+    name:'Macro Tracker', desc:'Log 50 individual food entries',
+    check: () => {
+      let total = 0;
+      Object.values(State.logs||{}).forEach(d =>
+        Object.values(d.meals||{}).forEach(m => total += m.length));
+      return total >= 50;
+    }},
+
+  { id:'meals_100',   cat:'Nutrition', icon:'🌿', color:'var(--green)',
+    name:'100 Meals Logged', desc:'Log 100 food entries — data nerd status achieved',
+    check: () => {
+      let total = 0;
+      Object.values(State.logs||{}).forEach(d =>
+        Object.values(d.meals||{}).forEach(m => total += m.length));
+      return total >= 100;
+    }},
+
+  { id:'cal_goal_3',  cat:'Nutrition', icon:'🎯', color:'var(--green)',
+    name:'On Target', desc:'Hit your calorie goal 3 different days',
+    check: () => {
+      let hits = 0;
+      const T = State.targets || {};
+      const goal = T.calories || 2000;
+      Object.values(State.logs||{}).forEach(d => {
+        let cal = 0;
+        Object.values(d.meals||{}).forEach(m => m.forEach(f => cal += (f.cal||0)));
+        if (cal >= goal * 0.9 && cal <= goal * 1.1) hits++;
+      });
+      return hits >= 3;
+    }},
+
+  // ── PERSONAL RECORDS ──
+  { id:'first_pr',    cat:'Records', icon:'🥇', color:'var(--accent)',
+    name:'PR Breaker', desc:'Log a personal record on any exercise',
+    check: () => {
+      const exMap = {};
+      (State.workouts||[]).forEach(w => {
+        (w.exercises||[]).forEach(ex => {
+          (ex.sets||[]).forEach(s => {
+            if (!s.weight || !s.reps) return;
+            const key = ex.name;
+            if (!exMap[key]) exMap[key] = [];
+            exMap[key].push({ w: +s.weight, r: +s.reps, date: w.date });
+          });
+        });
+      });
+      // Check if any exercise has more than one data point where the latest beat prior best
+      return Object.values(exMap).some(sets => {
+        if (sets.length < 2) return false;
+        const sorted = [...sets].sort((a,b) => new Date(a.date)-new Date(b.date));
+        let best = 0;
+        for (let i = 0; i < sorted.length; i++) {
+          const cur = sorted[i].w;
+          if (i > 0 && cur > best) return true;
+          if (cur > best) best = cur;
+        }
+        return false;
+      });
+    }},
+
+  { id:'pr_3',        cat:'Records', icon:'🏆', color:'var(--accent)',
+    name:'Record Collector', desc:'Break PRs on 3 different exercises',
+    check: () => {
+      const exMap = {};
+      (State.workouts||[]).forEach(w => {
+        (w.exercises||[]).forEach(ex => {
+          (ex.sets||[]).forEach(s => {
+            if (!s.weight || !s.reps) return;
+            if (!exMap[ex.name]) exMap[ex.name] = [];
+            exMap[ex.name].push({ w: +s.weight, date: w.date });
+          });
+        });
+      });
+      let prCount = 0;
+      Object.values(exMap).forEach(sets => {
+        if (sets.length < 2) return;
+        const sorted = [...sets].sort((a,b) => new Date(a.date)-new Date(b.date));
+        let best = 0;
+        sorted.forEach((s,i) => {
+          if (i > 0 && s.w > best) prCount++;
+          if (s.w > best) best = s.w;
+        });
+      });
+      return prCount >= 3;
+    }},
+
+  // ── GOALS ──
+  { id:'first_goal',  cat:'Goals', icon:'🎯', color:'var(--blue)',
+    name:'Goal Setter', desc:'Create your first goal',
+    check: () => (State.goals||[]).length >= 1 },
+
+  { id:'goal_done',   cat:'Goals', icon:'✅', color:'var(--blue)',
+    name:'Goal Crusher', desc:'Mark a goal as complete',
+    check: () => (State.goals||[]).some(g => g.done || g.completed) },
+
+  // ── SOCIAL & EXTRAS ──
+  { id:'first_recipe', cat:'Extras', icon:'📖', color:'var(--purple)',
+    name:'Chef Mode', desc:'Save your first custom recipe',
+    check: () => (State.recipes||[]).length >= 1 },
+
+  { id:'first_custom_food', cat:'Extras', icon:'🥫', color:'var(--purple)',
+    name:'Food Lab', desc:'Create your first custom food',
+    check: () => (State.customFoods||[]).length >= 1 },
+
+  { id:'metrics_logged', cat:'Extras', icon:'⚖️', color:'var(--purple)',
+    name:'Body Check', desc:'Log your body metrics for the first time',
+    check: () => (State.metrics||[]).some(m => m.weight) },
+
+  { id:'programs_started', cat:'Extras', icon:'📅', color:'var(--purple)',
+    name:'Program On', desc:'Start a structured workout program',
+    check: () => (State.programs||[]).some(p => p.active) },
+];
+
+// ── Init badges in State ──────────────────────────────────────────────────────
+function ensureBadgesState() {
+  if (!State.badges) State.badges = { earned: {}, seen: {} };
+  if (!State.badges.earned) State.badges.earned = {};
+  if (!State.badges.seen) State.badges.seen = {};
+}
+
+// ── Check all badges and unlock new ones ─────────────────────────────────────
+function checkAllBadges(silent) {
+  ensureBadgesState();
+  const newlyEarned = [];
+
+  BADGE_DEFS.forEach(b => {
+    if (State.badges.earned[b.id]) return; // already earned
+    try {
+      if (b.check()) {
+        State.badges.earned[b.id] = Date.now();
+        if (!silent) newlyEarned.push(b);
+      }
+    } catch(e) { /* silent fail on check error */ }
+  });
+
+  // Show toasts for newly unlocked badges
+  if (newlyEarned.length > 0) {
+    save(); // persist
+    newlyEarned.forEach((b, i) => {
+      setTimeout(() => showBadgeToast(b), i * 1800);
+    });
+    // Refresh nav badge
+    updateAchievementsNavBadge();
+  }
+
+  return newlyEarned;
+}
+
+// ── Show the beautiful badge unlock toast ────────────────────────────────────
+function showBadgeToast(badge) {
+  const existing = document.getElementById('badge-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'badge-toast';
+  toast.style.cssText = `
+    position:fixed; bottom:30px; left:50%; transform:translateX(-50%) translateY(80px);
+    z-index:99999; background:var(--bg-card);
+    border:2px solid ${badge.color}; border-radius:20px;
+    box-shadow:0 12px 48px rgba(0,0,0,0.35), 0 0 0 4px ${badge.color}22;
+    padding:18px 24px; display:flex; align-items:center; gap:16px;
+    min-width:300px; max-width:420px;
+    transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s ease;
+    opacity:0;
+  `;
+
+  toast.innerHTML = `
+    <div style="
+      width:54px; height:54px; border-radius:50%; flex-shrink:0;
+      background:${badge.color}22; border:2px solid ${badge.color};
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.6rem; position:relative;
+    ">
+      ${badge.icon}
+      <div style="position:absolute;inset:0;border-radius:50%;animation:badgePulse 1.5s ease-out 0.3s 2;pointer-events:none;background:${badge.color}33"></div>
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:${badge.color};margin-bottom:3px">
+        🎖️ Badge Unlocked!
+      </div>
+      <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--text-primary);line-height:1.2">
+        ${badge.name}
+      </div>
+      <div style="font-size:0.76rem;color:var(--text-secondary);margin-top:3px">${badge.desc}</div>
+    </div>
+    <button onclick="document.getElementById('badge-toast').remove()" style="
+      background:none;border:none;font-size:1rem;cursor:pointer;
+      color:var(--text-muted);padding:4px;flex-shrink:0;line-height:1;
+    ">✕</button>
+  `;
+
+  // Add keyframes if not present
+  if (!document.getElementById('badge-toast-styles')) {
+    const style = document.createElement('style');
+    style.id = 'badge-toast-styles';
+    style.textContent = `
+      @keyframes badgePulse {
+        0%   { opacity:0.8; transform:scale(1); }
+        100% { opacity:0; transform:scale(2.2); }
+      }
+      @keyframes badgeShimmer {
+        0%   { background-position:-200% center; }
+        100% { background-position:200% center; }
+      }
+      .badge-card-earned {
+        position:relative; overflow:hidden;
+      }
+      .badge-card-earned::after {
+        content:'';
+        position:absolute; inset:0;
+        background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.08) 50%,transparent 60%);
+        background-size:200%;
+        animation:badgeShimmer 3s linear infinite;
+        border-radius:inherit;
+        pointer-events:none;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  document.body.appendChild(toast);
+
+  // Animate in
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      toast.style.transform = 'translateX(-50%) translateY(0)';
+      toast.style.opacity = '1';
+    });
+  });
+
+  // Auto-dismiss after 4.5s
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.style.transform = 'translateX(-50%) translateY(80px)';
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 400);
+    }
+  }, 4500);
+}
+
+// ── Update the nav badge counter for new unseen achievements ─────────────────
+function updateAchievementsNavBadge() {
+  ensureBadgesState();
+  const navBadge = document.getElementById('achievements-nav-badge');
+  if (!navBadge) return;
+  const unseen = Object.keys(State.badges.earned).filter(id => !State.badges.seen[id]);
+  if (unseen.length > 0) {
+    navBadge.textContent = unseen.length;
+    navBadge.style.display = '';
+  } else {
+    navBadge.style.display = 'none';
+  }
+}
+
+// ── Render the achievements page ─────────────────────────────────────────────
+window.renderAchievementsPage = function() {
+  ensureBadgesState();
+
+  // Mark all earned as seen
+  Object.keys(State.badges.earned).forEach(id => {
+    State.badges.seen[id] = true;
+  });
+  updateAchievementsNavBadge();
+
+  const totalBadges = BADGE_DEFS.length;
+  const earnedCount = Object.keys(State.badges.earned).length;
+
+  // Progress bar
+  const fill = document.getElementById('achievements-progress-fill');
+  const count = document.getElementById('achievements-count');
+  if (fill) fill.style.width = totalBadges > 0 ? Math.round((earnedCount/totalBadges)*100)+'%' : '0%';
+  if (count) count.textContent = `${earnedCount} / ${totalBadges} unlocked`;
+
+  const grid = document.getElementById('achievements-grid');
+  if (!grid) return;
+
+  // Group by category
+  const categories = [...new Set(BADGE_DEFS.map(b => b.cat))];
+
+  grid.innerHTML = categories.map(cat => {
+    const badges = BADGE_DEFS.filter(b => b.cat === cat);
+    return `
+      <div style="grid-column:1/-1">
+        <div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;
+                    color:var(--text-muted);margin-bottom:10px;padding-left:2px">${cat}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+          ${badges.map(b => {
+            const earned = !!State.badges.earned[b.id];
+            const earnedDate = State.badges.earned[b.id]
+              ? new Date(State.badges.earned[b.id]).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+              : null;
+            return `
+              <div class="${earned ? 'badge-card-earned' : ''}" style="
+                background:var(--bg-card);
+                border:2px solid ${earned ? b.color : 'var(--border)'};
+                border-radius:var(--radius);
+                padding:18px;
+                display:flex; align-items:flex-start; gap:14px;
+                transition:all 0.2s;
+                opacity:${earned ? '1' : '0.55'};
+                ${earned ? `box-shadow:0 4px 20px ${b.color}18;` : ''}
+              ">
+                <div style="
+                  width:46px; height:46px; border-radius:50%; flex-shrink:0;
+                  background:${earned ? b.color+'22' : 'var(--bg-elevated)'};
+                  border:2px solid ${earned ? b.color : 'var(--border)'};
+                  display:flex; align-items:center; justify-content:center;
+                  font-size:1.4rem;
+                  ${earned ? '' : 'filter:grayscale(1)'}
+                ">
+                  ${earned ? b.icon : '🔒'}
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div style="
+                    font-family:var(--font-display);
+                    font-size:0.88rem; font-weight:800;
+                    color:${earned ? 'var(--text-primary)' : 'var(--text-muted)'};
+                    margin-bottom:3px;
+                  ">${b.name}</div>
+                  <div style="font-size:0.73rem;color:var(--text-secondary);line-height:1.4">${b.desc}</div>
+                  ${earned ? `<div style="font-size:0.64rem;color:${b.color};font-weight:700;margin-top:5px">✓ Earned ${earnedDate}</div>` : ''}
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+};
+
+// ── Hook: patch saveWorkout ───────────────────────────────────────────────────
+const _origSaveWorkout = window.saveWorkout;
+if (typeof _origSaveWorkout === 'function') {
+  window.saveWorkout = function() {
+    _origSaveWorkout.apply(this, arguments);
+    setTimeout(() => checkAllBadges(false), 300);
+  };
+}
+
+// ── Hook: patch saveWorkoutForDate (workout page save button) ─────────────────
+const _origSaveWorkoutForDate = window.saveWorkoutForDate;
+if (typeof _origSaveWorkoutForDate === 'function') {
+  window.saveWorkoutForDate = function() {
+    _origSaveWorkoutForDate.apply(this, arguments);
+    setTimeout(() => checkAllBadges(false), 300);
+  };
+}
+
+// ── Hook: patch logSelectedFood ──────────────────────────────────────────────
+const _origLogSelectedFood = window.logSelectedFood;
+if (typeof _origLogSelectedFood === 'function') {
+  window.logSelectedFood = function() {
+    _origLogSelectedFood.apply(this, arguments);
+    setTimeout(() => checkAllBadges(false), 300);
+  };
+}
+
+// ── Hook: patch calcStreak ───────────────────────────────────────────────────
+const _origCalcStreak = window.calcStreak;
+if (typeof _origCalcStreak === 'function') {
+  window.calcStreak = function() {
+    _origCalcStreak.apply(this, arguments);
+    setTimeout(() => checkAllBadges(false), 200);
+  };
+}
+
+// ── Hook: patch saveGoal / addGoal ───────────────────────────────────────────
+const _origSaveGoal = window.saveGoal;
+if (typeof _origSaveGoal === 'function') {
+  window.saveGoal = function() {
+    _origSaveGoal.apply(this, arguments);
+    setTimeout(() => checkAllBadges(false), 300);
+  };
+}
+
+// ── Hook: patch saveCustomFood ───────────────────────────────────────────────
+const _origSaveCustomFood = window.saveCustomFood;
+if (typeof _origSaveCustomFood === 'function') {
+  window.saveCustomFood = function() {
+    _origSaveCustomFood.apply(this, arguments);
+    setTimeout(() => checkAllBadges(false), 300);
+  };
+}
+
+// ── Hook: patch saveRecipe ───────────────────────────────────────────────────
+const _origSaveRecipe = window.saveRecipe;
+if (typeof _origSaveRecipe === 'function') {
+  window.saveRecipe = function() {
+    _origSaveRecipe.apply(this, arguments);
+    setTimeout(() => checkAllBadges(false), 300);
+  };
+}
+
+// ── Hook into Firestore load to check badges after data loads ─────────────────
+const _origLoadFS2 = window._loadFirestore;
+if (typeof _origLoadFS2 === 'function') {
+  window._loadFirestore = async function() {
+    await _origLoadFS2.apply(this, arguments);
+    setTimeout(() => {
+      ensureBadgesState();
+      checkAllBadges(true); // silent on load (don't re-show toasts for old badges)
+      updateAchievementsNavBadge();
+    }, 1500);
+  };
+}
+
+// ── Dashboard mini-widget: show 3 most recent earned badges ─────────────────
+function renderDashBadgesWidget() {
+  const el = document.getElementById('dash-badges-widget');
+  if (!el) return;
+  ensureBadgesState();
+  const earned = Object.entries(State.badges.earned)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0,4)
+    .map(([id]) => BADGE_DEFS.find(b=>b.id===id))
+    .filter(Boolean);
+  if (!earned.length) {
+    el.innerHTML = '<div style="font-size:0.78rem;color:var(--text-muted);padding:4px 0">No badges yet — keep tracking to unlock them!</div>';
+    return;
+  }
+  el.innerHTML = earned.map(b => `
+    <div title="${b.name}: ${b.desc}" style="
+      display:flex;align-items:center;gap:8px;
+      padding:8px 10px;border-radius:var(--radius-sm);
+      background:${b.color}11;border:1px solid ${b.color}44;
+    ">
+      <span style="font-size:1.2rem">${b.icon}</span>
+      <div style="min-width:0">
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text-primary)">${b.name}</div>
+        <div style="font-size:0.65rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${b.desc}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Expose for external use
+window.checkAllBadges      = checkAllBadges;
+window.renderDashBadgesWidget = renderDashBadgesWidget;
+window.updateAchievementsNavBadge = updateAchievementsNavBadge;
+
+})();
+</script>
 </body>
-</html>
