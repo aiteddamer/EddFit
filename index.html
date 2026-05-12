@@ -12615,8 +12615,25 @@ function switchSocialTab(tab, btn) {
   if (tab === 'challenges')  loadChallenges();
 }
 
+// Ensure Friends tab is active when entering social page
+function resetSocialTabs() {
+  ['challenges','leaderboard'].forEach(t => {
+    const el = document.getElementById('social-tab-' + t);
+    if (el) el.style.display = 'none';
+  });
+  const friendsEl = document.getElementById('social-tab-friends');
+  if (friendsEl) friendsEl.style.display = '';
+  document.querySelectorAll('.social-tab').forEach(b => {
+    const isActive = b.getAttribute('data-tab') === 'friends';
+    b.style.color = isActive ? 'var(--accent)' : 'var(--text-secondary)';
+    b.style.borderBottomColor = isActive ? 'var(--accent)' : 'transparent';
+    b.style.fontWeight = isActive ? '700' : '600';
+  });
+}
+
 // ── Entry point ──────────────────────────────────────────────────────
 async function renderSocialPage() {
+  resetSocialTabs();
   await loadMyProfile();
   updateSocialProfileCard();
   await loadFriends();
@@ -12826,9 +12843,9 @@ async function searchUsername(query) {
   } catch(e) { resultsEl.innerHTML = '<div style="padding:10px 14px;font-size:0.8rem;color:var(--red)">Search failed — try again</div>'; }
 }
 
-function selectUsernameResult(username) {
+function selectUsernameResult(username, uid) {
   const inputEl = document.getElementById('friend-username-input');
-  if (inputEl) inputEl.value = '@' + username;
+  if (inputEl) inputEl.value = username;
   const resultsEl = document.getElementById('username-search-results');
   if (resultsEl) resultsEl.style.display = 'none';
 }
@@ -13036,13 +13053,15 @@ function updateChallengeInviteList() {
     el.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted)">Add friends first to invite them to challenges</div>';
     return;
   }
-  el.innerHTML = Social.friends.map(f => `
+  el.innerHTML = Social.friends.map(f => {
+    const displayName = f.fullName || f.name || f.username || '?';
+    return `
     <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 8px;border-radius:var(--radius-sm);transition:background var(--transition)" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
       <input type="checkbox" value="${f.uid}" style="accent-color:var(--accent);width:15px;height:15px;flex-shrink:0" />
-      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--bg-base);flex-shrink:0">${(f.name||'?').charAt(0).toUpperCase()}</div>
-      <span style="font-size:0.85rem;font-weight:500">${f.name || f.email}</span>
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--bg-base);flex-shrink:0">${displayName.charAt(0).toUpperCase()}</div>
+      <span style="font-size:0.85rem;font-weight:500">${displayName}</span>
     </label>
-  `).join('');
+  `}).join('');
 }
 
 async function createChallenge() {
@@ -13067,7 +13086,7 @@ async function createChallenge() {
 
   const participantNames = { [me.uid]: me.displayName || me.email };
   Social.friends.filter(f => invitedUids.includes(f.uid)).forEach(f => {
-    participantNames[f.uid] = f.name || f.email;
+    participantNames[f.uid] = f.fullName || f.name || f.username || f.email;
   });
 
   try {
@@ -13234,7 +13253,7 @@ function renderChallenges() {
 // ─────────────────────────────────────────────────────────────────────
 function setLbPeriod(period, btn) {
   Social.lbPeriod = period;
-  document.querySelectorAll('.toggle-btn').forEach(b => {
+  btn.closest('div').querySelectorAll('.toggle-btn').forEach(b => {
     b.style.background = 'var(--bg-elevated)';
     b.style.borderColor = 'var(--border)';
     b.style.color = 'var(--text-secondary)';
