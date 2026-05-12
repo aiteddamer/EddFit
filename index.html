@@ -3478,6 +3478,150 @@ function dismissSplash() {
         </div>
       </div>
 
+
+      <!-- ═════════ FRIENDS & CHALLENGES ═════════ -->
+      <div class="page" id="page-social">
+        <!-- Page Header -->
+        <div style="margin-bottom:20px">
+          <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;letter-spacing:-0.3px">Friends &amp; Challenges</div>
+          <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:3px">Connect, compete, and stay accountable together</div>
+        </div>
+
+        <!-- Tabs — scrollbar hidden -->
+        <div style="display:flex;border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto;-ms-overflow-style:none;scrollbar-width:none">
+          <button class="social-tab active" data-tab="friends"    onclick="switchSocialTab('friends',this)"    style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">👥 Friends</button>
+          <button class="social-tab"        data-tab="challenges" onclick="switchSocialTab('challenges',this)" style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">🏆 Challenges</button>
+          <button class="social-tab"        data-tab="leaderboard" onclick="switchSocialTab('leaderboard',this)" style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">📊 Leaderboard</button>
+        </div>
+
+        <!-- FRIENDS TAB -->
+        <div id="social-tab-friends">
+
+          <!-- My Profile Card -->
+          <div class="card" id="social-my-profile-card" style="margin-bottom:16px;background:var(--accent-dim);border-color:var(--accent)">
+            <div style="display:flex;align-items:center;gap:14px">
+              <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:1.1rem;color:var(--bg-base);flex-shrink:0;position:relative" id="social-my-avatar-wrap">
+                <img id="social-my-photo" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover">
+                <span id="social-my-initial">?</span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--accent)" id="social-my-displayname">—</div>
+                <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:1px">@<span id="social-my-username">set your username</span></div>
+              </div>
+              <button onclick="openAccountModal()" style="background:var(--accent);color:var(--bg-base);border:none;border-radius:var(--radius-sm);padding:7px 14px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:var(--font-body);white-space:nowrap">Edit Profile</button>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <!-- Add Friend -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">➕ Add a Friend</div>
+                  <div class="card-sub">Search by @username</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <div style="position:relative;flex:1;min-width:0">
+                  <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.9rem">@</span>
+                  <input type="text" class="form-input" id="friend-username-input" placeholder="username" style="padding-left:24px;font-size:0.88rem;padding-top:9px;padding-bottom:9px;width:100%"
+                    onkeydown="if(event.key==='Enter') sendFriendRequestByUsername()" oninput="searchUsernameDebounced(this.value)" />
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="sendFriendRequestByUsername()" style="white-space:nowrap">Add Friend</button>
+              </div>
+              <div id="username-search-results" style="margin-top:8px;display:none;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border);overflow:hidden"></div>
+              <div id="friend-invite-msg" style="font-size:0.78rem;margin-top:8px;min-height:16px"></div>
+            </div>
+
+            <!-- Pending Invites -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">🔔 Pending Invites</div>
+                  <div class="card-sub" id="pending-invites-sub">Friend requests waiting</div>
+                </div>
+              </div>
+              <div id="pending-invites-list">
+                <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:16px 0">No pending invites 🎉</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Friends List -->
+          <div class="card" style="margin-top:16px">
+            <div class="card-header">
+              <div>
+                <div class="card-title">My Friends</div>
+                <div class="card-sub" id="friends-count-sub">Loading…</div>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="refreshFriendsData()">↻ Refresh</button>
+            </div>
+            <div id="friends-list">
+              <div style="text-align:center;padding:32px 0">
+                <div style="font-size:2rem;margin-bottom:10px">👥</div>
+                <div style="font-size:0.88rem;color:var(--text-muted)">Loading friends…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CHALLENGES TAB -->
+        <div id="social-tab-challenges" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+            <div>
+              <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:700">Weekly Challenges</div>
+              <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:2px">Compete with friends on fitness goals</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openCreateChallenge()">+ New Challenge</button>
+          </div>
+
+          <!-- Active Challenges -->
+          <div id="challenges-list">
+            <div style="text-align:center;padding:40px 0">
+              <div style="font-size:2.5rem;margin-bottom:12px">🏆</div>
+              <div style="font-family:var(--font-display);font-size:1rem;font-weight:700;margin-bottom:6px">No active challenges</div>
+              <div style="font-size:0.82rem;color:var(--text-secondary)">Create a challenge and invite friends to compete!</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LEADERBOARD TAB -->
+        <div id="social-tab-leaderboard" style="display:none">
+          <div class="grid-2" style="gap:16px;margin-bottom:16px">
+            <!-- Period picker -->
+            <div class="card" style="padding:14px 18px">
+              <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Leaderboard Period</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="toggle-btn active" onclick="setLbPeriod('week',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:0.78rem;font-weight:700;cursor:pointer">This Week</button>
+                <button class="toggle-btn" onclick="setLbPeriod('month',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.78rem;font-weight:600;cursor:pointer">This Month</button>
+                <button class="toggle-btn" onclick="setLbPeriod('alltime',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.78rem;font-weight:600;cursor:pointer">All Time</button>
+              </div>
+            </div>
+            <!-- Metric picker -->
+            <div class="card" style="padding:14px 18px">
+              <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Rank By</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="lb-metric-btn active" onclick="setLbMetric('workouts',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:0.75rem;font-weight:700;cursor:pointer">💪 Workouts</button>
+                <button class="lb-metric-btn" onclick="setLbMetric('streak',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.75rem;font-weight:600;cursor:pointer">🔥 Streak</button>
+                <button class="lb-metric-btn" onclick="setLbMetric('calories',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.75rem;font-weight:600;cursor:pointer">🔥 Cal Goal</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title" id="lb-title">Workout Leaderboard — This Week</div>
+                <div class="card-sub">You + friends ranked by performance</div>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="loadLeaderboard()">↻ Refresh</button>
+            </div>
+            <div id="leaderboard-list">
+              <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:24px 0">Add friends to see the leaderboard</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </div>
@@ -12334,149 +12478,7 @@ document.addEventListener('click', function(e) {
     </div>
   </div>
 </div>
-<!-- ═════════ FRIENDS & CHALLENGES ═════════ -->
-<div class="page" id="page-social">
-  <!-- Page Header -->
-  <div style="margin-bottom:20px">
-    <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;letter-spacing:-0.3px">Friends &amp; Challenges</div>
-    <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:3px">Connect, compete, and stay accountable together</div>
-  </div>
 
-  <!-- Tabs — scrollbar hidden -->
-  <div style="display:flex;border-bottom:2px solid var(--border);margin-bottom:20px;overflow-x:auto;-ms-overflow-style:none;scrollbar-width:none">
-    <button class="social-tab active" data-tab="friends"    onclick="switchSocialTab('friends',this)"    style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">👥 Friends</button>
-    <button class="social-tab"        data-tab="challenges" onclick="switchSocialTab('challenges',this)" style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">🏆 Challenges</button>
-    <button class="social-tab"        data-tab="leaderboard" onclick="switchSocialTab('leaderboard',this)" style="padding:10px 20px;background:none;border:none;font-family:var(--font-body);font-size:0.88rem;font-weight:600;color:var(--text-secondary);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all var(--transition);white-space:nowrap;flex-shrink:0">📊 Leaderboard</button>
-  </div>
-
-  <!-- FRIENDS TAB -->
-  <div id="social-tab-friends">
-
-    <!-- My Profile Card -->
-    <div class="card" id="social-my-profile-card" style="margin-bottom:16px;background:var(--accent-dim);border-color:var(--accent)">
-      <div style="display:flex;align-items:center;gap:14px">
-        <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:1.1rem;color:var(--bg-base);flex-shrink:0;position:relative" id="social-my-avatar-wrap">
-          <img id="social-my-photo" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover">
-          <span id="social-my-initial">?</span>
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--accent)" id="social-my-displayname">—</div>
-          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:1px">@<span id="social-my-username">set your username</span></div>
-        </div>
-        <button onclick="openAccountModal()" style="background:var(--accent);color:var(--bg-base);border:none;border-radius:var(--radius-sm);padding:7px 14px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:var(--font-body);white-space:nowrap">Edit Profile</button>
-      </div>
-    </div>
-
-    <div class="grid-2">
-      <!-- Add Friend -->
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">➕ Add a Friend</div>
-            <div class="card-sub">Search by @username</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <div style="position:relative;flex:1;min-width:0">
-            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.9rem">@</span>
-            <input type="text" class="form-input" id="friend-username-input" placeholder="username" style="padding-left:24px;font-size:0.88rem;padding-top:9px;padding-bottom:9px;width:100%"
-              onkeydown="if(event.key==='Enter') sendFriendRequestByUsername()" oninput="searchUsernameDebounced(this.value)" />
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="sendFriendRequestByUsername()" style="white-space:nowrap">Add Friend</button>
-        </div>
-        <div id="username-search-results" style="margin-top:8px;display:none;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border);overflow:hidden"></div>
-        <div id="friend-invite-msg" style="font-size:0.78rem;margin-top:8px;min-height:16px"></div>
-      </div>
-
-      <!-- Pending Invites -->
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">🔔 Pending Invites</div>
-            <div class="card-sub" id="pending-invites-sub">Friend requests waiting</div>
-          </div>
-        </div>
-        <div id="pending-invites-list">
-          <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:16px 0">No pending invites 🎉</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Friends List -->
-    <div class="card" style="margin-top:16px">
-      <div class="card-header">
-        <div>
-          <div class="card-title">My Friends</div>
-          <div class="card-sub" id="friends-count-sub">Loading…</div>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="refreshFriendsData()">↻ Refresh</button>
-      </div>
-      <div id="friends-list">
-        <div style="text-align:center;padding:32px 0">
-          <div style="font-size:2rem;margin-bottom:10px">👥</div>
-          <div style="font-size:0.88rem;color:var(--text-muted)">Loading friends…</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CHALLENGES TAB -->
-  <div id="social-tab-challenges" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-      <div>
-        <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:700">Weekly Challenges</div>
-        <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:2px">Compete with friends on fitness goals</div>
-      </div>
-      <button class="btn btn-primary btn-sm" onclick="openCreateChallenge()">+ New Challenge</button>
-    </div>
-
-    <!-- Active Challenges -->
-    <div id="challenges-list">
-      <div style="text-align:center;padding:40px 0">
-        <div style="font-size:2.5rem;margin-bottom:12px">🏆</div>
-        <div style="font-family:var(--font-display);font-size:1rem;font-weight:700;margin-bottom:6px">No active challenges</div>
-        <div style="font-size:0.82rem;color:var(--text-secondary)">Create a challenge and invite friends to compete!</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- LEADERBOARD TAB -->
-  <div id="social-tab-leaderboard" style="display:none">
-    <div class="grid-2" style="gap:16px;margin-bottom:16px">
-      <!-- Period picker -->
-      <div class="card" style="padding:14px 18px">
-        <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Leaderboard Period</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="toggle-btn active" onclick="setLbPeriod('week',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:0.78rem;font-weight:700;cursor:pointer">This Week</button>
-          <button class="toggle-btn" onclick="setLbPeriod('month',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.78rem;font-weight:600;cursor:pointer">This Month</button>
-          <button class="toggle-btn" onclick="setLbPeriod('alltime',this)" style="flex:1;min-width:70px;padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.78rem;font-weight:600;cursor:pointer">All Time</button>
-        </div>
-      </div>
-      <!-- Metric picker -->
-      <div class="card" style="padding:14px 18px">
-        <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Rank By</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="lb-metric-btn active" onclick="setLbMetric('workouts',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:0.75rem;font-weight:700;cursor:pointer">💪 Workouts</button>
-          <button class="lb-metric-btn" onclick="setLbMetric('streak',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.75rem;font-weight:600;cursor:pointer">🔥 Streak</button>
-          <button class="lb-metric-btn" onclick="setLbMetric('calories',this)" style="flex:1;min-width:80px;padding:7px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:0.75rem;font-weight:600;cursor:pointer">🔥 Cal Goal</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div>
-          <div class="card-title" id="lb-title">Workout Leaderboard — This Week</div>
-          <div class="card-sub">You + friends ranked by performance</div>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="loadLeaderboard()">↻ Refresh</button>
-      </div>
-      <div id="leaderboard-list">
-        <div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:24px 0">Add friends to see the leaderboard</div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- Create Challenge Modal -->
 <div class="modal-overlay" id="modal-create-challenge">
@@ -12615,7 +12617,6 @@ function switchSocialTab(tab, btn) {
   if (tab === 'challenges')  loadChallenges();
 }
 
-// Ensure Friends tab is active when entering social page
 function resetSocialTabs() {
   ['challenges','leaderboard'].forEach(t => {
     const el = document.getElementById('social-tab-' + t);
@@ -12652,7 +12653,6 @@ async function openAccountModal() {
   if (!me) return;
   if (typeof closeSidebar === 'function') closeSidebar();
 
-  // Load profile from Firestore if not yet loaded
   if (!Social.myProfile) {
     try {
       const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'users_public', me.uid));
@@ -13063,15 +13063,13 @@ function updateChallengeInviteList() {
     el.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted)">Add friends first to invite them to challenges</div>';
     return;
   }
-  el.innerHTML = Social.friends.map(f => {
-    const displayName = f.fullName || f.name || f.username || '?';
-    return `
+  el.innerHTML = Social.friends.map(f => `
     <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 8px;border-radius:var(--radius-sm);transition:background var(--transition)" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
       <input type="checkbox" value="${f.uid}" style="accent-color:var(--accent);width:15px;height:15px;flex-shrink:0" />
-      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--bg-base);flex-shrink:0">${displayName.charAt(0).toUpperCase()}</div>
-      <span style="font-size:0.85rem;font-weight:500">${displayName}</span>
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--bg-base);flex-shrink:0">${(f.fullName||f.name||'?').charAt(0).toUpperCase()}</div>
+      <span style="font-size:0.85rem;font-weight:500">${f.fullName || f.name || f.username}</span>
     </label>
-  `}).join('');
+  `).join('');
 }
 
 async function createChallenge() {
