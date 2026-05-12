@@ -13652,14 +13652,22 @@ function renderLeaderboard(entries) {
 
     btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Saving…';
 
+    // ── Step 1: Final race-check (best-effort — skip on permission error) ──
     try {
-      // Final uniqueness check to avoid races
       const snap = await window._fbGetDocs(window._fbQuery(window._fbCollection(window._fbDb, 'users_public'), window._fbWhere('username', '==', username)));
       if (snap.docs.some(d => d.id !== me.uid)) {
         if (errEl) errEl.textContent = '❌ Username just taken — try another.';
         btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Continue →';
         return;
       }
+    } catch(queryErr) {
+      // Query may be blocked by Firestore rules on unauthenticated read —
+      // the availability check already ran, so we proceed to the write.
+      console.warn('_musSave race-check skipped:', queryErr.code, queryErr.message);
+    }
+
+    // ── Step 2: Write the username doc ────────────────────────────────
+    try {
       await window._fbSetDoc(window._fbDoc(window._fbDb, 'users_public', me.uid), {
         uid: me.uid,
         username,
@@ -13679,9 +13687,17 @@ function renderLeaderboard(entries) {
       document.getElementById('modal-username-setup').style.display = 'none';
 
       if (typeof showToast === 'function') showToast('Username set! Welcome to EddFit 🎉', 'success');
-    } catch(e) {
-      console.error('_musSave', e);
-      if (errEl) errEl.textContent = '⚠️ Save failed — check connection and try again.';
+    } catch(writeErr) {
+      console.error('_musSave write failed — code:', writeErr.code, '| message:', writeErr.message);
+      let hint = '';
+      if (writeErr.code === 'permission-denied') {
+        hint = '⚠️ Permission denied — check your Firestore security rules for users_public.';
+      } else if (writeErr.code === 'unavailable' || writeErr.code === 'network-request-failed') {
+        hint = '⚠️ No connection — check your internet and try again.';
+      } else {
+        hint = `⚠️ Save failed (${writeErr.code || 'unknown'}) — try again.`;
+      }
+      if (errEl) errEl.textContent = hint;
       btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Continue →';
     }
   };
