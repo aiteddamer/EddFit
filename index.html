@@ -85,7 +85,7 @@
     }
   };
 
-  window._fbEmailSignUp = async (email, password, displayName) => {
+  window._fbEmailSignUp = async (email, password, displayName, username) => {
     const err = document.getElementById('auth-error');
     const btn = document.getElementById('email-submit-btn');
     if (err) err.textContent = '';
@@ -94,6 +94,17 @@
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       if (displayName && displayName.trim()) {
         await updateProfile(cred.user, { displayName: displayName.trim() });
+      }
+      // Save username to Firestore immediately so the mandatory-username gate doesn't show
+      if (username) {
+        try {
+          await setDoc(doc(db, 'users_public', cred.user.uid), {
+            uid: cred.user.uid,
+            username: username.toLowerCase(),
+            fullName: displayName || cred.user.email || '',
+            photoURL: cred.user.photoURL || '',
+          }, { merge: true });
+        } catch(ex) { console.warn('username save failed', ex); }
       }
     } catch(e) {
       if (btn) { btn.style.opacity = '1'; btn.disabled = false; }
@@ -143,6 +154,10 @@
     if (errEl) errEl.textContent = '';
     if (mode === 'signup') {
       if (nameEl)    { nameEl.style.display = 'block'; }
+      const unWrap = document.getElementById('email-username-wrap');
+      const unStat = document.getElementById('email-username-status');
+      if (unWrap) unWrap.style.display = 'block';
+      if (unStat) unStat.style.display = 'block';
       if (submitEl)  submitEl.textContent = 'Create Account';
       if (toggleEl)  toggleEl.textContent = 'Already have an account? Sign in';
       if (forgotEl)  forgotEl.style.display = 'none';
@@ -150,12 +165,48 @@
       if (subtitleEl) subtitleEl.textContent = 'Create your account';
     } else {
       if (nameEl)    { nameEl.style.display = 'none'; nameEl.value = ''; }
+      const unWrap2 = document.getElementById('email-username-wrap');
+      const unStat2 = document.getElementById('email-username-status');
+      const unInp2  = document.getElementById('email-username-input');
+      if (unWrap2) unWrap2.style.display = 'none';
+      if (unStat2) { unStat2.style.display = 'none'; unStat2.textContent = ''; }
+      if (unInp2)  unInp2.value = '';
       if (submitEl)  submitEl.textContent = 'Sign In';
       if (toggleEl)  toggleEl.textContent = 'Create an account';
       if (forgotEl)  forgotEl.style.display = '';
       if (passEl)    { passEl.placeholder = 'Password'; passEl.autocomplete = 'current-password'; }
       if (subtitleEl) subtitleEl.textContent = 'Sign in to continue';
     }
+  };
+
+  window._signupUsername = '';
+  window._signupUsernameValid = false;
+  window._signupUsernameTimer = null;
+
+  window._validateSignupUsername = (val) => {
+    const cleaned = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const inp = document.getElementById('email-username-input');
+    if (inp && cleaned !== val.toLowerCase()) inp.value = cleaned;
+    const stat = document.getElementById('email-username-status');
+    window._signupUsername = cleaned;
+    window._signupUsernameValid = false;
+    if (!cleaned || cleaned.length < 3) {
+      if (stat) { stat.textContent = cleaned.length > 0 ? '⚠️ Too short (min 3 chars)' : '3–30 chars · letters, numbers, underscores'; stat.style.color = cleaned.length > 0 ? 'var(--red)' : 'var(--text-muted)'; }
+      return;
+    }
+    if (stat) { stat.textContent = 'Checking…'; stat.style.color = 'var(--text-muted)'; }
+    clearTimeout(window._signupUsernameTimer);
+    window._signupUsernameTimer = setTimeout(async () => {
+      try {
+        const snap = await window._fbGetDocs(window._fbQuery(window._fbCollection(window._fbDb, 'users_public'), window._fbWhere('username', '==', cleaned)));
+        const taken = !snap.empty;
+        window._signupUsernameValid = !taken;
+        if (stat) { stat.textContent = taken ? '❌ Username taken — try another' : '✅ Available!'; stat.style.color = taken ? 'var(--red)' : 'var(--green)'; }
+      } catch(e) {
+        window._signupUsernameValid = true;
+        if (stat) { stat.textContent = ''; }
+      }
+    }, 550);
   };
 
   window._handleEmailSubmit = () => {
@@ -166,7 +217,10 @@
     if (!email)    { if (errEl) errEl.textContent = '⚠️ Please enter your email.'; return; }
     if (!password) { if (errEl) errEl.textContent = '⚠️ Please enter your password.'; return; }
     if (window._emailAuthMode === 'signup') {
-      window._fbEmailSignUp(email, password, name);
+      const un = window._signupUsername;
+      if (!un || un.length < 3) { if (errEl) errEl.textContent = '⚠️ Choose a username (min 3 chars).'; return; }
+      if (!window._signupUsernameValid) { if (errEl) errEl.textContent = '⚠️ Username is taken or not yet checked.'; return; }
+      window._fbEmailSignUp(email, password, name, un);
     } else {
       window._fbEmailSignIn(email, password);
     }
@@ -1895,6 +1949,22 @@ html.dark .macro-warning.warn-red {
         onfocus="this.style.borderColor='var(--accent)'"
         onblur="this.style.borderColor='var(--border-active)'"
       />
+      <!-- Username (sign-up only) -->
+      <div id="email-username-wrap" style="display:none;position:relative">
+        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.9rem;font-weight:600;pointer-events:none">@</span>
+        <input id="email-username-input" type="text" placeholder="username" autocomplete="off" maxlength="30"
+          style="
+            width:100%;padding:11px 13px 11px 28px;border-radius:8px;
+            border:1px solid var(--border-active);background:var(--bg-elevated);
+            color:var(--text-primary);font-size:0.9rem;font-family:var(--font-body);
+            outline:none;box-sizing:border-box;transition:border-color 0.15s;
+          "
+          onfocus="this.style.borderColor='var(--accent)'"
+          onblur="this.style.borderColor='var(--border-active)'"
+          oninput="window._validateSignupUsername(this.value)"
+        />
+      </div>
+      <div id="email-username-status" style="display:none;font-size:0.72rem;margin-top:-4px;min-height:14px;color:var(--text-muted);padding-left:2px"></div>
       <input id="email-input" type="email" placeholder="Email address" autocomplete="email"
         style="
           width:100%;padding:11px 13px;border-radius:8px;
@@ -3621,7 +3691,6 @@ function dismissSplash() {
             </div>
           </div>
         </div>
-      </div>
     </main>
   </div>
 </div>
@@ -5830,6 +5899,8 @@ function startApp() {
   initUI();
   navigate('dashboard', document.querySelector('.nav-item'));
   calcStreak();
+  // Check username gate — Google users and old users who never set one
+  setTimeout(() => { if (typeof window._checkUsernameGate === 'function') window._checkUsernameGate(); }, 800);
   // Show weight reminder once per day if not yet logged
   setTimeout(checkWeightReminder, 2000);
 }
@@ -12478,7 +12549,7 @@ document.addEventListener('click', function(e) {
     </div>
   </div>
 </div>
-
+</div>
 
 <!-- Create Challenge Modal -->
 <div class="modal-overlay" id="modal-create-challenge">
@@ -12600,6 +12671,21 @@ const Social = {
 };
 
 // ── Tab switching ────────────────────────────────────────────────────
+function resetSocialTabs() {
+  ['challenges','leaderboard'].forEach(t => {
+    const el = document.getElementById('social-tab-' + t);
+    if (el) el.style.display = 'none';
+  });
+  const fe = document.getElementById('social-tab-friends');
+  if (fe) fe.style.display = '';
+  document.querySelectorAll('.social-tab').forEach(b => {
+    const a = b.getAttribute('data-tab') === 'friends';
+    b.style.color = a ? 'var(--accent)' : 'var(--text-secondary)';
+    b.style.borderBottomColor = a ? 'var(--accent)' : 'transparent';
+    b.style.fontWeight = a ? '700' : '600';
+  });
+}
+
 function switchSocialTab(tab, btn) {
   document.querySelectorAll('.social-tab').forEach(b => {
     b.style.color = 'var(--text-secondary)';
@@ -12615,21 +12701,6 @@ function switchSocialTab(tab, btn) {
   });
   if (tab === 'leaderboard') loadLeaderboard();
   if (tab === 'challenges')  loadChallenges();
-}
-
-function resetSocialTabs() {
-  ['challenges','leaderboard'].forEach(t => {
-    const el = document.getElementById('social-tab-' + t);
-    if (el) el.style.display = 'none';
-  });
-  const friendsEl = document.getElementById('social-tab-friends');
-  if (friendsEl) friendsEl.style.display = '';
-  document.querySelectorAll('.social-tab').forEach(b => {
-    const isActive = b.getAttribute('data-tab') === 'friends';
-    b.style.color = isActive ? 'var(--accent)' : 'var(--text-secondary)';
-    b.style.borderBottomColor = isActive ? 'var(--accent)' : 'transparent';
-    b.style.fontWeight = isActive ? '700' : '600';
-  });
 }
 
 // ── Entry point ──────────────────────────────────────────────────────
@@ -12652,7 +12723,6 @@ async function openAccountModal() {
   const me = window._currentUser;
   if (!me) return;
   if (typeof closeSidebar === 'function') closeSidebar();
-
   if (!Social.myProfile) {
     try {
       const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'users_public', me.uid));
@@ -12661,7 +12731,6 @@ async function openAccountModal() {
       Social.myProfile = { username: '', fullName: me.displayName || '', photoURL: me.photoURL || '' };
     }
   }
-
   const fullname = Social.myProfile?.fullName || me.displayName || '';
   const username = Social.myProfile?.username || '';
   _acctCurrentUsername = username;
@@ -13419,5 +13488,190 @@ function renderLeaderboard(entries) {
   }).join('');
 }
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MANDATORY USERNAME SETUP MODAL (cannot be dismissed)
+═══════════════════════════════════════════════════════════════ -->
+<div id="modal-username-setup" style="
+  display:none;position:fixed;inset:0;z-index:99999;
+  background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center;padding:20px;
+">
+  <div style="
+    background:var(--bg-card);border:1px solid var(--border);
+    border-radius:var(--radius-lg);padding:36px 32px;
+    max-width:400px;width:100%;box-shadow:var(--shadow-lg);
+    text-align:center;animation:fadeUp 0.35s ease both;
+  ">
+    <!-- Icon -->
+    <div style="font-size:2.8rem;margin-bottom:14px">🏷️</div>
+    <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;letter-spacing:-0.5px;margin-bottom:8px">
+      Choose your username
+    </div>
+    <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:28px;line-height:1.5">
+      Your username is how friends find you on EddFit.<br>
+      You <strong>must</strong> set one before using the app.
+    </div>
+
+    <!-- Full name (editable) -->
+    <div style="text-align:left;margin-bottom:14px">
+      <label style="font-size:0.72rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:5px">Full Name</label>
+      <input type="text" id="mus-fullname" class="form-input" placeholder="e.g. Ayman Ait Eddamer" style="width:100%" />
+    </div>
+
+    <!-- Username -->
+    <div style="text-align:left;margin-bottom:6px">
+      <label style="font-size:0.72rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:5px">Username <span style="color:var(--accent)">*</span></label>
+      <div style="position:relative">
+        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-weight:600;font-size:0.95rem;pointer-events:none">@</span>
+        <input type="text" id="mus-username" class="form-input" placeholder="your_username" maxlength="30"
+          style="width:100%;padding-left:28px"
+          oninput="window._musValidate(this.value)"
+          onkeydown="if(event.key==='Enter') window._musSave()"
+        />
+      </div>
+    </div>
+    <div id="mus-status" style="font-size:0.72rem;min-height:18px;text-align:left;padding-left:2px;margin-bottom:20px;color:var(--text-muted)">
+      3–30 chars · letters, numbers, underscores only
+    </div>
+
+    <div id="mus-error" style="font-size:0.78rem;color:var(--red);min-height:16px;margin-bottom:12px;text-align:center"></div>
+
+    <button id="mus-save-btn" onclick="window._musSave()" style="
+      width:100%;padding:13px;border:none;border-radius:var(--radius-sm);
+      background:var(--accent);color:var(--bg-base);
+      font-family:var(--font-display);font-size:1rem;font-weight:800;
+      cursor:pointer;transition:filter 0.15s;letter-spacing:0.3px;
+    "
+    onmouseover="this.style.filter='brightness(1.08)'"
+    onmouseout="this.style.filter=''">
+      Continue →
+    </button>
+    <div style="font-size:0.68rem;color:var(--text-muted);margin-top:14px">
+      You can change your username later in your profile.
+    </div>
+  </div>
+</div>
+
+
+// ═══════════════════════════════════════════════════════════════
+//  MANDATORY USERNAME SETUP
+// ═══════════════════════════════════════════════════════════════
+(function() {
+  let _musTimer = null;
+  let _musValid = false;
+  let _musChecked = false;
+
+  window._showUsernameSetup = function() {
+    const me = window._currentUser;
+    const modal = document.getElementById('modal-username-setup');
+    if (!modal) return;
+    // Pre-fill full name from auth provider
+    const fnEl = document.getElementById('mus-fullname');
+    if (fnEl && me) fnEl.value = me.displayName || '';
+    modal.style.display = 'flex';
+  };
+
+  window._musValidate = function(val) {
+    const cleaned = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const inp = document.getElementById('mus-username');
+    if (inp && cleaned !== val.toLowerCase()) inp.value = cleaned;
+    const stat = document.getElementById('mus-status');
+    _musValid = false;
+    _musChecked = false;
+    if (!cleaned || cleaned.length < 3) {
+      if (stat) { stat.textContent = cleaned.length > 0 ? '⚠️ Too short (min 3 chars)' : '3–30 chars · letters, numbers, underscores only'; stat.style.color = cleaned.length > 0 ? 'var(--red)' : 'var(--text-muted)'; }
+      return;
+    }
+    if (stat) { stat.textContent = 'Checking availability…'; stat.style.color = 'var(--text-muted)'; }
+    clearTimeout(_musTimer);
+    _musTimer = setTimeout(async () => {
+      try {
+        const snap = await window._fbGetDocs(window._fbQuery(window._fbCollection(window._fbDb, 'users_public'), window._fbWhere('username', '==', cleaned)));
+        const me = window._currentUser;
+        const taken = snap.docs.some(d => d.id !== (me ? me.uid : ''));
+        _musValid = !taken;
+        _musChecked = true;
+        if (stat) { stat.textContent = taken ? '❌ Username taken — try another' : '✅ Available!'; stat.style.color = taken ? 'var(--red)' : 'var(--green)'; }
+      } catch(e) {
+        _musValid = true; _musChecked = true;
+        if (stat) { stat.textContent = ''; }
+      }
+    }, 500);
+  };
+
+  window._musSave = async function() {
+    const me = window._currentUser;
+    if (!me) return;
+    const username = (document.getElementById('mus-username')?.value || '').trim().toLowerCase();
+    const fullName = (document.getElementById('mus-fullname')?.value || '').trim();
+    const errEl    = document.getElementById('mus-error');
+    const btn      = document.getElementById('mus-save-btn');
+    if (errEl) errEl.textContent = '';
+
+    if (!username || username.length < 3) { if (errEl) errEl.textContent = '⚠️ Please enter a username (min 3 chars).'; return; }
+    if (!/^[a-z0-9_]+$/.test(username))  { if (errEl) errEl.textContent = '⚠️ Letters, numbers and underscores only.'; return; }
+    if (!_musValid && !_musChecked)        { if (errEl) errEl.textContent = '⚠️ Wait for the availability check.'; return; }
+    if (!_musValid)                        { if (errEl) errEl.textContent = '⚠️ That username is taken — pick another.'; return; }
+
+    btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = 'Saving…';
+
+    try {
+      // Final uniqueness check to avoid races
+      const snap = await window._fbGetDocs(window._fbQuery(window._fbCollection(window._fbDb, 'users_public'), window._fbWhere('username', '==', username)));
+      if (snap.docs.some(d => d.id !== me.uid)) {
+        if (errEl) errEl.textContent = '❌ Username just taken — try another.';
+        btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Continue →';
+        return;
+      }
+      await window._fbSetDoc(window._fbDoc(window._fbDb, 'users_public', me.uid), {
+        uid: me.uid,
+        username,
+        fullName: fullName || me.displayName || '',
+        photoURL: me.photoURL || '',
+      }, { merge: true });
+
+      // Update Social.myProfile so the Friends page reflects immediately
+      if (window.Social) {
+        window.Social.myProfile = { username, fullName: fullName || me.displayName || '', photoURL: me.photoURL || '' };
+      }
+      // Update sidebar username display
+      const sidebarSub = document.getElementById('sidebar-name');
+      if (sidebarSub) sidebarSub.textContent = '@' + username;
+
+      // Hide modal
+      document.getElementById('modal-username-setup').style.display = 'none';
+
+      if (typeof showToast === 'function') showToast('Username set! Welcome to EddFit 🎉', 'success');
+    } catch(e) {
+      console.error('_musSave', e);
+      if (errEl) errEl.textContent = '⚠️ Save failed — check connection and try again.';
+      btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Continue →';
+    }
+  };
+
+  // ── Gate: check if user has a username, show modal if not ────────
+  window._checkUsernameGate = async function() {
+    const me = window._currentUser;
+    if (!me) return;
+    try {
+      const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'users_public', me.uid));
+      const data = snap.exists() ? snap.data() : null;
+      if (!data || !data.username || data.username.trim() === '') {
+        // No username yet — show mandatory setup
+        window._showUsernameSetup();
+      } else {
+        // Has username — update Social.myProfile quietly
+        if (window.Social) window.Social.myProfile = data;
+        const sidebarSub = document.getElementById('sidebar-name');
+        if (sidebarSub) sidebarSub.textContent = '@' + data.username;
+      }
+    } catch(e) {
+      // On error, still show the setup so it isn't silently skipped
+      window._showUsernameSetup();
+    }
+  };
+})();
+
 </body>
 </html>
