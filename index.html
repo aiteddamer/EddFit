@@ -10999,6 +10999,7 @@ function amUpdate(changed) {
   }
 
   // ── Medical Benchmarks ──
+  // wKg alias keeps all benchmark calculations using start weight (same as TDEE base)
   const proPerKg = wKg > 0 ? (pro / wKg).toFixed(2) : '—';
   const proRating = proPerKg === '—' ? '—'
     : proPerKg < 0.8  ? '⚠️ Below minimum (0.8g/kg)'
@@ -12364,6 +12365,8 @@ function _enhancedRenderWorkoutPage() {
             </div>
           </div>
         </div>
+      </div>
+
       </div>
 
     <div style="padding:0 24px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:16px">
