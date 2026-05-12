@@ -5866,6 +5866,13 @@ function startApp() {
   initUI();
   navigate('dashboard', document.querySelector('.nav-item'));
   calcStreak();
+  // Re-run refreshDashboard after the browser has painted the visible app shell.
+  // Without this, the calorie ring strokeDashoffset is calculated while #app is
+  // still transitioning from display:none, so the numbers appear blank/wrong
+  // until the user navigates away and back.
+  requestAnimationFrame(() => {
+    refreshDashboard();
+  });
   // Always check username gate — handles Google users, old accounts, and new email sign-ups
   // Use a short delay so Firestore write from _fbEmailSignUp has time to propagate
   setTimeout(async () => {
@@ -6026,7 +6033,15 @@ function navigate(page, el) {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.remove('visible');
   if (page === 'progress')  { renderProgressCharts(); renderMeasurementsGrid(); if (typeof renderBfChart === 'function') renderBfChart(); }
-  if (page === 'nutrition')   renderMealLog();
+  if (page === 'nutrition') {
+    // Always reset to today when navigating to the nutrition page
+    // so stale past-date from previous visit doesn't linger
+    nutritionDate = todayKey();
+    const dateLabelEl = document.getElementById('nutrition-date-label');
+    if (dateLabelEl) dateLabelEl.textContent = 'Today';
+    renderMealLog();
+    refreshNutritionPage();
+  }
   if (page === 'workouts')    renderWorkoutPage();
   if (page === 'goals')       renderGoals();
   if (page === 'calendar')  { renderCalendar(); renderCalLegend(); }
