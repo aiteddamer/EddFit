@@ -2667,21 +2667,21 @@ function dismissSplash() {
       <div class="nav-item" onclick="navigate('progress',this)">
         <span class="nav-icon">📈</span> Progress
       </div>
+      <div class="nav-item" onclick="navigate('reports',this)">
+        <span class="nav-icon">📰</span> Reports
+      </div>
+      <div class="nav-item" onclick="navigate('goals',this)">
+        <span class="nav-icon">🎯</span> Goals
+      </div>
       <div class="nav-item" onclick="navigate('records',this)">
-        <span class="nav-icon">🏆</span> Records
+        <span class="nav-icon">🏅</span> Records
       </div>
       <div class="nav-item" onclick="navigate('achievements',this)" id="nav-achievements">
         <span class="nav-icon">🎖️</span> Achievements
         <span class="nav-badge" id="achievements-nav-badge" style="display:none">!</span>
       </div>
-      <div class="nav-item" onclick="navigate('goals',this)">
-        <span class="nav-icon">🎯</span> Goals
-      </div>
       <div class="nav-item" onclick="navigate('globalleaderboard',this)">
-        <span class="nav-icon">🏆</span><span>Global Leaderboard</span>
-      </div>
-      <div class="nav-item" onclick="navigate('reports',this)">
-        <span class="nav-icon">📰</span> Reports
+        <span class="nav-icon">🏆</span> Global Leaderboard
       </div>
       <div class="nav-section-label">Account</div>
       <div class="nav-item" onclick="openAccountModal()">
@@ -5977,6 +5977,162 @@ const FOOD_DB = [
   { id:323, name:'Granola (plain)',                cal:471, protein:10,  carbs:64,  fat:21,   serving:'100g' },
   { id:324, name:'Protein Bar (avg)',              cal:350, protein:30,  carbs:35,  fat:8,    serving:'100g' },
   { id:325, name:'Corn Tortilla Chip',             cal:487, protein:7.8, carbs:65,  fat:23,   serving:'100g' },
+
+  // ══ MOROCCAN DAIRY & EGGS (supermarket brands) ══
+  { id:400, name:'Centrale Lait Danone Milk (whole, 3.5%)',     cal:61,  protein:3.2, carbs:4.8, fat:3.5,  serving:'100ml' },
+  { id:401, name:'Centrale Lait Danone Milk (semi-skimmed)',    cal:46,  protein:3.3, carbs:4.9, fat:1.5,  serving:'100ml' },
+  { id:402, name:'Centrale Lait Danone Milk (skimmed)',         cal:35,  protein:3.5, carbs:5,   fat:0.1,  serving:'100ml' },
+  { id:403, name:'Jaouda Milk (whole, 3.5%)',                   cal:61,  protein:3.2, carbs:4.8, fat:3.5,  serving:'100ml' },
+  { id:404, name:'Jaouda Lben (fermented buttermilk)',          cal:52,  protein:3.5, carbs:5.5, fat:1.5,  serving:'100ml' },
+  { id:405, name:'Centrale Danone Lben (plain)',                cal:50,  protein:3.4, carbs:5.3, fat:1.4,  serving:'100ml' },
+  { id:406, name:'Yawmi Yogurt (plain, whole)',                 cal:68,  protein:3.5, carbs:5,   fat:3.5,  serving:'100g' },
+  { id:407, name:'Yawmi Yogurt (plain, low fat)',               cal:46,  protein:4,   carbs:5.5, fat:0.5,  serving:'100g' },
+  { id:408, name:'Danone Activia (plain)',                      cal:70,  protein:4,   carbs:9,   fat:2,    serving:'100g' },
+  { id:409, name:'Danone Activia (fruit flavoured)',            cal:95,  protein:3.5, carbs:16,  fat:1.8,  serving:'100g' },
+  { id:410, name:'Jaouda Raib (plain fermented milk)',          cal:72,  protein:3.5, carbs:5.5, fat:4,    serving:'100g' },
+  { id:411, name:'Kiri Cheese (portion)',                       cal:245, protein:9,   carbs:4.5, fat:21,   serving:'100g' },
+  { id:412, name:'La Vache Qui Rit (portion)',                  cal:257, protein:11,  carbs:5.6, fat:21,   serving:'100g' },
+  { id:413, name:'Président Butter (unsalted)',                 cal:717, protein:0.7, carbs:0.7, fat:81,   serving:'100g' },
+  { id:414, name:'Centrale Lait Butter',                        cal:740, protein:0.5, carbs:0.5, fat:83,   serving:'100g' },
+  { id:415, name:'Jaouda Fromage Frais (0%)',                   cal:45,  protein:7,   carbs:4,   fat:0.2,  serving:'100g' },
+  { id:416, name:'Jaouda Fromage Frais (full fat)',             cal:130, protein:6.5, carbs:4.5, fat:9.5,  serving:'100g' },
+  { id:417, name:'Centrale Crème Fraîche',                      cal:292, protein:2.5, carbs:3.5, fat:30,   serving:'100g' },
+  { id:418, name:'Egg (Moroccan farm, whole)',                  cal:143, protein:13,  carbs:0.7, fat:10,   serving:'100g' },
+
+  // ══ MOROCCAN PACKAGED BREADS & BAKERY ══
+  { id:420, name:'Siwa Khobz Sandwich Bread (white)',           cal:265, protein:9,   carbs:50,  fat:3.5,  serving:'100g' },
+  { id:421, name:'Siwa Whole Wheat Sandwich Bread',             cal:245, protein:10,  carbs:44,  fat:3.5,  serving:'100g' },
+  { id:422, name:'Briogel Brioche Bread',                       cal:345, protein:8,   carbs:52,  fat:12,   serving:'100g' },
+  { id:423, name:'Briogel Pain de Mie (sliced white)',          cal:268, protein:8.5, carbs:51,  fat:4,    serving:'100g' },
+  { id:424, name:'Holista Baguette (packaged)',                 cal:275, protein:9,   carbs:56,  fat:1.5,  serving:'100g' },
+  { id:425, name:'Boulangerie Khobz (round flatbread, plain)',  cal:258, protein:8,   carbs:53,  fat:1.5,  serving:'100g' },
+  { id:426, name:'Rghaif / Msemen (plain, packaged)',           cal:310, protein:7,   carbs:44,  fat:12,   serving:'100g' },
+  { id:427, name:'Batbout (pocket bread, packaged)',            cal:255, protein:9,   carbs:50,  fat:2,    serving:'100g' },
+  { id:428, name:'Harcha (semolina flatbread, packaged)',       cal:350, protein:8,   carbs:50,  fat:14,   serving:'100g' },
+  { id:429, name:'Biscuits Kefayeh (plain digestive)',          cal:450, protein:7,   carbs:69,  fat:17,   serving:'100g' },
+  { id:430, name:'Bimo Biscuits Pépito (chocolate)',            cal:490, protein:6,   carbs:67,  fat:22,   serving:'100g' },
+  { id:431, name:'Bimo Crackers (plain, salted)',               cal:425, protein:9,   carbs:68,  fat:14,   serving:'100g' },
+  { id:432, name:'Lido Biscuits (petit beurre)',                cal:460, protein:7,   carbs:70,  fat:17,   serving:'100g' },
+  { id:433, name:'Croissant Briogel (packaged)',                cal:395, protein:7,   carbs:46,  fat:21,   serving:'100g' },
+  { id:434, name:'Pain au Chocolat (packaged, standard)',       cal:410, protein:6.5, carbs:48,  fat:22,   serving:'100g' },
+
+  // ══ MOROCCAN BREAKFAST CEREALS & SPREADS ══
+  { id:440, name:'Kellog\'s Corn Flakes (Morocco market)',      cal:357, protein:7,   carbs:84,  fat:0.9,  serving:'100g' },
+  { id:441, name:'Kellog\'s Frosties',                          cal:378, protein:4.5, carbs:91,  fat:0.5,  serving:'100g' },
+  { id:442, name:'Nestlé Chocapic',                             cal:377, protein:7,   carbs:78,  fat:4,    serving:'100g' },
+  { id:443, name:'Nestlé Fitness Cereal (original)',            cal:372, protein:10,  carbs:76,  fat:3,    serving:'100g' },
+  { id:444, name:'Afia Sunflower Oil (Morocco)',                cal:884, protein:0,   carbs:0,   fat:100,  serving:'100g' },
+  { id:445, name:'Huilor Olive Oil (Morocco)',                  cal:884, protein:0,   carbs:0,   fat:100,  serving:'100g' },
+  { id:446, name:'Nutella',                                     cal:539, protein:6,   carbs:58,  fat:31,   serving:'100g' },
+  { id:447, name:'Amlou (argan oil almond spread)',             cal:620, protein:14,  carbs:12,  fat:56,   serving:'100g' },
+  { id:448, name:'Beldi Honey (Moroccan raw honey)',            cal:304, protein:0.5, carbs:82,  fat:0,    serving:'100g' },
+  { id:449, name:'Confiture Aicha (apricot jam)',               cal:255, protein:0.5, carbs:63,  fat:0,    serving:'100g' },
+  { id:450, name:'Confiture Aicha (strawberry jam)',            cal:250, protein:0.5, carbs:62,  fat:0,    serving:'100g' },
+
+  // ══ MOROCCAN CANNED & JARRED GOODS ══
+  { id:460, name:'Aicha Tomato Paste (double concentrate)',     cal:82,  protein:4.5, carbs:17,  fat:0.5,  serving:'100g' },
+  { id:461, name:'Aicha Harissa (canned)',                      cal:55,  protein:2.5, carbs:7,   fat:2,    serving:'100g' },
+  { id:462, name:'Aicha Sardines in Tomato Sauce',              cal:155, protein:17,  carbs:3,   fat:8,    serving:'100g' },
+  { id:463, name:'Aicha Sardines in Olive Oil',                 cal:215, protein:22,  carbs:0,   fat:14,   serving:'100g' },
+  { id:464, name:'Aicha Tuna in Sunflower Oil',                 cal:200, protein:26,  carbs:0,   fat:11,   serving:'100g' },
+  { id:465, name:'Aicha Tuna in Water',                         cal:100, protein:24,  carbs:0,   fat:0.8,  serving:'100g' },
+  { id:466, name:'Morocco Gold Canned Chickpeas (cooked)',      cal:140, protein:8,   carbs:22,  fat:2.5,  serving:'100g' },
+  { id:467, name:'Canned Lentils (Morocco supermarket)',        cal:116, protein:9,   carbs:20,  fat:0.4,  serving:'100g' },
+  { id:468, name:'Canned Fava Beans / Ful Medames',            cal:110, protein:8,   carbs:18,  fat:0.4,  serving:'100g' },
+  { id:469, name:'Aicha Corn (canned)',                         cal:86,  protein:3.3, carbs:19,  fat:1.4,  serving:'100g' },
+  { id:470, name:'Aicha Peas (canned)',                         cal:69,  protein:5,   carbs:12,  fat:0.4,  serving:'100g' },
+  { id:471, name:'Olives Beldi (black, brine-cured)',           cal:135, protein:1,   carbs:3.8, fat:13.5, serving:'100g' },
+  { id:472, name:'Olives Verts (green, cracked, marinated)',   cal:120, protein:1,   carbs:2.5, fat:12,   serving:'100g' },
+  { id:473, name:'Preserved Lemons (Moroccan, jarred)',         cal:30,  protein:1,   carbs:7,   fat:0.3,  serving:'100g' },
+
+  // ══ MOROCCAN PACKAGED MEATS & CHARCUTERIE ══
+  { id:480, name:'Koutoubia Merguez (beef, raw)',               cal:285, protein:16,  carbs:2,   fat:24,   serving:'100g' },
+  { id:481, name:'Koutoubia Kefta Beef (raw, packaged)',        cal:270, protein:17,  carbs:2,   fat:22,   serving:'100g' },
+  { id:482, name:'Koutoubia Chicken Sausage',                   cal:200, protein:15,  carbs:3,   fat:14,   serving:'100g' },
+  { id:483, name:'Koutoubia Chicken Escalope (breaded, frozen)',cal:205, protein:14,  carbs:17,  fat:8,    serving:'100g' },
+  { id:484, name:'Koutoubia Turkey Ham (sliced)',               cal:115, protein:17,  carbs:2,   fat:4.5,  serving:'100g' },
+  { id:485, name:'Koutoubia Beef Mortadella',                   cal:280, protein:14,  carbs:4,   fat:23,   serving:'100g' },
+  { id:486, name:'Koutoubia Chicken Mortadella',               cal:230, protein:14,  carbs:4,   fat:18,   serving:'100g' },
+  { id:487, name:'Koutoubia Pastilla Chicken (frozen, raw)',    cal:240, protein:12,  carbs:22,  fat:12,   serving:'100g' },
+  { id:488, name:'Hanini Lamb Shoulder (packaged, raw)',        cal:235, protein:17,  carbs:0,   fat:18.5, serving:'100g' },
+  { id:489, name:'Canned Corned Beef (supermarket Morocco)',    cal:250, protein:26,  carbs:0,   fat:16,   serving:'100g' },
+
+  // ══ MOROCCAN SNACKS & CHIPS ══
+  { id:495, name:'Bimo Chipsy (plain salted chips)',            cal:520, protein:6,   carbs:58,  fat:30,   serving:'100g' },
+  { id:496, name:'Bimo Chipsy (paprika)',                       cal:520, protein:6,   carbs:57,  fat:30,   serving:'100g' },
+  { id:497, name:'Lays Morocco (classic)',                      cal:536, protein:7,   carbs:55,  fat:33,   serving:'100g' },
+  { id:498, name:'Lays Morocco (barbecue)',                     cal:530, protein:6.5, carbs:57,  fat:32,   serving:'100g' },
+  { id:499, name:'Bimo Pop Corn (sweet)',                       cal:440, protein:7,   carbs:78,  fat:12,   serving:'100g' },
+  { id:500, name:'Bimo Pop Corn (salted)',                      cal:420, protein:8,   carbs:72,  fat:11,   serving:'100g' },
+  { id:501, name:'Takis (Morocco market, fuego)',               cal:490, protein:6,   carbs:65,  fat:23,   serving:'100g' },
+  { id:502, name:'Roasted Peanuts (Moroccan market, salted)',   cal:585, protein:24,  carbs:18,  fat:50,   serving:'100g' },
+  { id:503, name:'Roasted Chickpeas (Moroccan snack, salted)',  cal:357, protein:19,  carbs:55,  fat:5,    serving:'100g' },
+  { id:504, name:'Grilled Corn (street snack, plain)',          cal:86,  protein:3.3, carbs:19,  fat:1.4,  serving:'100g' },
+  { id:505, name:'Beldi Peanuts (grilled, unsalted)',           cal:567, protein:26,  carbs:16,  fat:49,   serving:'100g' },
+  { id:506, name:'Halwa Chebakia (sesame honey pastry)',        cal:480, protein:7,   carbs:58,  fat:25,   serving:'100g' },
+  { id:507, name:'Sellou (sfouf, energy mix)',                  cal:510, protein:12,  carbs:55,  fat:28,   serving:'100g' },
+  { id:508, name:'Briouates (sweet almond, packaged)',          cal:430, protein:8,   carbs:50,  fat:23,   serving:'100g' },
+
+  // ══ MOROCCAN BEVERAGES ══
+  { id:515, name:'Centrale Lait Jus d\'Orange (packaged)',      cal:45,  protein:0.7, carbs:10,  fat:0.1,  serving:'100ml' },
+  { id:516, name:'Juicée Orange Juice (Morocco)',               cal:43,  protein:0.5, carbs:10,  fat:0,    serving:'100ml' },
+  { id:517, name:'Raibi Jamila (strawberry, sweetened)',        cal:95,  protein:3,   carbs:16,  fat:2,    serving:'100ml' },
+  { id:518, name:'Raibi Jamila (plain, lightly sweetened)',     cal:72,  protein:3.5, carbs:9,   fat:2.5,  serving:'100ml' },
+  { id:519, name:'Coca-Cola (Morocco, can)',                    cal:42,  protein:0,   carbs:10.6,fat:0,    serving:'100ml' },
+  { id:520, name:'Coca-Cola Zero (Morocco)',                    cal:0,   protein:0,   carbs:0,   fat:0,    serving:'100ml' },
+  { id:521, name:'Pepsi Morocco',                              cal:43,  protein:0,   carbs:11,  fat:0,    serving:'100ml' },
+  { id:522, name:'Pepsi Diet (Morocco)',                        cal:1,   protein:0,   carbs:0.1, fat:0,    serving:'100ml' },
+  { id:523, name:'Pepsi Max (Morocco)',                         cal:1,   protein:0,   carbs:0.1, fat:0,    serving:'100ml' },
+  { id:524, name:'Sprite Morocco',                             cal:40,  protein:0,   carbs:10.1,fat:0,    serving:'100ml' },
+  { id:525, name:'Boulanouar Mineral Water',                    cal:0,   protein:0,   carbs:0,   fat:0,    serving:'100ml' },
+  { id:526, name:'Sidi Ali Mineral Water',                      cal:0,   protein:0,   carbs:0,   fat:0,    serving:'100ml' },
+  { id:527, name:'Oulmès Sparkling Water',                      cal:0,   protein:0,   carbs:0,   fat:0,    serving:'100ml' },
+  { id:528, name:'Halib Sport Protein Milk (chocolate)',        cal:70,  protein:6,   carbs:9,   fat:1.5,  serving:'100ml' },
+  { id:529, name:'Café Maure (coffee, black, no sugar)',        cal:2,   protein:0.3, carbs:0,   fat:0,    serving:'100ml' },
+  { id:530, name:'Atay / Moroccan Mint Tea (with sugar, avg)', cal:60,  protein:0,   carbs:15,  fat:0,    serving:'100ml' },
+  { id:531, name:'Atay / Moroccan Mint Tea (no sugar)',         cal:1,   protein:0,   carbs:0.2, fat:0,    serving:'100ml' },
+  { id:532, name:'Drosselmeyer Energy Drink (Morocco)',         cal:45,  protein:0,   carbs:11,  fat:0,    serving:'100ml' },
+  { id:533, name:'Hawai Sport Drink (isotonic)',                cal:28,  protein:0,   carbs:7,   fat:0,    serving:'100ml' },
+
+  // ══ MOROCCAN GRAINS, FLOUR & DRIED GOODS ══
+  { id:540, name:'Semoule Fine (fine durum semolina, raw)',     cal:360, protein:12,  carbs:74,  fat:1,    serving:'100g' },
+  { id:541, name:'Semoule Moyenne (medium semolina, raw)',      cal:360, protein:12,  carbs:74,  fat:1,    serving:'100g' },
+  { id:542, name:'Semoule Grorse (coarse semolina, raw)',       cal:358, protein:12,  carbs:74,  fat:1.1,  serving:'100g' },
+  { id:543, name:'Farine Bélé (white wheat flour, Morocco)',    cal:364, protein:10,  carbs:76,  fat:1,    serving:'100g' },
+  { id:544, name:'Farine Complète (whole wheat flour)',         cal:340, protein:13,  carbs:70,  fat:2.5,  serving:'100g' },
+  { id:545, name:'Couscous Tria Fine (packaged, dry)',          cal:376, protein:13,  carbs:77,  fat:0.6,  serving:'100g' },
+  { id:546, name:'Couscous Ferrero Gros (packaged, dry)',       cal:376, protein:13,  carbs:77,  fat:0.6,  serving:'100g' },
+  { id:547, name:'Orge Beldi (barley, raw, whole)',             cal:354, protein:12,  carbs:74,  fat:2.3,  serving:'100g' },
+  { id:548, name:'Riz Tilda Basmati (Morocco market)',          cal:350, protein:7.5, carbs:77,  fat:0.5,  serving:'100g' },
+  { id:549, name:'Pâtes Ferrero (spaghetti, raw)',              cal:368, protein:13,  carbs:74,  fat:1.5,  serving:'100g' },
+  { id:550, name:'Argan Oil (food grade, cold pressed)',        cal:884, protein:0,   carbs:0,   fat:100,  serving:'100g' },
+
+  // ══ MOROCCAN LEGUMES & PULSES (dry / market) ══
+  { id:555, name:'Loubia (white beans, dried)',                 cal:333, protein:23,  carbs:60,  fat:0.9,  serving:'100g' },
+  { id:556, name:'Ful (fava beans, dried)',                     cal:341, protein:26,  carbs:58,  fat:1.5,  serving:'100g' },
+  { id:557, name:'Pois Chiches (chickpeas, dried)',             cal:364, protein:19,  carbs:61,  fat:6,    serving:'100g' },
+  { id:558, name:'Lentilles Rouges (red lentils, dried)',       cal:352, protein:25,  carbs:60,  fat:1,    serving:'100g' },
+  { id:559, name:'Lentilles Vertes (green lentils, dried)',     cal:352, protein:24,  carbs:60,  fat:1.1,  serving:'100g' },
+
+  // ══ MOROCCAN SPICES & CONDIMENTS ══
+  { id:565, name:'Ras el Hanout (spice blend, dry)',            cal:340, protein:10,  carbs:55,  fat:11,   serving:'100g' },
+  { id:566, name:'Cumin (ground, dry)',                         cal:375, protein:18,  carbs:44,  fat:22,   serving:'100g' },
+  { id:567, name:'Paprika (sweet, ground)',                     cal:282, protein:14,  carbs:54,  fat:13,   serving:'100g' },
+  { id:568, name:'Cinnamon (ground)',                           cal:247, protein:4,   carbs:81,  fat:1.2,  serving:'100g' },
+  { id:569, name:'Ginger (ground, dry)',                        cal:335, protein:9,   carbs:71,  fat:4.2,  serving:'100g' },
+  { id:570, name:'Turmeric (ground)',                           cal:312, protein:10,  carbs:68,  fat:3.3,  serving:'100g' },
+  { id:571, name:'Harissa Paste (Moroccan, homemade-style)',    cal:58,  protein:2.5, carbs:7.5, fat:2.5,  serving:'100g' },
+  { id:572, name:'Chermoula Paste (packaged)',                  cal:120, protein:2,   carbs:6,   fat:10,   serving:'100g' },
+  { id:573, name:'Moroccan Sea Salt (Safi)',                    cal:0,   protein:0,   carbs:0,   fat:0,    serving:'100g' },
+
+  // ══ MOROCCAN FROZEN & READY-TO-EAT ══
+  { id:580, name:'Koutoubia Frozen Merguez Pizza',              cal:255, protein:11,  carbs:28,  fat:11,   serving:'100g' },
+  { id:581, name:'McCain Frozen French Fries (Morocco)',        cal:165, protein:2.5, carbs:25,  fat:6.2,  serving:'100g' },
+  { id:582, name:'Frozen Samak (fish fillet, breaded)',         cal:195, protein:14,  carbs:18,  fat:7,    serving:'100g' },
+  { id:583, name:'Frozen Calamari Rings (supermarket)',         cal:175, protein:13,  carbs:16,  fat:6,    serving:'100g' },
+  { id:584, name:'Frozen Chicken Nuggets (Koutoubia)',          cal:240, protein:14,  carbs:20,  fat:11,   serving:'100g' },
+  { id:585, name:'Harira Soup (packaged dry mix)',              cal:340, protein:15,  carbs:60,  fat:4,    serving:'100g' },
+  { id:586, name:'Bissara Soup (packaged dry mix, fava)',       cal:330, protein:20,  carbs:56,  fat:3,    serving:'100g' },
 ];
 
 
