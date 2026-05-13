@@ -4094,6 +4094,10 @@ function dismissSplash() {
 
           <!-- Squad Training Plans -->
           <div style="font-family:var(--font-display);font-size:1rem;font-weight:700;margin-bottom:12px">🏋️ Squad Workout Plans</div>
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:var(--radius-sm);background:var(--bg-elevated);border:1px solid var(--border);margin-bottom:14px;font-size:0.78rem;color:var(--text-secondary);line-height:1.5">
+            <span style="font-size:1.1rem;flex-shrink:0;margin-top:1px">ℹ️</span>
+            <span><strong style="color:var(--text-primary)">These don't replace your personal program.</strong> Tapping a plan creates a shared <strong>Challenge</strong> for your squad — everyone competes to log the most sessions. Your own active program and workouts stay completely untouched.</span>
+          </div>
           <div id="squad-train-section">
 
             <div class="squad-train-card" onclick="launchSquadWorkout('push_day')">
@@ -4307,29 +4311,121 @@ function dismissSplash() {
           if (typeof showToast === 'function') showToast("Daily challenge accepted! Time to grind 🔥", 'success');
         };
 
-        // ─── Squad Workout launcher ──────────────────────────────────────
+        // ─── Squad emoji picker ───────────────────────────────────────────
+        const SQUAD_EMOJIS = [
+          '🏋️','💪','🔥','⚡','🦵','🤸','🏃','🧗','🚴','🤼',
+          '🥊','🏊','🎯','🏆','🥇','🏅','💎','👑','⚔️','🛡️',
+          '🐉','🦁','🐺','🐻','🦊','🐯','🦅','🦾','💀','👊',
+          '🤖','🧠','❤️‍🔥','🌊','🌪️','☄️','💣','🚀','🎮','🎲',
+          '🍖','🥩','🥦','🍌','🧃','💊','🧬','🩺','🫀','🦴',
+        ];
+        window._initSquadEmojiPicker = function() {
+          const picker = document.getElementById('squad-emoji-picker');
+          if (!picker || picker.dataset.init) return;
+          picker.dataset.init = '1';
+          picker.innerHTML = SQUAD_EMOJIS.map(e =>
+            `<button type="button" onclick="window._selectSquadEmoji('${e}')"
+              style="width:36px;height:36px;font-size:1.3rem;background:none;border:1px solid transparent;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.12s"
+              onmouseover="this.style.background='var(--bg-hover)';this.style.borderColor='var(--border)'"
+              onmouseout="this.style.background='none';this.style.borderColor='transparent'">${e}</button>`
+          ).join('');
+        };
+        window._selectSquadEmoji = function(e) {
+          const inp  = document.getElementById('squad-emoji-input');
+          const prev = document.getElementById('squad-emoji-preview');
+          if (inp)  inp.value = e;
+          if (prev) prev.textContent = e;
+          const picker = document.getElementById('squad-emoji-picker');
+          if (picker) picker.style.display = 'none';
+        };
+
+        // ─── Squad Workout Plan definitions ─────────────────────────────
+        const SQUAD_WORKOUT_PLANS = {
+          push_day:   { label:'Push Day Showdown 💪',       desc:'Chest · Shoulders · Triceps',
+            detail:'Everyone logs their push session on the same day. Track who hits the most total volume. A 7-day challenge is created automatically so you can race your squad.',
+            exercises:['Bench Press','Overhead Press','Incline DB Press','Lateral Raises','Tricep Dips'], chType:'most_workouts' },
+          pull_day:   { label:'Pull Day Beast Mode 🏋️',     desc:'Back · Biceps',
+            detail:'Sync your pull session with the boys. A shared challenge tracks total volume across all pull movements. First to finish wins bragging rights.',
+            exercises:['Deadlift','Pull-ups','Barbell Row','Face Pulls','Hammer Curls'], chType:'most_workouts' },
+          leg_day:    { label:'Leg Day (Nobody Skips!) 🦵',  desc:'Squats · Deadlifts · Lunges',
+            detail:'The classic. Everyone must log a leg workout on the planned date — no excuses. Challenge tracks who squats the most and who actually shows up.',
+            exercises:['Squat','Romanian Deadlift','Leg Press','Walking Lunges','Calf Raises'], chType:'most_workouts' },
+          hiit_blast: { label:'HIIT Blast Crew ⚡',          desc:'20-min cardio circuit',
+            detail:'Everyone logs a HIIT or cardio workout. The challenge tracks who completes the most HIIT sessions across the week. Consistency wins here.',
+            exercises:['Burpees','Box Jumps','Battle Ropes','Sled Push','Jump Rope'], chType:'hiit_hero' },
+          full_body:  { label:'Full Body Friday 🔥',         desc:'All muscle groups',
+            detail:'End the week strong together. Log a full-body session on Friday. Auto-challenge tracks total workouts and volume — best overall week wins.',
+            exercises:['Squat','Bench Press','Deadlift','Pull-ups','Overhead Press'], chType:'most_workouts' },
+        };
+
+        // ─── Open squad workout plan modal ──────────────────────────────
         window.launchSquadWorkout = function(type) {
-          const labels = {
-            push_day:   'Push Day Showdown 💪',
-            pull_day:   'Pull Day Beast Mode 🏋️',
-            leg_day:    'Leg Day (No Skip!) 🦵',
-            hiit_blast: 'HIIT Blast Crew ⚡',
-            full_body:  'Full Body Friday 🔥',
-          };
-          if (typeof showToast === 'function') showToast('Starting ' + (labels[type] || 'Squad Workout') + ' — boys notified!', 'success');
-          // Auto-navigate to workout page
-          setTimeout(() => {
-            const workoutNav = document.querySelector('[onclick*="navigate(\'workouts"]');
-            if (workoutNav) workoutNav.click();
-          }, 1200);
+          const plan = SQUAD_WORKOUT_PLANS[type];
+          if (!plan) return;
+          document.getElementById('squad-workout-type').value = type;
+          document.getElementById('squad-workout-modal-title').textContent = plan.label;
+          const info = document.getElementById('squad-workout-plan-info');
+          if (info) info.innerHTML =
+            `<div style="font-size:0.82rem;font-weight:700;color:var(--accent);margin-bottom:6px">${plan.desc}</div>
+             <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:10px;line-height:1.5">${plan.detail}</div>
+             <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);margin-bottom:4px">EXERCISES</div>
+             <div style="display:flex;flex-wrap:wrap;gap:4px">${plan.exercises.map(ex=>`<span style="font-size:0.7rem;padding:2px 8px;border-radius:20px;background:var(--bg-card);border:1px solid var(--border)">${ex}</span>`).join('')}</div>`;
+          const dateEl = document.getElementById('squad-workout-date');
+          if (dateEl) dateEl.value = new Date().toISOString().split('T')[0];
+          const sel = document.getElementById('squad-workout-squad-select');
+          if (sel && window.Social) {
+            sel.innerHTML = '<option value="">— choose a squad —</option>' +
+              (window.Social.squads||[]).map((sq,i)=>`<option value="${i}">${sq.emoji||'🏋️'} ${sq.name} (${sq.memberUids.length} members)</option>`).join('');
+            if ((window.Social.squads||[]).length === 1) sel.value = '0';
+          }
+          const msgEl = document.getElementById('squad-workout-message');
+          if (msgEl) msgEl.value = '';
+          openModal('modal-squad-workout');
         };
 
-        // ─── Invite Train Modal (simple toast fallback) ──────────────────
+        // ─── Confirm squad workout plan ──────────────────────────────────
+        window.confirmSquadWorkoutPlan = async function() {
+          const type    = document.getElementById('squad-workout-type')?.value;
+          const sqIdx   = document.getElementById('squad-workout-squad-select')?.value;
+          const date    = document.getElementById('squad-workout-date')?.value;
+          const msg     = document.getElementById('squad-workout-message')?.value.trim();
+          const createCh= document.getElementById('squad-workout-create-challenge')?.checked;
+          const plan    = SQUAD_WORKOUT_PLANS[type];
+          const sq      = window.Social?.squads?.[+sqIdx];
+          if (!sq)   { if(typeof showToast==='function') showToast('Pick a squad first','warn'); return; }
+          if (!date) { if(typeof showToast==='function') showToast('Set a planned date','warn'); return; }
+          closeModal('modal-squad-workout');
+          if (createCh && typeof createChallenge==='function') {
+            const nameEl  = document.getElementById('ch-name');
+            const typeEl  = document.getElementById('ch-type');
+            const startEl = document.getElementById('ch-start');
+            const endEl   = document.getElementById('ch-end');
+            if (nameEl)  nameEl.value  = `${sq.emoji||'🏋️'} ${sq.name} — ${plan.label}`;
+            if (typeEl)  typeEl.value  = plan.chType;
+            const start = new Date(date);
+            const end   = new Date(start); end.setDate(start.getDate()+6);
+            const fmt   = d => d.toISOString().split('T')[0];
+            if (startEl) startEl.value = fmt(start);
+            if (endEl)   endEl.value   = fmt(end);
+            if (typeof updateChallengeInviteList==='function') updateChallengeInviteList();
+            setTimeout(()=>{
+              document.querySelectorAll('#ch-friends-checkboxes input[type=checkbox]').forEach(cb=>{
+                cb.checked = sq.memberUids.includes(cb.value);
+              });
+            }, 40);
+            await createChallenge();
+          }
+          if (typeof showToast==='function')
+            showToast(`${plan.label} sent to ${sq.emoji||'🏋️'} ${sq.name}! ${msg?'"'+msg+'"':''}`, 'success');
+        };
+
+        // ─── Invite Train Modal ──────────────────────────────────────────
         window.openInviteTrainModal = function() {
-          if (typeof showToast === 'function') showToast("📲 Invite sent to your squad — let's go! 💪", 'success');
+          if (typeof openCreateChallenge==='function') openCreateChallenge();
+          if (typeof showToast==='function') showToast('📲 Open a challenge to rally your squad!','info');
         };
 
-        // ─── Squad Progress Wall renderer (hook into loadFriends) ────────
+                // ─── Squad Progress Wall renderer (hook into loadFriends) ────────
         window._renderSquadProgressWall = function(friends) {
           const wall = document.getElementById('squad-progress-wall');
           if (!wall) return;
@@ -13617,6 +13713,46 @@ document.addEventListener('click', function(e) {
 
 <!-- Create Challenge Modal -->
 <!-- ═══════════════════════════════════════════════════════════════
+     SQUAD WORKOUT PLAN MODAL
+═══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-squad-workout">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-title">
+      <span id="squad-workout-modal-title">💪 Squad Workout Plan</span>
+      <button class="btn-icon" onclick="closeModal('modal-squad-workout')">✕</button>
+    </div>
+    <div style="margin-bottom:14px">
+      <div id="squad-workout-plan-info" style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:14px;border-left:3px solid var(--accent);margin-bottom:14px"></div>
+      <div class="form-grid" style="gap:12px">
+        <div class="form-group">
+          <label class="form-label">Send to Squad</label>
+          <select class="form-select" id="squad-workout-squad-select">
+            <option value="">— choose a squad —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Planned Date</label>
+          <input type="date" class="form-input" id="squad-workout-date" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Message to Squad (optional)</label>
+          <input type="text" class="form-input" id="squad-workout-message" placeholder="Let's go boys! 💪 Gym at 6pm" />
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+          <input type="checkbox" id="squad-workout-create-challenge" style="accent-color:var(--accent);width:16px;height:16px;flex-shrink:0" checked />
+          <label for="squad-workout-create-challenge" style="font-size:0.85rem;font-weight:600;cursor:pointer">Automatically create a 🏆 Challenge for this plan</label>
+        </div>
+      </div>
+    </div>
+    <input type="hidden" id="squad-workout-type" value="" />
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-squad-workout')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmSquadWorkoutPlan()">🚀 Send to Squad</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
      CREATE / EDIT SQUAD MODAL
 ═══════════════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-create-squad">
@@ -13631,8 +13767,15 @@ document.addEventListener('click', function(e) {
         <input type="text" class="form-input" id="squad-name-input" placeholder="e.g. The Boys, Gym Rats, Push Pull…" maxlength="40" />
       </div>
       <div class="form-group">
-        <label class="form-label">Emoji (optional)</label>
-        <input type="text" class="form-input" id="squad-emoji-input" placeholder="🔥" maxlength="4" style="width:80px" />
+        <label class="form-label">Squad Emoji</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div id="squad-emoji-preview" style="width:44px;height:44px;border-radius:var(--radius-sm);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:1.6rem;background:var(--bg-elevated);cursor:pointer;flex-shrink:0" onclick="document.getElementById('squad-emoji-picker').style.display=document.getElementById('squad-emoji-picker').style.display==='none'?'flex':'none'">🏋️</div>
+          <input type="hidden" id="squad-emoji-input" value="🏋️" />
+          <span style="font-size:0.75rem;color:var(--text-secondary)">Tap to pick</span>
+        </div>
+        <div id="squad-emoji-picker" style="display:none;flex-wrap:wrap;gap:6px;margin-top:10px;padding:10px;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border);max-height:160px;overflow-y:auto">
+          <!-- emojis injected by JS -->
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Add Members</label>
@@ -14560,9 +14703,12 @@ function renderSquadsList() {
 function openCreateSquad() {
   document.getElementById('squad-modal-title').textContent = '🏋️ New Squad';
   document.getElementById('squad-name-input').value = '';
-  document.getElementById('squad-emoji-input').value = '';
+  document.getElementById('squad-emoji-input').value = '🏋️';
+  const prev = document.getElementById('squad-emoji-preview');
+  if (prev) prev.textContent = '🏋️';
   document.getElementById('squad-edit-id').value = '';
   _populateSquadMemberCheckboxes([]);
+  if (window._initSquadEmojiPicker) window._initSquadEmojiPicker();
   openModal('modal-create-squad');
 }
 
@@ -14572,9 +14718,12 @@ function openEditSquad(idx) {
   if (!sq) return;
   document.getElementById('squad-modal-title').textContent = '✏️ Edit Squad';
   document.getElementById('squad-name-input').value = sq.name;
-  document.getElementById('squad-emoji-input').value = sq.emoji||'';
+  document.getElementById('squad-emoji-input').value = sq.emoji||'🏋️';
+  const prev = document.getElementById('squad-emoji-preview');
+  if (prev) prev.textContent = sq.emoji||'🏋️';
   document.getElementById('squad-edit-id').value = String(idx);
   _populateSquadMemberCheckboxes(sq.memberUids);
+  if (window._initSquadEmojiPicker) window._initSquadEmojiPicker();
   openModal('modal-create-squad');
 }
 
