@@ -3106,6 +3106,28 @@ function dismissSplash() {
             <div class="section-title">Workout History</div>
             <div style="font-size:0.78rem;color:var(--text-muted)" id="history-count"></div>
           </div>
+
+          <!-- ── Weekly Comparison Card ── -->
+          <div id="week-comparison-card" style="display:none;margin-bottom:20px;background:var(--bg-card);border-radius:var(--radius);padding:18px;border:1px solid var(--border)">
+            <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+              📊 Week Comparison
+              <span id="week-comp-best-badge" style="display:none;font-size:0.62rem;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;padding:2px 8px;border-radius:20px;font-weight:700;letter-spacing:0.4px">🏆 BEST WEEK</span>
+            </div>
+            <!-- Metric pills -->
+            <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+              <button id="wcomp-metric-sessions" onclick="setWeekCompMetric('sessions',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.15s">Sessions</button>
+              <button id="wcomp-metric-volume" onclick="setWeekCompMetric('volume',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Volume</button>
+              <button id="wcomp-metric-sets" onclick="setWeekCompMetric('sets',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Sets</button>
+              <button id="wcomp-metric-exercises" onclick="setWeekCompMetric('exercises',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Exercises</button>
+            </div>
+            <!-- Bars -->
+            <div id="week-comp-bars" style="display:flex;gap:10px;align-items:flex-end;height:110px;margin-bottom:12px"></div>
+            <!-- Labels -->
+            <div id="week-comp-labels" style="display:flex;gap:10px"></div>
+            <!-- Insight -->
+            <div id="week-comp-insight" style="margin-top:12px;font-size:0.78rem;color:var(--text-secondary);padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);border-left:3px solid var(--accent)"></div>
+          </div>
+
           <div id="workout-history">
             <div class="empty-state"><div class="es-icon">📋</div><div class="es-text">No workouts logged yet</div></div>
           </div>
@@ -8436,6 +8458,174 @@ function renderWorkoutHistory() {
   }).join('');
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  WEEKLY COMPARISON — this week vs last week vs best week
+// ═══════════════════════════════════════════════════════════════════
+window._weekCompMetric = 'sessions';
+
+function setWeekCompMetric(metric, btn) {
+  window._weekCompMetric = metric;
+  ['sessions','volume','sets','exercises'].forEach(m => {
+    const b = document.getElementById('wcomp-metric-' + m);
+    if (!b) return;
+    if (m === metric) {
+      b.style.background = 'var(--accent)';
+      b.style.color = '#fff';
+    } else {
+      b.style.background = 'var(--bg-elevated)';
+      b.style.color = 'var(--text-secondary)';
+    }
+  });
+  renderWeekComparison();
+}
+
+function _weekBounds(offsetWeeks) {
+  const now = new Date();
+  const day = now.getDay();
+  const mondayOffset = (day + 6) % 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - mondayOffset - offsetWeeks * 7);
+  monday.setHours(0,0,0,0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23,59,59,999);
+  return { start: monday, end: sunday };
+}
+
+function _weekDateKey(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+}
+
+function _calcWeekStats(workouts, bounds) {
+  const ws = workouts.filter(w => {
+    const d = new Date(w.date);
+    return d >= bounds.start && d <= bounds.end;
+  });
+  const sessions  = ws.length;
+  const sets      = ws.reduce((s,w) => s + w.exercises.reduce((a,e) => a + e.sets.length, 0), 0);
+  const exercises = ws.reduce((s,w) => s + w.exercises.length, 0);
+  const volume    = ws.reduce((s,w) => s + calcVolumeKg(w.exercises||[]), 0);
+  return { sessions, sets, exercises, volume, workouts: ws };
+}
+
+function _allWeekStats() {
+  const byWeek = {};
+  (State.workouts || []).forEach(w => {
+    const d = new Date(w.date);
+    const day = d.getDay();
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - (day + 6) % 7);
+    const wk = _weekDateKey(monday);
+    if (!byWeek[wk]) byWeek[wk] = [];
+    byWeek[wk].push(w);
+  });
+  return byWeek;
+}
+
+function renderWeekComparison() {
+  const card = document.getElementById('week-comparison-card');
+  if (!card) return;
+  const workouts = State.workouts || [];
+  if (workouts.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  const metric = window._weekCompMetric || 'sessions';
+  const thisWeek = _calcWeekStats(workouts, _weekBounds(0));
+  const lastWeek = _calcWeekStats(workouts, _weekBounds(1));
+
+  const byWeek = _allWeekStats();
+  let bestVal = 0, bestWkKey = null, bestStats = null;
+  Object.entries(byWeek).forEach(([wk, ws]) => {
+    const start = new Date(wk);
+    const end = new Date(wk);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23,59,59,999);
+    const s = _calcWeekStats(workouts, { start, end });
+    if (s[metric] > bestVal) { bestVal = s[metric]; bestWkKey = wk; bestStats = s; }
+  });
+
+  const thisWeekBounds = _weekBounds(0);
+  const isBestWeekThisWeek = bestWkKey === _weekDateKey(thisWeekBounds.start);
+
+  const badge = document.getElementById('week-comp-best-badge');
+  if (badge) badge.style.display = isBestWeekThisWeek ? '' : 'none';
+
+  const weeks = [
+    { label: 'This Week', short: 'THIS', stats: thisWeek, color: 'var(--accent)', isCurrent: true },
+    { label: 'Last Week', short: 'LAST', stats: lastWeek, color: 'var(--blue)', isCurrent: false },
+    { label: 'Best Week',  short: 'BEST', stats: bestStats || thisWeek, color: '#f59e0b', isCurrent: false },
+  ];
+
+  const vals = weeks.map(w => w.stats[metric] || 0);
+  const maxVal = Math.max(...vals, 1);
+  const metricLabel = { sessions:'sessions', volume: (typeof isImperial === 'function' && isImperial()) ? 'lbs vol' : 'kg vol', sets:'sets', exercises:'exercises' }[metric];
+  const formatVal = v => metric === 'volume'
+    ? Math.round((typeof isImperial === 'function' && isImperial()) ? v * 2.20462 : v).toLocaleString()
+    : v;
+
+  const barsEl = document.getElementById('week-comp-bars');
+  const labelsEl = document.getElementById('week-comp-labels');
+  if (!barsEl || !labelsEl) return;
+
+  barsEl.innerHTML = weeks.map((w, i) => {
+    const pct = maxVal > 0 ? (vals[i] / maxVal) * 100 : 0;
+    const barH = Math.max(pct, vals[i] > 0 ? 8 : 2);
+    const isThisBest = i === 2 && isBestWeekThisWeek;
+    return `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:110px">
+        <div style="font-size:0.72rem;font-weight:800;color:${w.color}">${vals[i] > 0 ? formatVal(vals[i]) : '\u2014'}</div>
+        <div style="
+          width:100%;
+          height:${barH}%;
+          min-height:${vals[i]>0?'6px':'2px'};
+          background:${isThisBest?'linear-gradient(180deg,#f59e0b,var(--accent))':w.color};
+          border-radius:6px 6px 2px 2px;
+          opacity:${vals[i]>0?1:0.25};
+          transition:height 0.4s cubic-bezier(0.34,1.56,0.64,1);
+          ${w.isCurrent ? 'box-shadow:0 0 12px '+w.color+'55' : ''}
+        "></div>
+      </div>`;
+  }).join('');
+
+  labelsEl.innerHTML = weeks.map((w, i) => `
+    <div style="flex:1;text-align:center">
+      <div style="font-size:0.62rem;font-weight:700;color:${w.color};letter-spacing:0.5px">${w.short}</div>
+      <div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px">${metricLabel}</div>
+    </div>`).join('');
+
+  const insightEl = document.getElementById('week-comp-insight');
+  if (insightEl) {
+    const thisVal = vals[0], lastVal = vals[1], bestV = vals[2];
+    let msg = '';
+    if (thisVal === 0 && lastVal === 0) {
+      msg = '\u{1F4A4} No workouts recorded yet this week or last \u2014 time to get moving!';
+    } else if (thisVal === 0) {
+      msg = `\u{1F634} No workouts logged this week yet. Last week you had <strong>${formatVal(lastVal)} ${metricLabel}</strong>. Let&#39;s go!`;
+    } else if (lastVal === 0) {
+      msg = `\u{1F525} Great start! You&#39;ve already hit <strong>${formatVal(thisVal)} ${metricLabel}</strong> this week.`;
+    } else {
+      const diff = thisVal - lastVal;
+      const pctChange = Math.round((diff / lastVal) * 100);
+      if (diff > 0) {
+        msg = `\u{1F4C8} Up <strong>${pctChange}%</strong> vs last week (${formatVal(thisVal)} vs ${formatVal(lastVal)} ${metricLabel}).`;
+      } else if (diff < 0) {
+        msg = `\u{1F4C9} Down <strong>${Math.abs(pctChange)}%</strong> vs last week (${formatVal(thisVal)} vs ${formatVal(lastVal)} ${metricLabel}).`;
+      } else {
+        msg = `\u27A1\uFE0F Exactly on par with last week \u2014 <strong>${formatVal(thisVal)} ${metricLabel}</strong>.`;
+      }
+    }
+    if (isBestWeekThisWeek && thisVal > 0) {
+      msg += ' \u{1F3C6} <strong>This is your best week ever!</strong>';
+    } else if (bestV > 0 && thisVal > 0) {
+      const gapPct = Math.round(((bestV - thisVal) / bestV) * 100);
+      msg += ` Your best ever was <strong>${formatVal(bestV)} ${metricLabel}</strong>${gapPct > 0 ? ` \u2014 ${gapPct}% more than this week` : ''}.`;
+    }
+    insightEl.innerHTML = msg;
+  }
+}
+
 function reloadWorkout(idx) {
   if (!confirm('Load this workout as today\'s session?')) return;
   State.currentWorkout = JSON.parse(JSON.stringify(State.workouts[idx].exercises))
@@ -10519,6 +10709,7 @@ function switchWorkoutTab(tab, btn) {
   if (tab === 'history') {
     document.getElementById('history-count').textContent = `${State.workouts.length} sessions logged`;
     renderWorkoutHistory();
+    renderWeekComparison();
   }
 }
 
