@@ -14938,36 +14938,86 @@ async function loadChallenges() {
 
 function calcChallengeScore(ch) {
   const start = ch.start, end = ch.end;
+
+  // ── 💪 Most Workouts ─────────────────────────────────────────────
+  // Count every workout logged within the challenge date range
   if (ch.type === 'most_workouts') {
-    return State.workouts.filter(w => w.date >= start && w.date <= end && w.exercises?.length > 0).length;
+    return (State.workouts||[]).filter(w =>
+      w.date >= start && w.date <= end && w.exercises?.length > 0
+    ).length;
   }
+
+  // ── 🔥 Calorie Goal Streak ───────────────────────────────────────
+  // Count days where you hit ≥90% of your calorie target
   if (ch.type === 'calorie_streak') {
-    // Days where calorie goal was met
     let count = 0;
     const startD = new Date(start + 'T00:00:00');
     const endD   = new Date(end   + 'T00:00:00');
     for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
       const k = d.toISOString().split('T')[0];
-      const log = State.logs[k];
+      const log = (State.logs||{})[k];
       if (!log) continue;
-      const cal = Object.values(log.meals).flat().reduce((s, f) => s + (f.cal||0), 0);
-      if (cal >= (State.targets.calories * 0.9)) count++;
+      const cal = Object.values(log.meals||{}).flat().reduce((s, f) => s + (f.cal||0), 0);
+      if (cal >= ((State.targets||{}).calories||2000) * 0.9) count++;
     }
     return count;
   }
+
+  // ── 🚶 Most Active Days ──────────────────────────────────────────
+  // A day counts if you logged any workout OR any food
   if (ch.type === 'most_steps') {
-    // Active days = any workout or calorie entry
     const startD = new Date(start + 'T00:00:00');
     const endD   = new Date(end   + 'T00:00:00');
     let count = 0;
     for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
       const k = d.toISOString().split('T')[0];
-      const hasWorkout = State.workouts.some(w => w.date === k && w.exercises?.length > 0);
-      const hasFood    = State.logs[k] && Object.values(State.logs[k].meals).some(m => m.length > 0);
+      const hasWorkout = (State.workouts||[]).some(w => w.date === k && w.exercises?.length > 0);
+      const hasFood    = (State.logs||{})[k] && Object.values((State.logs[k].meals)||{}).some(m => m.length > 0);
       if (hasWorkout || hasFood) count++;
     }
     return count;
   }
+
+  // ── 🏋️ Gym Consistency — 7-Day ──────────────────────────────────
+  // Count unique workout days within the range
+  if (ch.type === 'gym_consistency') {
+    const days = new Set(
+      (State.workouts||[])
+        .filter(w => w.date >= start && w.date <= end && w.exercises?.length > 0)
+        .map(w => w.date)
+    );
+    return days.size;
+  }
+
+  // ── ⚡ HIIT Hero ─────────────────────────────────────────────────
+  // Count workouts that contain any HIIT / cardio exercise
+  if (ch.type === 'hiit_hero') {
+    const hiitKeywords = ['hiit','cardio','run','sprint','burpee','jump','rope','bike','cycle','row','elliptical','treadmill','circuit','interval','box jump','battle rope','sled'];
+    return (State.workouts||[]).filter(w => {
+      if (w.date < start || w.date > end) return false;
+      return (w.exercises||[]).some(ex => {
+        const name = (ex.name||ex.exercise||'').toLowerCase();
+        return hiitKeywords.some(kw => name.includes(kw));
+      });
+    }).length;
+  }
+
+  // ── 🥩 Protein King ──────────────────────────────────────────────
+  // Count days where you hit ≥90% of your protein target
+  if (ch.type === 'protein_goal') {
+    let count = 0;
+    const startD = new Date(start + 'T00:00:00');
+    const endD   = new Date(end   + 'T00:00:00');
+    for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+      const k = d.toISOString().split('T')[0];
+      const log = (State.logs||{})[k];
+      if (!log) continue;
+      const pro = Object.values(log.meals||{}).flat().reduce((s, f) => s + (f.protein||0), 0);
+      if (pro >= ((State.targets||{}).protein||150) * 0.9) count++;
+    }
+    return count;
+  }
+
   return 0;
 }
 
@@ -14975,11 +15025,26 @@ const CHALLENGE_TYPE_LABELS = {
   most_workouts:  '💪 Most Workouts',
   calorie_streak: '🔥 Calorie Goal Streak',
   most_steps:     '🚶 Most Active Days',
+  gym_consistency:'🏋️ Gym Consistency',
+  hiit_hero:      '⚡ HIIT Sessions',
+  protein_goal:   '🥩 Protein Goal Days',
 };
 const CHALLENGE_TYPE_UNIT = {
-  most_workouts:  'workouts',
-  calorie_streak: 'days hit',
+  most_workouts:  'workouts logged',
+  calorie_streak: 'days hitting calorie goal',
   most_steps:     'active days',
+  gym_consistency:'unique workout days',
+  hiit_hero:      'HIIT sessions',
+  protein_goal:   'days hitting protein goal',
+};
+// Human-readable explanation shown on each challenge card
+const CHALLENGE_TYPE_HOW = {
+  most_workouts:  'Every workout you log between the start and end date counts as +1. More sessions = higher score.',
+  calorie_streak: 'Each day you hit ≥90% of your calorie target scores +1. Logged automatically from your food diary.',
+  most_steps:     'Any day you log a workout OR food entry counts as +1 active day.',
+  gym_consistency:'Each unique day you log at least one workout counts as +1. Multiple workouts on the same day still count as 1.',
+  hiit_hero:      'Each workout containing a HIIT or cardio exercise (burpees, sprints, jump rope, bike, etc.) counts as +1.',
+  protein_goal:   'Each day you hit ≥90% of your protein target scores +1. Tracked from your food diary.',
 };
 
 function renderChallenges() {
@@ -15006,6 +15071,8 @@ function renderChallenges() {
     const unit     = CHALLENGE_TYPE_UNIT[ch.type] || '';
     const statusColor = isEnded ? 'var(--text-muted)' : isActive ? 'var(--green)' : 'var(--orange)';
     const statusLabel = isEnded ? 'Ended' : isActive ? 'Active' : 'Upcoming';
+
+    const howScored = CHALLENGE_TYPE_HOW[ch.type] || 'Scores update automatically when participants open the app.';
 
     const rows = sorted.slice(0, 5).map(([uid, score], i) => {
       const name = ch.participantNames?.[uid] || uid.slice(0, 8);
@@ -15036,7 +15103,12 @@ function renderChallenges() {
           </div>
         </div>
         <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);overflow:hidden">${rows}</div>
-        <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between">
+        <div style="margin-top:10px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--bg-elevated);border-left:3px solid var(--border)">
+          <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">HOW YOUR SCORE IS CALCULATED</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);line-height:1.5">${howScored}</div>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px">⚡ Your score updates automatically every time you open the Challenges tab.</div>
+        </div>
+        <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between">
           <div style="font-size:0.75rem;color:var(--text-secondary)">${ch.participants.length} participant${ch.participants.length!==1?'s':''} · created by ${ch.createdByName||'Unknown'}</div>
           <div style="font-size:0.82rem;font-weight:700;color:var(--accent)">Your score: ${myScore} ${unit}</div>
         </div>
@@ -15143,81 +15215,108 @@ function getLbPeriodRange() {
 }
 
 function calcMyLbScore() {
-  const { start, end } = getLbPeriodRange();
-  const me = window._currentUser;
-  if (Social.lbMetric === 'workouts') {
-    return State.workouts.filter(w => w.date >= start && w.date <= end && w.exercises?.length > 0).length;
-  }
-  if (Social.lbMetric === 'streak') {
-    return State.streak || 0;
-  }
-  if (Social.lbMetric === 'calories') {
-    // Days calorie goal was met in range
-    let count = 0;
-    const startD = new Date(start + 'T00:00:00');
-    const endD   = new Date(end   + 'T00:00:00');
-    for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
-      const k = d.toISOString().split('T')[0];
-      const log = State.logs[k];
-      if (!log) continue;
-      const cal = Object.values(log.meals).flat().reduce((s, f) => s + (f.cal||0), 0);
-      if (cal >= (State.targets.calories * 0.9)) count++;
-    }
-    return count;
-  }
+  // Kept for backward compat — delegates to calcAllLbScores
+  const all = calcAllLbScores();
+  if (Social.lbMetric === 'workouts')  return all.workouts;
+  if (Social.lbMetric === 'streak')    return all.streak;
+  if (Social.lbMetric === 'calories')  return all.calGoalDays;
   return 0;
+}
+
+// ── Calculate ALL three metrics at once ──────────────────────────────
+function calcAllLbScores() {
+  const { start, end } = getLbPeriodRange();
+  // workouts
+  const workouts = (State.workouts||[]).filter(w =>
+    w.date >= start && w.date <= end && w.exercises?.length > 0
+  ).length;
+  // streak (global, not range-bound)
+  const streak = State.streak || 0;
+  // calorie goal days in range
+  let calGoalDays = 0;
+  const startD = new Date(start + 'T00:00:00');
+  const endD   = new Date(end   + 'T00:00:00');
+  for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+    const k = d.toISOString().split('T')[0];
+    const log = (State.logs||{})[k];
+    if (!log) continue;
+    const cal = Object.values(log.meals||{}).flat().reduce((s, f) => s + (f.cal||0), 0);
+    if (cal >= ((State.targets||{}).calories||2000) * 0.9) calGoalDays++;
+  }
+  return { workouts, streak, calGoalDays };
 }
 
 async function loadLeaderboard() {
   const me = window._currentUser;
   if (!me) return;
+
+  const el = document.getElementById('leaderboard-list');
+
+  // Show all friends + me even if friends have no doc yet
   if (!Social.friends.length) {
-    const el = document.getElementById('leaderboard-list');
     if (el) el.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:24px 0">Add friends to see the leaderboard 👥</div>';
     return;
   }
 
-  const myScore = calcMyLbScore();
-  const metric  = Social.lbMetric;
-  const { start, end } = getLbPeriodRange();
-  const metricField = metric === 'workouts' ? 'workouts' : metric === 'streak' ? 'streak' : 'calGoalDays';
+  // Show loading state
+  if (el) el.innerHTML = '<div style="text-align:center;padding:24px 0;font-size:0.82rem;color:var(--text-muted)">Loading…</div>';
 
-  // Push own score to public leaderboard doc
+  // Calculate and push ALL my scores at once — not just the current metric
+  const myScores = calcAllLbScores();
   try {
     await window._fbSetDoc(
       window._fbDoc(window._fbDb, 'leaderboard', me.uid),
       {
-        uid: me.uid,
-        name: me.displayName || me.email,
-        photoURL: me.photoURL || '',
-        workouts: metric === 'workouts' ? myScore : undefined,
-        streak:   metric === 'streak'   ? myScore : undefined,
-        calGoalDays: metric === 'calories' ? myScore : undefined,
-        period: Social.lbPeriod,
-        updatedAt: window._fbServerTs()
+        uid:         me.uid,
+        name:        me.displayName || me.email,
+        photoURL:    me.photoURL || '',
+        workouts:    myScores.workouts,
+        streak:      myScores.streak,
+        calGoalDays: myScores.calGoalDays,
+        period:      Social.lbPeriod,
+        updatedAt:   window._fbServerTs()
       },
       { merge: true }
     );
-  } catch(e) {}
+  } catch(e) { console.warn('lb push error', e); }
 
-  // Load friend scores
-  const friendUids = Social.friends.map(f => f.uid);
-  const entries = [{ uid: me.uid, name: me.displayName || me.email, score: myScore, isMe: true }];
+  // Which field to sort by
+  const metricField = Social.lbMetric === 'workouts' ? 'workouts'
+                    : Social.lbMetric === 'streak'   ? 'streak'
+                    : 'calGoalDays';
 
-  await Promise.all(friendUids.map(async uid => {
+  // Seed entries with ALL friends at score 0 — so they always appear even with no Firestore doc
+  const friendMap = {};
+  Social.friends.forEach(f => {
+    const name = f.fullName || f.name || f.username || f.email || f.uid.slice(0,8);
+    friendMap[f.uid] = { uid: f.uid, name, score: 0, isMe: false, photoURL: f.photoURL || '' };
+  });
+
+  // Fetch friend leaderboard docs and overwrite scores where available
+  await Promise.all(Object.keys(friendMap).map(async uid => {
     try {
       const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'leaderboard', uid));
       if (snap.exists()) {
         const d = snap.data();
-        if (!d.period || d.period === Social.lbPeriod) {
-          const score = d[metricField] || 0;
-          const name  = Social.friends.find(f => f.uid === uid)?.fullName || Social.friends.find(f => f.uid === uid)?.name || Social.friends.find(f => f.uid === uid)?.username || d.name || uid.slice(0,8);
-          entries.push({ uid, name, score, isMe: false });
-        }
+        // Accept doc regardless of period — stale data is better than invisible users
+        friendMap[uid].score    = d[metricField] || 0;
+        friendMap[uid].name     = friendMap[uid].name || d.name || uid.slice(0,8);
+        friendMap[uid].photoURL = friendMap[uid].photoURL || d.photoURL || '';
+        friendMap[uid].stale    = d.period && d.period !== Social.lbPeriod; // flag stale period
       }
     } catch(e) {}
   }));
 
+  // Build final entries: me + all friends
+  const myEntry = {
+    uid: me.uid,
+    name: me.displayName || me.email,
+    score: myScores[metricField],
+    isMe: true,
+    photoURL: me.photoURL || '',
+    stale: false
+  };
+  const entries = [myEntry, ...Object.values(friendMap)];
   entries.sort((a, b) => b.score - a.score);
   renderLeaderboard(entries);
 }
@@ -15229,18 +15328,20 @@ function renderLeaderboard(entries) {
   if (!el) return;
   const unit = LB_UNITS[Social.lbMetric] || '';
   el.innerHTML = entries.map((e, i) => {
-    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
-    const friend = Social.friends.find(f => f.uid === e.uid);
+    const medal    = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
     const initials = (e.name || '?').charAt(0).toUpperCase();
+    const staleNote = e.stale ? `<div style="font-size:0.62rem;color:var(--text-muted)">score may be from last period</div>` : '';
+    const noDocNote = (!e.isMe && e.score === 0 && !e.stale) ? `<div style="font-size:0.62rem;color:var(--text-muted)">hasn't synced yet</div>` : '';
     return `
       <div style="display:flex;align-items:center;gap:12px;padding:12px 10px;border-radius:var(--radius-sm);background:${e.isMe?'var(--accent-dim)':'transparent'};${i < entries.length-1 ? 'border-bottom:1px solid var(--border)' : ''}">
         <span style="font-size:1.1rem;min-width:28px;text-align:center">${medal}</span>
         <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:0.82rem;color:var(--bg-base);flex-shrink:0;position:relative">
-          ${friend?.photoURL ? `<img src="${friend.photoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;position:absolute;top:0;left:0" onerror="this.style.display='none'">` : ''}
+          ${e.photoURL ? `<img src="${e.photoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;position:absolute;top:0;left:0" onerror="this.style.display='none'">` : ''}
           ${initials}
         </div>
         <div style="flex:1;min-width:0">
           <div style="font-size:0.9rem;font-weight:${e.isMe?'700':'600'};color:${e.isMe?'var(--accent)':'var(--text-primary)'}">${e.name}${e.isMe ? ' (you)' : ''}</div>
+          ${staleNote}${noDocNote}
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:800;color:${e.isMe?'var(--accent)':'var(--text-primary)'}">${e.score}</div>
