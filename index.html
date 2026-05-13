@@ -2677,6 +2677,9 @@ function dismissSplash() {
       <div class="nav-item" onclick="navigate('goals',this)">
         <span class="nav-icon">🎯</span> Goals
       </div>
+      <div class="nav-item" onclick="navigate('globalleaderboard',this)">
+        <span class="nav-icon">🏆</span><span>Global Leaderboard</span>
+      </div>
       <div class="nav-item" onclick="navigate('reports',this)">
         <span class="nav-icon">📰</span> Reports
       </div>
@@ -3418,6 +3421,48 @@ function dismissSplash() {
         </div>
         <div id="reports-container">
           <div class="empty-state"><div class="es-icon">📰</div><div class="es-text">Reports will appear here after your first week of tracking</div></div>
+        </div>
+      </div>
+
+
+      <!-- ═════════ GLOBAL LEADERBOARD ═════════ -->
+      <div class="page" id="page-globalleaderboard">
+        <div class="section-header" style="margin-bottom:6px">
+          <div class="section-title">🏆 Global Leaderboard</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadGlobalLeaderboard()" id="glb-refresh-btn" style="font-size:0.78rem">↻ Refresh</button>
+        </div>
+        <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:16px">All EddFit users ranked globally</div>
+
+        <!-- Metric tabs -->
+        <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm glb-metric-btn" data-metric="workouts" onclick="setGlbMetric('workouts',this)">💪 Workouts</button>
+          <button class="btn btn-ghost btn-sm glb-metric-btn" data-metric="streak" onclick="setGlbMetric('streak',this)">🔥 Streak</button>
+          <button class="btn btn-ghost btn-sm glb-metric-btn" data-metric="calGoalDays" onclick="setGlbMetric('calGoalDays',this)">🎯 Cal Goals</button>
+        </div>
+
+        <!-- My rank card -->
+        <div id="glb-my-rank" style="display:none;background:var(--accent-dim);border:2px solid var(--accent);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px">
+          <div style="font-size:0.7rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Your Rank</div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div id="glb-my-rank-medal" style="font-size:1.6rem;min-width:32px;text-align:center">—</div>
+            <div style="flex:1">
+              <div style="font-family:var(--font-display);font-weight:800;font-size:0.95rem;color:var(--accent)" id="glb-my-rank-name">You</div>
+              <div style="font-size:0.72rem;color:var(--text-secondary)" id="glb-my-rank-sub"></div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;color:var(--accent)" id="glb-my-rank-score">0</div>
+              <div style="font-size:0.68rem;color:var(--text-muted)" id="glb-my-rank-unit"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top list -->
+        <div id="glb-leaderboard-list">
+          <div style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:0.85rem">Loading leaderboard…</div>
+        </div>
+
+        <div style="font-size:0.7rem;color:var(--text-muted);text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+          Scores update each time users open the leaderboard · Top 50 shown
         </div>
       </div>
 
@@ -7050,7 +7095,8 @@ const PAGE_TITLES = {
   progress: 'Progress', goals: 'Goals', settings: 'Settings',
   bodymap: 'Body Map', mealplan: 'Meal Plan', recipes: 'Recipes',
   records: 'Personal Records', reports: 'Weekly Reports', social: 'Friends & Challenges',
-  achievements: 'Achievements'
+  achievements: 'Achievements',
+  globalleaderboard: '🏆 Global Leaderboard'
 };
 
 function navigate(page, el) {
@@ -7093,6 +7139,7 @@ function navigate(page, el) {
   if (page === 'settings')  { loadApiKeyStatus(); }
   if (page === 'social')    { if (typeof renderSocialPage   === 'function') renderSocialPage(); }
   if (page === 'achievements') { if (typeof renderAchievementsPage === 'function') renderAchievementsPage(); }
+  if (page === 'globalleaderboard') { if (typeof loadGlobalLeaderboard === 'function') loadGlobalLeaderboard(); }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -17998,7 +18045,175 @@ window.shareMealTemplate = function(idx) {
   openShareModal('mealTemplate', idx, JSON.parse(JSON.stringify(tpl)));
 };
 
-// ── Init: ensure mealTemplates on load ──────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  GLOBAL LEADERBOARD
+// ═══════════════════════════════════════════════════════════════
+window._glbMetric = 'workouts';
+
+window.setGlbMetric = function(metric, btn) {
+  window._glbMetric = metric;
+  document.querySelectorAll('.glb-metric-btn').forEach(b => {
+    b.className = b === btn ? 'btn btn-primary btn-sm glb-metric-btn' : 'btn btn-ghost btn-sm glb-metric-btn';
+  });
+  // Re-render from cache if available, else reload
+  if (window._glbCache) {
+    _renderGlobalLeaderboard(window._glbCache);
+  } else {
+    loadGlobalLeaderboard();
+  }
+};
+
+const GLB_UNITS = { workouts: 'workouts', streak: 'day streak', calGoalDays: 'cal goal days' };
+
+window.loadGlobalLeaderboard = async function() {
+  const list = document.getElementById('glb-leaderboard-list');
+  const myRankCard = document.getElementById('glb-my-rank');
+  if (!list) return;
+
+  const me = window._currentUser;
+  if (!me) {
+    list.innerHTML = '<div class="empty-state"><div class="es-icon">🔒</div><div class="es-text">Sign in to see the global leaderboard</div></div>';
+    return;
+  }
+
+  list.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:0.85rem">⏳ Loading…</div>';
+  if (myRankCard) myRankCard.style.display = 'none';
+
+  // Push own score first
+  try {
+    const myScores = (typeof calcAllLbScores === 'function') ? calcAllLbScores() : { workouts:0, streak:0, calGoalDays:0 };
+    await window._fbSetDoc(
+      window._fbDoc(window._fbDb, 'leaderboard', me.uid),
+      {
+        uid:         me.uid,
+        name:        me.displayName || me.email || 'Anonymous',
+        photoURL:    me.photoURL || '',
+        workouts:    myScores.workouts,
+        streak:      myScores.streak,
+        calGoalDays: myScores.calGoalDays,
+        updatedAt:   window._fbServerTs()
+      },
+      { merge: true }
+    );
+  } catch(e) { console.warn('glb score push error', e); }
+
+  // Fetch top 50 from leaderboard collection (sorted client-side to avoid index)
+  try {
+    const snap = await window._fbGetDocs(
+      window._fbCollection(window._fbDb, 'leaderboard')
+    );
+
+    if (snap.empty) {
+      list.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No users on the leaderboard yet — be the first!</div></div>';
+      return;
+    }
+
+    const allEntries = snap.docs.map(d => {
+      const data = d.data();
+      return {
+        uid:         data.uid || d.id,
+        name:        data.name || 'Anonymous',
+        photoURL:    data.photoURL || '',
+        workouts:    data.workouts    || 0,
+        streak:      data.streak      || 0,
+        calGoalDays: data.calGoalDays || 0,
+        isMe:        (data.uid || d.id) === me.uid,
+      };
+    });
+
+    window._glbCache = allEntries;
+    _renderGlobalLeaderboard(allEntries);
+
+  } catch(e) {
+    const msg = e?.code === 'permission-denied'
+      ? 'Permission denied — check Firestore rules for the leaderboard collection.'
+      : `Could not load (${e?.code || e?.message || 'unknown'})`;
+    list.innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><div class="es-text">${msg}</div></div>`;
+    console.error('loadGlobalLeaderboard error:', e);
+  }
+};
+
+function _renderGlobalLeaderboard(allEntries) {
+  const list      = document.getElementById('glb-leaderboard-list');
+  const myRankCard = document.getElementById('glb-my-rank');
+  if (!list) return;
+
+  const metric = window._glbMetric || 'workouts';
+  const unit   = GLB_UNITS[metric] || '';
+
+  // Sort by selected metric, take top 50
+  const sorted = allEntries.slice().sort((a, b) => (b[metric]||0) - (a[metric]||0)).slice(0, 50);
+  const myGlobalRank = sorted.findIndex(e => e.isMe);
+
+  // My rank card
+  if (myRankCard) {
+    const myEntry = allEntries.find(e => e.isMe);
+    const fullRank = allEntries.slice().sort((a,b) => (b[metric]||0) - (a[metric]||0)).findIndex(e => e.isMe);
+    if (myEntry) {
+      myRankCard.style.display = '';
+      const rankNum = fullRank + 1;
+      document.getElementById('glb-my-rank-medal').textContent =
+        rankNum === 1 ? '🥇' : rankNum === 2 ? '🥈' : rankNum === 3 ? '🥉' : `#${rankNum}`;
+      document.getElementById('glb-my-rank-name').textContent = myEntry.name + ' (you)';
+      document.getElementById('glb-my-rank-sub').textContent  = `Ranked ${rankNum} of ${allEntries.length} users`;
+      document.getElementById('glb-my-rank-score').textContent = myEntry[metric] || 0;
+      document.getElementById('glb-my-rank-unit').textContent  = unit;
+    }
+  }
+
+  if (sorted.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No scores yet for this metric</div></div>';
+    return;
+  }
+
+  list.innerHTML = sorted.map((e, i) => {
+    const medal    = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span style="font-size:0.85rem;font-weight:700;color:var(--text-muted)">#${i+1}</span>`;
+    const initials = (e.name || '?').charAt(0).toUpperCase();
+    const isTop3   = i < 3;
+    return `
+      <div style="
+        display:flex;align-items:center;gap:12px;
+        padding:12px 10px;
+        border-radius:var(--radius-sm);
+        background:${e.isMe ? 'var(--accent-dim)' : isTop3 ? 'var(--bg-elevated)' : 'transparent'};
+        border:${e.isMe ? '2px solid var(--accent)' : isTop3 ? '1px solid var(--border-active)' : 'none'};
+        margin-bottom:${isTop3 ? '8px' : '0'};
+        ${!isTop3 && i < sorted.length - 1 ? 'border-bottom:1px solid var(--border)' : ''}
+      ">
+        <span style="font-size:${isTop3?'1.3rem':'1rem'};min-width:30px;text-align:center">${medal}</span>
+        <div style="
+          width:${isTop3?'40px':'34px'};height:${isTop3?'40px':'34px'};
+          border-radius:50%;
+          background:linear-gradient(135deg,var(--accent),var(--blue));
+          display:flex;align-items:center;justify-content:center;
+          font-family:var(--font-display);font-weight:800;
+          font-size:${isTop3?'0.9rem':'0.78rem'};
+          color:var(--bg-base);flex-shrink:0;position:relative;overflow:hidden
+        ">
+          ${e.photoURL ? `<img src="${e.photoURL}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.style.display='none'">` : ''}
+          ${initials}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="
+            font-size:${isTop3?'0.95rem':'0.88rem'};
+            font-weight:${e.isMe||isTop3?'700':'600'};
+            color:${e.isMe?'var(--accent)':'var(--text-primary)'};
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+          ">${e.name}${e.isMe?' (you)':''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="
+            font-family:var(--font-display);
+            font-size:${isTop3?'1.2rem':'1rem'};
+            font-weight:800;
+            color:${e.isMe?'var(--accent)':isTop3?'var(--text-primary)':'var(--text-secondary)'}
+          ">${e[metric]||0}</div>
+          <div style="font-size:0.63rem;color:var(--text-muted)">${unit}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
 const _origLoadFS3 = window._loadFirestore;
 if (typeof _origLoadFS3 === 'function') {
   window._loadFirestore = async function() {
