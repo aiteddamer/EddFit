@@ -5963,20 +5963,91 @@ const FOOD_DB = [
   { id:299, name:'Tomato Sauce (plain)',           cal:29,  protein:1.2, carbs:6.3, fat:0.2,  serving:'100g' },
   { id:300, name:'Hummus',                         cal:177, protein:8,   carbs:14,  fat:10,   serving:'100g' },
 
-  // ══ SUPPLEMENTS & POWDERS ══
-  { id:310, name:'Whey Protein Isolate',           cal:370, protein:85,  carbs:2,   fat:2,    serving:'100g' },
-  { id:311, name:'Whey Protein Concentrate',       cal:370, protein:80,  carbs:4,   fat:4,    serving:'100g' },
-  { id:312, name:'Casein Protein',                 cal:360, protein:82,  carbs:3,   fat:2,    serving:'100g' },
-  { id:313, name:'Creatine Monohydrate',           cal:0,   protein:0,   carbs:0,   fat:0,    serving:'100g' },
-  { id:314, name:'BCAA Powder',                    cal:200, protein:50,  carbs:0,   fat:0,    serving:'100g' },
+  // ══ SUPPLEMENTS — OPTIMUM NUTRITION (ON) ══
+  // Gold Standard 100% Whey — per 1 scoop (31g) and per 100g
+  { id:310, name:'ON Gold Standard 100% Whey — Double Rich Chocolate (per scoop 31g)', cal:120, protein:24,  carbs:3,   fat:1.5,  serving:'31g scoop' },
+  { id:311, name:'ON Gold Standard 100% Whey — Vanilla Ice Cream (per scoop 31g)',     cal:120, protein:24,  carbs:3,   fat:1.5,  serving:'31g scoop' },
+  { id:312, name:'ON Gold Standard 100% Whey — Strawberry (per scoop 31g)',            cal:120, protein:24,  carbs:3,   fat:1.5,  serving:'31g scoop' },
+  { id:313, name:'ON Gold Standard 100% Whey — Cookies & Cream (per scoop 31g)',       cal:130, protein:24,  carbs:4,   fat:1.5,  serving:'31g scoop' },
+  { id:314, name:'ON Gold Standard 100% Whey — Unflavored (per scoop 30g)',            cal:110, protein:24,  carbs:1,   fat:1,    serving:'30g scoop' },
+  { id:315, name:'ON Gold Standard 100% Whey (per 100g, chocolate)',                   cal:387, protein:77,  carbs:9.7, fat:4.8,  serving:'100g' },
+  // Gold Standard Isolate
+  { id:316, name:'ON Gold Standard 100% Isolate — Chocolate (per scoop 31g)',          cal:110, protein:25,  carbs:0.5, fat:0.5,  serving:'31g scoop' },
+  { id:317, name:'ON Gold Standard 100% Isolate (per 100g)',                            cal:355, protein:80,  carbs:1.6, fat:1.6,  serving:'100g' },
+  // Gold Standard Casein
+  { id:318, name:'ON Gold Standard 100% Casein — Chocolate Supreme (per scoop 34g)',   cal:120, protein:24,  carbs:3,   fat:1,    serving:'34g scoop' },
+  { id:319, name:'ON Gold Standard 100% Casein (per 100g)',                             cal:353, protein:70,  carbs:8.8, fat:2.9,  serving:'100g' },
+  // Serious Mass
+  { id:320, name:'ON Serious Mass — Chocolate (per serving 334g, 2 scoops)',            cal:1250,protein:50,  carbs:252, fat:4.5,  serving:'334g serving' },
+  { id:321, name:'ON Serious Mass — Vanilla (per serving 334g)',                        cal:1250,protein:50,  carbs:252, fat:4.5,  serving:'334g serving' },
+  { id:322, name:'ON Serious Mass (per 100g)',                                           cal:374, protein:15,  carbs:75,  fat:1.3,  serving:'100g' },
+  // Pro Complex Gainer
+  { id:323, name:'ON Pro Complex Gainer — Chocolate (per 165g serving)',                cal:650, protein:60,  carbs:85,  fat:8,    serving:'165g serving' },
+  { id:324, name:'ON Pro Complex Gainer (per 100g)',                                    cal:394, protein:36,  carbs:51,  fat:4.8,  serving:'100g' },
+  // Platinum Hydrowhey
+  { id:325, name:'ON Platinum HydroWhey — Turbo Chocolate (per scoop 39g)',            cal:140, protein:30,  carbs:2,   fat:1,    serving:'39g scoop' },
+  { id:326, name:'ON Platinum HydroWhey (per 100g)',                                    cal:359, protein:77,  carbs:5.1, fat:2.6,  serving:'100g' },
+  // Amino Energy
+  { id:327, name:'ON Essential Amino Energy (per 2 scoops 9g)',                         cal:10,  protein:0,   carbs:2,   fat:0,    serving:'9g' },
+
+  // ══ SUPPLEMENTS — DYMATIZE ══
+  { id:330, name:'Dymatize ISO100 Hydrolyzed — Chocolate Fudge (per scoop 29g)',        cal:110, protein:25,  carbs:0.5, fat:0.5,  serving:'29g scoop' },
+  { id:331, name:'Dymatize ISO100 Hydrolyzed — Gourmet Vanilla (per scoop 29g)',        cal:110, protein:25,  carbs:0.5, fat:0.5,  serving:'29g scoop' },
+  { id:332, name:'Dymatize ISO100 Hydrolyzed (per 100g)',                               cal:379, protein:86,  carbs:1.7, fat:1.7,  serving:'100g' },
+  { id:333, name:'Dymatize Elite 100% Whey — Rich Chocolate (per scoop 36g)',           cal:130, protein:25,  carbs:3,   fat:2,    serving:'36g scoop' },
+  { id:334, name:'Dymatize Elite 100% Whey (per 100g)',                                 cal:361, protein:69,  carbs:8.3, fat:5.6,  serving:'100g' },
+  { id:335, name:'Dymatize Super Mass Gainer — Chocolate Cake (per serving 334g)',      cal:1280,protein:52,  carbs:252, fat:10,   serving:'334g serving' },
+  { id:336, name:'Dymatize Super Mass Gainer (per 100g)',                               cal:383, protein:15.6,carbs:75,  fat:3,    serving:'100g' },
+
+  // ══ SUPPLEMENTS — MUSCLETECH ══
+  { id:340, name:'MuscleTech Nitro-Tech Whey — Chocolate (per scoop 46g)',              cal:160, protein:30,  carbs:4,   fat:3,    serving:'46g scoop' },
+  { id:341, name:'MuscleTech Nitro-Tech Whey — Vanilla (per scoop 46g)',                cal:160, protein:30,  carbs:4,   fat:3,    serving:'46g scoop' },
+  { id:342, name:'MuscleTech Nitro-Tech Whey (per 100g)',                               cal:348, protein:65,  carbs:8.7, fat:6.5,  serving:'100g' },
+  { id:343, name:'MuscleTech Mass Tech Extreme — Chocolate (per serving 271g)',         cal:1000,protein:60,  carbs:170, fat:8,    serving:'271g serving' },
+  { id:344, name:'MuscleTech Mass Tech Extreme (per 100g)',                             cal:369, protein:22,  carbs:63,  fat:3,    serving:'100g' },
+  { id:345, name:'MuscleTech Clear Muscle HMB (per 2 capsules)',                        cal:0,   protein:0,   carbs:0,   fat:0,    serving:'2 capsules' },
+
+  // ══ SUPPLEMENTS — BSN ══
+  { id:350, name:'BSN Syntha-6 — Chocolate Milkshake (per scoop 47g)',                  cal:200, protein:22,  carbs:15,  fat:6,    serving:'47g scoop' },
+  { id:351, name:'BSN Syntha-6 — Vanilla Ice Cream (per scoop 47g)',                    cal:200, protein:22,  carbs:15,  fat:6,    serving:'47g scoop' },
+  { id:352, name:'BSN Syntha-6 (per 100g)',                                             cal:426, protein:46,  carbs:32,  fat:12.8, serving:'100g' },
+  { id:353, name:'BSN True Mass 1200 — Chocolate (per serving 340g)',                   cal:1220,protein:50,  carbs:222, fat:16,   serving:'340g serving' },
+  { id:354, name:'BSN True Mass 1200 (per 100g)',                                       cal:359, protein:14.7,carbs:65,  fat:4.7,  serving:'100g' },
+
+  // ══ SUPPLEMENTS — MYPROTEIN ══
+  { id:360, name:'Myprotein Impact Whey Protein — Chocolate (per scoop 25g)',           cal:103, protein:21,  carbs:1,   fat:1.9,  serving:'25g scoop' },
+  { id:361, name:'Myprotein Impact Whey Protein — Vanilla (per scoop 25g)',             cal:103, protein:21,  carbs:1.5, fat:1.9,  serving:'25g scoop' },
+  { id:362, name:'Myprotein Impact Whey Protein — Unflavored (per scoop 25g)',          cal:100, protein:21,  carbs:0.5, fat:1.8,  serving:'25g scoop' },
+  { id:363, name:'Myprotein Impact Whey Protein (per 100g)',                            cal:412, protein:84,  carbs:4,   fat:7.6,  serving:'100g' },
+  { id:364, name:'Myprotein Impact Whey Isolate — Chocolate (per scoop 25g)',           cal:93,  protein:22,  carbs:0.6, fat:0.3,  serving:'25g scoop' },
+  { id:365, name:'Myprotein Impact Whey Isolate (per 100g)',                            cal:372, protein:88,  carbs:2.4, fat:1.2,  serving:'100g' },
+  { id:366, name:'Myprotein Weight Gainer Blend — Chocolate (per serving 125g)',        cal:494, protein:31,  carbs:80,  fat:6,    serving:'125g serving' },
+  { id:367, name:'Myprotein Weight Gainer Blend (per 100g)',                            cal:395, protein:25,  carbs:64,  fat:4.8,  serving:'100g' },
+  { id:368, name:'Myprotein Hard Gainer Extreme (per 100g)',                            cal:387, protein:20,  carbs:68,  fat:3.5,  serving:'100g' },
+
+  // ══ SUPPLEMENTS — GENERIC / OTHER BRANDS ══
+  { id:375, name:'Whey Protein Isolate — Generic (per 100g)',                           cal:370, protein:87,  carbs:2,   fat:1.5,  serving:'100g' },
+  { id:376, name:'Whey Protein Concentrate 80% — Generic (per 100g)',                  cal:373, protein:80,  carbs:7,   fat:4,    serving:'100g' },
+  { id:377, name:'Casein Protein — Generic (per 100g)',                                 cal:360, protein:80,  carbs:5,   fat:2,    serving:'100g' },
+  { id:378, name:'Plant Protein (pea+rice blend, per 100g)',                            cal:360, protein:75,  carbs:8,   fat:5,    serving:'100g' },
+  { id:379, name:'Mass Gainer — Generic 3:1 ratio (per 100g)',                          cal:380, protein:20,  carbs:60,  fat:3,    serving:'100g' },
+  { id:380, name:'Mass Gainer — Generic 4:1 ratio (per 100g)',                          cal:390, protein:18,  carbs:72,  fat:3,    serving:'100g' },
+  { id:381, name:'Creatine Monohydrate (per 5g serving)',                               cal:0,   protein:0,   carbs:0,   fat:0,    serving:'5g' },
+  { id:382, name:'BCAA 2:1:1 Powder (per 10g serving)',                                 cal:40,  protein:10,  carbs:0,   fat:0,    serving:'10g' },
+  { id:383, name:'EAA Essential Amino Acids (per 10g serving)',                         cal:35,  protein:8.5, carbs:0,   fat:0,    serving:'10g' },
+  { id:384, name:'Pre-Workout Powder — avg (per scoop 10g)',                            cal:25,  protein:0,   carbs:5,   fat:0,    serving:'10g' },
+  { id:385, name:'L-Glutamine Powder (per 5g serving)',                                 cal:20,  protein:5,   carbs:0,   fat:0,    serving:'5g' },
+  { id:386, name:'Dextrose / Carb Powder (per 100g)',                                   cal:380, protein:0,   carbs:95,  fat:0,    serving:'100g' },
+  { id:387, name:'Maltodextrin (per 100g)',                                              cal:380, protein:0,   carbs:95,  fat:0,    serving:'100g' },
+  { id:388, name:'MCT Oil Powder (per 100g)',                                            cal:720, protein:0,   carbs:0,   fat:80,   serving:'100g' },
 
   // ══ SNACKS & PROCESSED ══
-  { id:320, name:'Oat Cake / Rice Cake (plain)',   cal:370, protein:7,   carbs:82,  fat:1.7,  serving:'100g' },
-  { id:321, name:'Dark Chocolate 70%',             cal:598, protein:7.8, carbs:46,  fat:43,   serving:'100g' },
-  { id:322, name:'Dark Chocolate 85%',             cal:598, protein:10,  carbs:34,  fat:48,   serving:'100g' },
-  { id:323, name:'Granola (plain)',                cal:471, protein:10,  carbs:64,  fat:21,   serving:'100g' },
-  { id:324, name:'Protein Bar (avg)',              cal:350, protein:30,  carbs:35,  fat:8,    serving:'100g' },
-  { id:325, name:'Corn Tortilla Chip',             cal:487, protein:7.8, carbs:65,  fat:23,   serving:'100g' },
+  { id:390, name:'Oat Cake / Rice Cake (plain)',   cal:370, protein:7,   carbs:82,  fat:1.7,  serving:'100g' },
+  { id:391, name:'Dark Chocolate 70%',             cal:598, protein:7.8, carbs:46,  fat:43,   serving:'100g' },
+  { id:392, name:'Dark Chocolate 85%',             cal:598, protein:10,  carbs:34,  fat:48,   serving:'100g' },
+  { id:393, name:'Granola (plain)',                cal:471, protein:10,  carbs:64,  fat:21,   serving:'100g' },
+  { id:394, name:'Protein Bar (avg)',              cal:350, protein:30,  carbs:35,  fat:8,    serving:'100g' },
+  { id:395, name:'Corn Tortilla Chip',             cal:487, protein:7.8, carbs:65,  fat:23,   serving:'100g' },
 
   // ══ MOROCCAN DAIRY & EGGS (supermarket brands) ══
   { id:400, name:'Centrale Lait Danone Milk (whole, 3.5%)',     cal:61,  protein:3.2, carbs:4.8, fat:3.5,  serving:'100ml' },
