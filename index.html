@@ -12700,20 +12700,22 @@ logSelectedFood = function() {
   const inScoopMode  = scoopWrap && scoopWrap.style.display !== 'none';
   const inCustomGram = gramBlock && gramBlock.style.display !== 'none';
 
-  let multiplier, nameLabel;
+  let multiplier, nameLabel, qty;
 
   if (inScoopMode) {
     const scoops  = parseFloat(document.getElementById('food-scoop-val').value) || 1;
+    qty           = scoops;
     multiplier    = scoops;  // DB values are already per 1 serving/scoop
     const totalG  = Math.round(scoops * servingGrams);
     const sLabel  = scoops === 1 ? servingName : servingName + 's';
     nameLabel     = f.name + ` (${scoops} ${sLabel} · ${totalG}g)`;
   } else if (inCustomGram) {
     const grams  = parseFloat(document.getElementById('food-gram-val').value) || servingGrams;
+    qty          = grams;
     multiplier   = hasNamedServing ? grams / servingGrams : grams / 100;
     nameLabel    = f.name + ` (${grams}g)`;
   } else {
-    const qty  = parseFloat(document.getElementById('food-qty').value) || 1;
+    qty        = parseFloat(document.getElementById('food-qty').value) || 1;
     multiplier = qty;
     nameLabel  = f.name + ` (${qty * 100}g)`;
   }
