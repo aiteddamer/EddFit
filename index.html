@@ -10504,34 +10504,67 @@ function generateShoppingList(source) {
   const meals = ['breakfast', 'lunch', 'dinner', 'snacks'];
   const itemMap = {};
 
-  function addItem(it) {
-    if (!it || !it.name) return;
-    const base = _extractBaseIngredient(it.name);
+  // Build recipe lookup map once
+  const recipeMap = {};
+  (State.recipes || []).forEach(r => { recipeMap[r.id] = r; });
+
+  function addRawIngredient(name, grams, cal, protein, carbs, fat, src) {
+    const base = _extractBaseIngredient(name);
     const norm = base.toLowerCase().trim();
-    if (!norm) return;
+    if (!norm || norm === 'custom item') return;
     if (!itemMap[norm]) {
       itemMap[norm] = {
         displayName: base,
-        count: 0,
+        totalGrams: 0,
         totalCal: 0,
         totalProtein: 0,
         totalCarbs: 0,
         totalFat: 0,
-        totalGrams: 0,
+        count: 0,
         sources: new Set(),
         category: _categorizeFoodItem(base)
       };
     }
     const entry = itemMap[norm];
     entry.count++;
-    entry.totalCal     += (it.cal     || 0);
-    entry.totalProtein += (it.protein || 0);
-    entry.totalCarbs   += (it.carbs   || 0);
-    entry.totalFat     += (it.fat     || 0);
-    // Try to extract grams from name label
-    const gm = (it.name || '').match(/\((\d+(?:\.\d+)?)\s*g\)/);
-    if (gm) entry.totalGrams += parseFloat(gm[1]);
-    entry.sources.add(it._source || 'plan');
+    entry.totalGrams   += (grams   || 0);
+    entry.totalCal     += (cal     || 0);
+    entry.totalProtein += (protein || 0);
+    entry.totalCarbs   += (carbs   || 0);
+    entry.totalFat     += (fat     || 0);
+    entry.sources.add(src || 'plan');
+  }
+
+  function addItem(it, src) {
+    if (!it || !it.name) return;
+    src = src || 'plan';
+
+    // Recipe — expand into individual ingredients
+    if (it._mpType === 'recipe' && it._recipeId && recipeMap[it._recipeId]) {
+      const recipe = recipeMap[it._recipeId];
+      const servings = it.qty || 1;
+      (recipe.ingredients || []).forEach(ri => {
+        const f = ri.food;
+        if (!f || !f.name) return;
+        const grams = (ri.grams || 100) * servings;
+        const mult = grams / 100;
+        addRawIngredient(f.name, grams,
+          f.cal * mult, f.protein * mult, f.carbs * mult, f.fat * mult, src);
+      });
+      return;
+    }
+
+    // Regular food or custom food — extract clean name and grams
+    const cleanName = _extractBaseIngredient(it.name);
+    // Grams: prefer mode/qty fields, fallback to regex on name
+    let grams = 0;
+    if (it.mode === 'gram') {
+      grams = it.qty || 100;
+    } else {
+      const gm = (it.name || '').match(/\((\d+(?:\.\d+)?)\s*g\)/);
+      if (gm) grams = parseFloat(gm[1]);
+    }
+    addRawIngredient(cleanName, grams, it.cal || 0, it.protein || 0, it.carbs || 0, it.fat || 0, src);
   }
 
   // From meal plan
@@ -10541,7 +10574,7 @@ function generateShoppingList(source) {
       let items = dayPlan[meal];
       if (!items) return;
       if (!Array.isArray(items)) items = [items];
-      items.forEach(it => addItem({ ...it, _source: 'plan' }));
+      items.forEach(it => addItem(it, 'plan'));
     });
   });
 
@@ -10552,7 +10585,7 @@ function generateShoppingList(source) {
       if (!log || !log.meals) return;
       meals.forEach(meal => {
         const items = log.meals[meal] || [];
-        items.forEach(it => addItem({ ...it, _source: 'logged' }));
+        items.forEach(it => addItem(it, 'logged'));
       });
     });
   }
@@ -10658,7 +10691,7 @@ function renderShoppingListContent() {
       const badgeHtml = source === 'both' && it.sources
         ? [...it.sources].map(s => `<span style="font-size:0.58rem;padding:1px 5px;border-radius:8px;font-weight:700;background:${s==='plan'?'var(--blue-dim)':'var(--green-dim)'};color:${s==='plan'?'var(--blue)':'var(--green)'}">${s==='plan'?'plan':'logged'}</span>`).join(' ')
         : '';
-      const gramsLabel = it.totalGrams > 0 ? `${Math.round(it.totalGrams)}g total` : `×${it.count} this week`;
+      const gramsLabel = it.totalGrams > 0 ? `${Math.round(it.totalGrams)}g` : it.count > 1 ? `x${it.count} this week` : '';
 
       html += `
         <label id="shop-row-${CSS.escape(norm)}" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:7px 8px;border-radius:var(--radius-sm);transition:background 0.1s;opacity:${isChecked?'0.38':'1'}" onmouseover="this.style.background='var(--bg-elevated)'" onmouseout="this.style.background='transparent'">
@@ -13688,7 +13721,9 @@ saveMpCell = function() {
     protein: Math.round(f.protein * multiplier),
     carbs:   Math.round(f.carbs   * multiplier),
     fat:     Math.round(f.fat     * multiplier),
-    qty, mode: mpServingMode
+    qty, mode: mpServingMode,
+    _mpType: f._mpType || 'food',
+    _recipeId: f._mpType === 'recipe' ? f.id : undefined
   };
   if (!State.mealPlan[window._mpCellDate]) State.mealPlan[window._mpCellDate] = {};
   const slot = State.mealPlan[window._mpCellDate][window._mpCellMeal];
