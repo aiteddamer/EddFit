@@ -4701,7 +4701,8 @@ function dismissSplash() {
     </div>
     <div id="selected-food-preview" style="display:none">
       <div class="divider"></div>
-      <div style="font-size:0.9rem; font-weight:700; margin-bottom:8px" id="sfp-name"></div>
+      <div style="font-size:0.9rem; font-weight:700; margin-bottom:2px" id="sfp-name"></div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:8px" id="sfp-serving-hint"></div>
       <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap">
         <span class="tag tag-accent" id="sfp-cal"></span>
         <span class="tag tag-blue" id="sfp-pro"></span>
@@ -4723,7 +4724,7 @@ function dismissSplash() {
       </div>
       <div id="food-gram-input" style="display:none;margin-top:8px">
         <div class="form-group">
-          <label class="form-label">Grams</label>
+          <label class="form-label" id="food-gram-label">Grams</label>
           <input type="number" class="form-input" id="food-gram-val" value="100" min="1" step="1" oninput="updateFoodPreview()" />
         </div>
       </div>
@@ -5742,7 +5743,7 @@ const FOOD_DB = [
   { id:51,  name:'Salmon Sockeye (raw)',           cal:168, protein:23,  carbs:0,   fat:8,    serving:'100g' },
   { id:52,  name:'Tuna Yellowfin (raw)',           cal:108, protein:24,  carbs:0,   fat:0.5,  serving:'100g' },
   { id:53,  name:'Tuna Bluefin (raw)',             cal:144, protein:23,  carbs:0,   fat:5,    serving:'100g' },
-  { id:54,  name:'Tuna (canned in water)',         cal:99,  protein:23,  carbs:0,   fat:0.5,  serving:'100g' },
+  { id:54,  name:'Tuna (canned in water)',         cal:99,  protein:23,  carbs:0,   fat:0.5,  serving:'130g can (drained)' },
   { id:55,  name:'Tilapia (raw)',                  cal:96,  protein:20,  carbs:0,   fat:1.7,  serving:'100g' },
   { id:56,  name:'Cod (raw)',                      cal:82,  protein:18,  carbs:0,   fat:0.7,  serving:'100g' },
   { id:57,  name:'Haddock (raw)',                  cal:87,  protein:19,  carbs:0,   fat:0.7,  serving:'100g' },
@@ -5988,7 +5989,7 @@ const FOOD_DB = [
   { id:325, name:'ON Platinum HydroWhey — Turbo Chocolate (per scoop 39g)',            cal:140, protein:30,  carbs:2,   fat:1,    serving:'39g scoop' },
   { id:326, name:'ON Platinum HydroWhey (per 100g)',                                    cal:359, protein:77,  carbs:5.1, fat:2.6,  serving:'100g' },
   // Amino Energy
-  { id:327, name:'ON Essential Amino Energy (per 2 scoops 9g)',                         cal:10,  protein:0,   carbs:2,   fat:0,    serving:'9g' },
+  { id:327, name:'ON Essential Amino Energy (per 2 scoops 9g)',                         cal:10,  protein:0,   carbs:2,   fat:0,    serving:'9g serving' },
 
   // ══ SUPPLEMENTS — DYMATIZE ══
   { id:330, name:'Dymatize ISO100 Hydrolyzed — Chocolate Fudge (per scoop 29g)',        cal:110, protein:25,  carbs:0.5, fat:0.5,  serving:'29g scoop' },
@@ -6032,11 +6033,11 @@ const FOOD_DB = [
   { id:378, name:'Plant Protein (pea+rice blend, per 100g)',                            cal:360, protein:75,  carbs:8,   fat:5,    serving:'100g' },
   { id:379, name:'Mass Gainer — Generic 3:1 ratio (per 100g)',                          cal:380, protein:20,  carbs:60,  fat:3,    serving:'100g' },
   { id:380, name:'Mass Gainer — Generic 4:1 ratio (per 100g)',                          cal:390, protein:18,  carbs:72,  fat:3,    serving:'100g' },
-  { id:381, name:'Creatine Monohydrate (per 5g serving)',                               cal:0,   protein:0,   carbs:0,   fat:0,    serving:'5g' },
-  { id:382, name:'BCAA 2:1:1 Powder (per 10g serving)',                                 cal:40,  protein:10,  carbs:0,   fat:0,    serving:'10g' },
-  { id:383, name:'EAA Essential Amino Acids (per 10g serving)',                         cal:35,  protein:8.5, carbs:0,   fat:0,    serving:'10g' },
-  { id:384, name:'Pre-Workout Powder — avg (per scoop 10g)',                            cal:25,  protein:0,   carbs:5,   fat:0,    serving:'10g' },
-  { id:385, name:'L-Glutamine Powder (per 5g serving)',                                 cal:20,  protein:5,   carbs:0,   fat:0,    serving:'5g' },
+  { id:381, name:'Creatine Monohydrate (per 5g serving)',                               cal:0,   protein:0,   carbs:0,   fat:0,    serving:'5g serving' },
+  { id:382, name:'BCAA 2:1:1 Powder (per 10g serving)',                                 cal:40,  protein:10,  carbs:0,   fat:0,    serving:'10g serving' },
+  { id:383, name:'EAA Essential Amino Acids (per 10g serving)',                         cal:35,  protein:8.5, carbs:0,   fat:0,    serving:'10g serving' },
+  { id:384, name:'Pre-Workout Powder — avg (per scoop 10g)',                            cal:25,  protein:0,   carbs:5,   fat:0,    serving:'10g scoop' },
+  { id:385, name:'L-Glutamine Powder (per 5g serving)',                                 cal:20,  protein:5,   carbs:0,   fat:0,    serving:'5g serving' },
   { id:386, name:'Dextrose / Carb Powder (per 100g)',                                   cal:380, protein:0,   carbs:95,  fat:0,    serving:'100g' },
   { id:387, name:'Maltodextrin (per 100g)',                                              cal:380, protein:0,   carbs:95,  fat:0,    serving:'100g' },
   { id:388, name:'MCT Oil Powder (per 100g)',                                            cal:720, protein:0,   carbs:0,   fat:80,   serving:'100g' },
@@ -6077,9 +6078,7 @@ const FOOD_DB = [
   { id:423, name:'Briogel Pain de Mie (sliced white)',          cal:268, protein:8.5, carbs:51,  fat:4,    serving:'100g' },
   { id:424, name:'Holista Baguette (packaged)',                 cal:275, protein:9,   carbs:56,  fat:1.5,  serving:'100g' },
   { id:425, name:'Boulangerie Khobz (round flatbread, plain)',  cal:258, protein:8,   carbs:53,  fat:1.5,  serving:'100g' },
-  { id:426, name:'Rghaif / Msemen (plain, packaged)',           cal:310, protein:7,   carbs:44,  fat:12,   serving:'100g' },
   { id:427, name:'Batbout (pocket bread, packaged)',            cal:255, protein:9,   carbs:50,  fat:2,    serving:'100g' },
-  { id:428, name:'Harcha (semolina flatbread, packaged)',       cal:350, protein:8,   carbs:50,  fat:14,   serving:'100g' },
   { id:429, name:'Biscuits Kefayeh (plain digestive)',          cal:450, protein:7,   carbs:69,  fat:17,   serving:'100g' },
   { id:430, name:'Bimo Biscuits Pépito (chocolate)',            cal:490, protein:6,   carbs:67,  fat:22,   serving:'100g' },
   { id:431, name:'Bimo Crackers (plain, salted)',               cal:425, protein:9,   carbs:68,  fat:14,   serving:'100g' },
@@ -6095,7 +6094,6 @@ const FOOD_DB = [
   { id:444, name:'Afia Sunflower Oil (Morocco)',                cal:884, protein:0,   carbs:0,   fat:100,  serving:'100g' },
   { id:445, name:'Huilor Olive Oil (Morocco)',                  cal:884, protein:0,   carbs:0,   fat:100,  serving:'100g' },
   { id:446, name:'Nutella',                                     cal:539, protein:6,   carbs:58,  fat:31,   serving:'100g' },
-  { id:447, name:'Amlou (argan oil almond spread)',             cal:620, protein:14,  carbs:12,  fat:56,   serving:'100g' },
   { id:448, name:'Beldi Honey (Moroccan raw honey)',            cal:304, protein:0.5, carbs:82,  fat:0,    serving:'100g' },
   { id:449, name:'Confiture Aicha (apricot jam)',               cal:255, protein:0.5, carbs:63,  fat:0,    serving:'100g' },
   { id:450, name:'Confiture Aicha (strawberry jam)',            cal:250, protein:0.5, carbs:62,  fat:0,    serving:'100g' },
@@ -6103,15 +6101,15 @@ const FOOD_DB = [
   // ══ MOROCCAN CANNED & JARRED GOODS ══
   { id:460, name:'Aicha Tomato Paste (double concentrate)',     cal:82,  protein:4.5, carbs:17,  fat:0.5,  serving:'100g' },
   { id:461, name:'Aicha Harissa (canned)',                      cal:55,  protein:2.5, carbs:7,   fat:2,    serving:'100g' },
-  { id:462, name:'Aicha Sardines in Tomato Sauce',              cal:155, protein:17,  carbs:3,   fat:8,    serving:'100g' },
-  { id:463, name:'Aicha Sardines in Olive Oil',                 cal:215, protein:22,  carbs:0,   fat:14,   serving:'100g' },
-  { id:464, name:'Aicha Tuna in Sunflower Oil',                 cal:200, protein:26,  carbs:0,   fat:11,   serving:'100g' },
-  { id:465, name:'Aicha Tuna in Water',                         cal:100, protein:24,  carbs:0,   fat:0.8,  serving:'100g' },
-  { id:466, name:'Morocco Gold Canned Chickpeas (cooked)',      cal:140, protein:8,   carbs:22,  fat:2.5,  serving:'100g' },
-  { id:467, name:'Canned Lentils (Morocco supermarket)',        cal:116, protein:9,   carbs:20,  fat:0.4,  serving:'100g' },
-  { id:468, name:'Canned Fava Beans / Ful Medames',            cal:110, protein:8,   carbs:18,  fat:0.4,  serving:'100g' },
-  { id:469, name:'Aicha Corn (canned)',                         cal:86,  protein:3.3, carbs:19,  fat:1.4,  serving:'100g' },
-  { id:470, name:'Aicha Peas (canned)',                         cal:69,  protein:5,   carbs:12,  fat:0.4,  serving:'100g' },
+  { id:462, name:'Aicha Sardines in Tomato Sauce',              cal:155, protein:17,  carbs:3,   fat:8,    serving:'125g can' },
+  { id:463, name:'Aicha Sardines in Olive Oil',                 cal:215, protein:22,  carbs:0,   fat:14,   serving:'125g can' },
+  { id:464, name:'Aicha Tuna in Sunflower Oil',                 cal:200, protein:26,  carbs:0,   fat:11,   serving:'160g can (drained)' },
+  { id:465, name:'Aicha Tuna in Water',                         cal:100, protein:24,  carbs:0,   fat:0.8,  serving:'160g can (drained)' },
+  { id:466, name:'Morocco Gold Canned Chickpeas (cooked)',      cal:140, protein:8,   carbs:22,  fat:2.5,  serving:'240g can (drained)' },
+  { id:467, name:'Canned Lentils (Morocco supermarket)',        cal:116, protein:9,   carbs:20,  fat:0.4,  serving:'240g can (drained)' },
+  { id:468, name:'Canned Fava Beans / Ful Medames',            cal:110, protein:8,   carbs:18,  fat:0.4,  serving:'240g can (drained)' },
+  { id:469, name:'Aicha Corn (canned)',                         cal:86,  protein:3.3, carbs:19,  fat:1.4,  serving:'240g can (drained)' },
+  { id:470, name:'Aicha Peas (canned)',                         cal:69,  protein:5,   carbs:12,  fat:0.4,  serving:'240g can (drained)' },
   { id:471, name:'Olives Beldi (black, brine-cured)',           cal:135, protein:1,   carbs:3.8, fat:13.5, serving:'100g' },
   { id:472, name:'Olives Verts (green, cracked, marinated)',   cal:120, protein:1,   carbs:2.5, fat:12,   serving:'100g' },
   { id:473, name:'Preserved Lemons (Moroccan, jarred)',         cal:30,  protein:1,   carbs:7,   fat:0.3,  serving:'100g' },
@@ -6124,7 +6122,6 @@ const FOOD_DB = [
   { id:484, name:'Koutoubia Turkey Ham (sliced)',               cal:115, protein:17,  carbs:2,   fat:4.5,  serving:'100g' },
   { id:485, name:'Koutoubia Beef Mortadella',                   cal:280, protein:14,  carbs:4,   fat:23,   serving:'100g' },
   { id:486, name:'Koutoubia Chicken Mortadella',               cal:230, protein:14,  carbs:4,   fat:18,   serving:'100g' },
-  { id:487, name:'Koutoubia Pastilla Chicken (frozen, raw)',    cal:240, protein:12,  carbs:22,  fat:12,   serving:'100g' },
   { id:488, name:'Hanini Lamb Shoulder (packaged, raw)',        cal:235, protein:17,  carbs:0,   fat:18.5, serving:'100g' },
   { id:489, name:'Canned Corned Beef (supermarket Morocco)',    cal:250, protein:26,  carbs:0,   fat:16,   serving:'100g' },
 
@@ -6138,17 +6135,12 @@ const FOOD_DB = [
   { id:501, name:'Takis (Morocco market, fuego)',               cal:490, protein:6,   carbs:65,  fat:23,   serving:'100g' },
   { id:502, name:'Roasted Peanuts (Moroccan market, salted)',   cal:585, protein:24,  carbs:18,  fat:50,   serving:'100g' },
   { id:503, name:'Roasted Chickpeas (Moroccan snack, salted)',  cal:357, protein:19,  carbs:55,  fat:5,    serving:'100g' },
-  { id:504, name:'Grilled Corn (street snack, plain)',          cal:86,  protein:3.3, carbs:19,  fat:1.4,  serving:'100g' },
   { id:505, name:'Beldi Peanuts (grilled, unsalted)',           cal:567, protein:26,  carbs:16,  fat:49,   serving:'100g' },
-  { id:506, name:'Halwa Chebakia (sesame honey pastry)',        cal:480, protein:7,   carbs:58,  fat:25,   serving:'100g' },
-  { id:507, name:'Sellou (sfouf, energy mix)',                  cal:510, protein:12,  carbs:55,  fat:28,   serving:'100g' },
-  { id:508, name:'Briouates (sweet almond, packaged)',          cal:430, protein:8,   carbs:50,  fat:23,   serving:'100g' },
+
 
   // ══ MOROCCAN BEVERAGES ══
   { id:515, name:'Centrale Lait Jus d\'Orange (packaged)',      cal:45,  protein:0.7, carbs:10,  fat:0.1,  serving:'100ml' },
   { id:516, name:'Juicée Orange Juice (Morocco)',               cal:43,  protein:0.5, carbs:10,  fat:0,    serving:'100ml' },
-  { id:517, name:'Raibi Jamila (strawberry, sweetened)',        cal:95,  protein:3,   carbs:16,  fat:2,    serving:'100ml' },
-  { id:518, name:'Raibi Jamila (plain, lightly sweetened)',     cal:72,  protein:3.5, carbs:9,   fat:2.5,  serving:'100ml' },
   { id:519, name:'Coca-Cola (Morocco, can)',                    cal:42,  protein:0,   carbs:10.6,fat:0,    serving:'100ml' },
   { id:520, name:'Coca-Cola Zero (Morocco)',                    cal:0,   protein:0,   carbs:0,   fat:0,    serving:'100ml' },
   { id:521, name:'Pepsi Morocco',                              cal:43,  protein:0,   carbs:11,  fat:0,    serving:'100ml' },
@@ -6158,12 +6150,8 @@ const FOOD_DB = [
   { id:525, name:'Boulanouar Mineral Water',                    cal:0,   protein:0,   carbs:0,   fat:0,    serving:'100ml' },
   { id:526, name:'Sidi Ali Mineral Water',                      cal:0,   protein:0,   carbs:0,   fat:0,    serving:'100ml' },
   { id:527, name:'Oulmès Sparkling Water',                      cal:0,   protein:0,   carbs:0,   fat:0,    serving:'100ml' },
-  { id:528, name:'Halib Sport Protein Milk (chocolate)',        cal:70,  protein:6,   carbs:9,   fat:1.5,  serving:'100ml' },
   { id:529, name:'Café Maure (coffee, black, no sugar)',        cal:2,   protein:0.3, carbs:0,   fat:0,    serving:'100ml' },
-  { id:530, name:'Atay / Moroccan Mint Tea (with sugar, avg)', cal:60,  protein:0,   carbs:15,  fat:0,    serving:'100ml' },
   { id:531, name:'Atay / Moroccan Mint Tea (no sugar)',         cal:1,   protein:0,   carbs:0.2, fat:0,    serving:'100ml' },
-  { id:532, name:'Drosselmeyer Energy Drink (Morocco)',         cal:45,  protein:0,   carbs:11,  fat:0,    serving:'100ml' },
-  { id:533, name:'Hawai Sport Drink (isotonic)',                cal:28,  protein:0,   carbs:7,   fat:0,    serving:'100ml' },
 
   // ══ MOROCCAN GRAINS, FLOUR & DRIED GOODS ══
   { id:540, name:'Semoule Fine (fine durum semolina, raw)',     cal:360, protein:12,  carbs:74,  fat:1,    serving:'100g' },
@@ -6186,24 +6174,16 @@ const FOOD_DB = [
   { id:559, name:'Lentilles Vertes (green lentils, dried)',     cal:352, protein:24,  carbs:60,  fat:1.1,  serving:'100g' },
 
   // ══ MOROCCAN SPICES & CONDIMENTS ══
-  { id:565, name:'Ras el Hanout (spice blend, dry)',            cal:340, protein:10,  carbs:55,  fat:11,   serving:'100g' },
   { id:566, name:'Cumin (ground, dry)',                         cal:375, protein:18,  carbs:44,  fat:22,   serving:'100g' },
   { id:567, name:'Paprika (sweet, ground)',                     cal:282, protein:14,  carbs:54,  fat:13,   serving:'100g' },
   { id:568, name:'Cinnamon (ground)',                           cal:247, protein:4,   carbs:81,  fat:1.2,  serving:'100g' },
   { id:569, name:'Ginger (ground, dry)',                        cal:335, protein:9,   carbs:71,  fat:4.2,  serving:'100g' },
   { id:570, name:'Turmeric (ground)',                           cal:312, protein:10,  carbs:68,  fat:3.3,  serving:'100g' },
-  { id:571, name:'Harissa Paste (Moroccan, homemade-style)',    cal:58,  protein:2.5, carbs:7.5, fat:2.5,  serving:'100g' },
-  { id:572, name:'Chermoula Paste (packaged)',                  cal:120, protein:2,   carbs:6,   fat:10,   serving:'100g' },
   { id:573, name:'Moroccan Sea Salt (Safi)',                    cal:0,   protein:0,   carbs:0,   fat:0,    serving:'100g' },
 
   // ══ MOROCCAN FROZEN & READY-TO-EAT ══
-  { id:580, name:'Koutoubia Frozen Merguez Pizza',              cal:255, protein:11,  carbs:28,  fat:11,   serving:'100g' },
   { id:581, name:'McCain Frozen French Fries (Morocco)',        cal:165, protein:2.5, carbs:25,  fat:6.2,  serving:'100g' },
-  { id:582, name:'Frozen Samak (fish fillet, breaded)',         cal:195, protein:14,  carbs:18,  fat:7,    serving:'100g' },
-  { id:583, name:'Frozen Calamari Rings (supermarket)',         cal:175, protein:13,  carbs:16,  fat:6,    serving:'100g' },
   { id:584, name:'Frozen Chicken Nuggets (Koutoubia)',          cal:240, protein:14,  carbs:20,  fat:11,   serving:'100g' },
-  { id:585, name:'Harira Soup (packaged dry mix)',              cal:340, protein:15,  carbs:60,  fat:4,    serving:'100g' },
-  { id:586, name:'Bissara Soup (packaged dry mix, fava)',       cal:330, protein:20,  carbs:56,  fat:3,    serving:'100g' },
 ];
 
 
@@ -8023,8 +8003,46 @@ function selectCustomFood(id) {
 
 function selectFood(id) {
   selectedFood = FOOD_DB.find(f=>f.id===id);
+  if (!selectedFood) return;
   document.getElementById('food-search').value = selectedFood.name;
   document.getElementById('food-search-results').classList.remove('open');
+
+  // Parse serving string to detect a specific gram/ml weight
+  // e.g. '31g scoop' -> 31, '100g' -> 100, '334g serving' -> 334, '100ml' -> 100
+  const servingStr = selectedFood.serving || '100g';
+  const servingMatch = servingStr.match(/^(\d+(?:\.\d+)?)\s*(g|ml)/i);
+  const servingGrams = servingMatch ? parseFloat(servingMatch[1]) : 100;
+  const isDefaultServing = (servingGrams === 100);
+
+  const unitSelect = document.getElementById('food-unit');
+  const gramInput  = document.getElementById('food-gram-input');
+  const gramVal    = document.getElementById('food-gram-val');
+  const qtyWrap    = document.getElementById('food-qty-wrap');
+  const qtyEl      = document.getElementById('food-qty');
+
+  // Build serving name (e.g. "scoop", "serving", "can") from the serving string
+  const servingName = servingStr.replace(/^\d+(?:\.\d+)?\s*(g|ml)\s*/i, '').trim();
+  const gramLabelEl = document.getElementById('food-gram-label');
+
+  if (!isDefaultServing) {
+    // Pre-select custom grams and pre-fill with the serving weight
+    if (unitSelect)   unitSelect.value = 'gram';
+    if (gramVal)      gramVal.value = servingGrams;
+    if (gramInput)    gramInput.style.display = 'block';
+    if (qtyWrap)      qtyWrap.style.display = 'none';
+    // Update label: "Grams  (1 scoop = 31g)"
+    if (gramLabelEl)  gramLabelEl.textContent = servingName
+      ? 'Grams  (1 ' + servingName + ' = ' + servingGrams + 'g)'
+      : 'Grams';
+  } else {
+    // Default 100g mode
+    if (unitSelect)   unitSelect.value = '100g';
+    if (qtyEl)        qtyEl.value = 1;
+    if (gramInput)    gramInput.style.display = 'none';
+    if (qtyWrap)      qtyWrap.style.display = 'flex';
+    if (gramLabelEl)  gramLabelEl.textContent = 'Grams';
+  }
+
   updateFoodPreview();
   safeStyle('selected-food-preview','display','block');
 }
@@ -12573,33 +12591,60 @@ updateFoodPreview = function() {
   if (!selectedFood) return;
   const unit = document.getElementById('food-unit').value;
   const gramInput = document.getElementById('food-gram-input');
-  const qtyWrap = document.getElementById('food-qty-wrap');
+  const qtyWrap   = document.getElementById('food-qty-wrap');
+  const gramLabel = document.getElementById('food-gram-label'); // optional hint label
   const isCustomG = unit === 'gram';
   if (gramInput) gramInput.style.display = isCustomG ? 'block' : 'none';
-  if (qtyWrap) qtyWrap.style.display = isCustomG ? 'none' : 'flex';
+  if (qtyWrap)   qtyWrap.style.display   = isCustomG ? 'none'  : 'flex';
+
   const qty = +document.getElementById('food-qty').value || 1;
-  const f = selectedFood;
+  const f   = selectedFood;
+
+  // Parse the food's canonical serving weight from its serving string
+  const servingStr   = f.serving || '100g';
+  const servingMatch = servingStr.match(/^(\d+(?:\.\d+)?)\s*(g|ml)/i);
+  const servingGrams = servingMatch ? parseFloat(servingMatch[1]) : 100;
+
   let multiplier;
+  let gramsCurrent;
   if (unit === 'serving') {
-    // Custom unit food — macros are already per 1 serving; multiply by qty
     multiplier = qty;
   } else if (unit === '100g') {
-    multiplier = qty;
+    multiplier = qty; // qty × (100g macros)
   } else {
-    // Custom grams
-    const grams = +document.getElementById('food-gram-val')?.value || 100;
-    multiplier = grams / 100;
+    // Custom grams mode
+    gramsCurrent = +document.getElementById('food-gram-val')?.value || servingGrams;
+    multiplier   = gramsCurrent / 100;
   }
+
+  // Build serving hint shown under the food name
+  let hint = '';
+  if (unit === 'gram') {
+    const g = gramsCurrent || servingGrams;
+    // If this food has a named serving (e.g. "1 scoop = 31g"), show it
+    if (servingGrams !== 100) {
+      const servingName = servingStr.replace(/^\d+(?:\.\d+)?\s*(g|ml)\s*/i, '').trim() || 'serving';
+      const numScoops   = g / servingGrams;
+      const scoopLabel  = Number.isInteger(numScoops) ? numScoops + '×' + servingStr : g + 'g';
+      hint = scoopLabel + (servingName ? ' · ' + servingName : '');
+    } else {
+      hint = g + 'g';
+    }
+  } else if (unit === '100g') {
+    hint = (qty * 100) + 'g';
+  } else if (unit === 'serving') {
+    hint = qty > 1 ? qty + '× ' + servingStr : servingStr;
+  }
+
   document.getElementById('sfp-name').textContent = f.name;
-  document.getElementById('sfp-cal').textContent = Math.round(f.cal*multiplier) + ' kcal';
-  document.getElementById('sfp-pro').textContent = Math.round(f.protein*multiplier) + 'g protein';
-  document.getElementById('sfp-carb').textContent = Math.round(f.carbs*multiplier) + 'g carbs';
-  document.getElementById('sfp-fat').textContent = Math.round(f.fat*multiplier) + 'g fat';
-  // Show serving label hint
-  const nameEl = document.getElementById('sfp-name');
-  if (nameEl && unit === 'serving' && f.serving && f.serving !== '1 serving') {
-    nameEl.textContent = f.name + ' (' + (qty > 1 ? qty + '×' : '') + f.serving + ')';
-  }
+  document.getElementById('sfp-cal').textContent  = Math.round(f.cal     * multiplier) + ' kcal';
+  document.getElementById('sfp-pro').textContent  = Math.round(f.protein * multiplier) + 'g protein';
+  document.getElementById('sfp-carb').textContent = Math.round(f.carbs   * multiplier) + 'g carbs';
+  document.getElementById('sfp-fat').textContent  = Math.round(f.fat     * multiplier) + 'g fat';
+
+  // Show the hint below the name if the element exists
+  const hintEl = document.getElementById('sfp-serving-hint');
+  if (hintEl) hintEl.textContent = hint;
 };
 
 // Better logSelectedFood with gram + unit serving support
@@ -12607,11 +12652,16 @@ const _origLogSelectedFood = logSelectedFood;
 logSelectedFood = function() {
   if (!selectedFood) return;
   const unit = document.getElementById('food-unit').value;
-  const qty = +document.getElementById('food-qty').value || 1;
-  const f = selectedFood;
+  const qty  = +document.getElementById('food-qty').value || 1;
+  const f    = selectedFood;
+
+  // Parse canonical serving weight
+  const servingStr   = f.serving || '100g';
+  const servingMatch = servingStr.match(/^(\d+(?:\.\d+)?)\s*(g|ml)/i);
+  const servingGrams = servingMatch ? parseFloat(servingMatch[1]) : 100;
+
   let multiplier, nameLabel;
   if (unit === 'serving') {
-    // Unit food: macros per 1 serving, scale by qty
     multiplier = qty;
     const servingLabel = f.serving && f.serving !== '1 serving' ? f.serving : 'serving';
     nameLabel = f.name + (qty !== 1 ? ` (${qty}×${servingLabel})` : ` (${servingLabel})`);
@@ -12619,9 +12669,17 @@ logSelectedFood = function() {
     multiplier = qty;
     nameLabel = f.name + ` (${qty*100}g)`;
   } else {
-    const grams = +document.getElementById('food-gram-val')?.value || 100;
-    multiplier = grams / 100;
-    nameLabel = f.name + ` (${grams}g)`;
+    const grams = +document.getElementById('food-gram-val')?.value || servingGrams;
+    multiplier  = grams / 100;
+    // Build a nice label: "31g scoop" → "1 scoop (31g)", "62g" → "2 scoops (62g)"
+    if (servingGrams !== 100) {
+      const servingName = servingStr.replace(/^\d+(?:\.\d+)?\s*(g|ml)\s*/i, '').trim() || 'serving';
+      const numUnits = grams / servingGrams;
+      const unitStr  = Number.isInteger(numUnits) ? numUnits + '× ' + servingStr : grams + 'g';
+      nameLabel = f.name + ` (${unitStr}${servingName ? ' ' + servingName : ''})`;
+    } else {
+      nameLabel = f.name + ` (${grams}g)`;
+    }
   }
   const meal = document.getElementById('food-meal-select').value;
   const entry = {
