@@ -16051,7 +16051,6 @@ function renderLeaderboard(entries) {
       const q = window._fbQuery(
         window._fbCollection(window._fbDb, 'shared_items'),
         window._fbWhere('toUid', '==', me.uid),
-        window._fbOrderBy('sentAt', 'desc'),
         window._fbLimit(40)
       );
       const snap = await window._fbGetDocs(q);
@@ -16062,13 +16061,20 @@ function renderLeaderboard(entries) {
         return;
       }
 
-      const unread = snap.docs.filter(d => !d.data().read).length;
+      // Sort client-side by sentAt descending (avoids composite index requirement)
+      const sortedDocs = snap.docs.slice().sort((a, b) => {
+        const aT = a.data().sentAt?.toMillis?.() || 0;
+        const bT = b.data().sentAt?.toMillis?.() || 0;
+        return bT - aT;
+      });
+
+      const unread = sortedDocs.filter(d => !d.data().read).length;
       if (badge) {
         badge.textContent = unread;
         badge.style.display = unread > 0 ? '' : 'none';
       }
 
-      container.innerHTML = snap.docs.map(docSnap => {
+      container.innerHTML = sortedDocs.map(docSnap => {
         const d    = docSnap.data();
         const id   = docSnap.id;
         const item = d.data || {};
@@ -16121,7 +16127,7 @@ function renderLeaderboard(entries) {
       }).join('');
 
       // Mark all as read
-      snap.docs.forEach(async docSnap => {
+      sortedDocs.forEach(async docSnap => {
         if (!docSnap.data().read) {
           try { await window._fbUpdateDoc(window._fbDoc(window._fbDb, 'shared_items', docSnap.id), { read: true }); } catch(e) {}
         }
@@ -16129,7 +16135,12 @@ function renderLeaderboard(entries) {
       if (badge) badge.style.display = 'none';
 
     } catch(e) {
-      container.innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><div class="es-text">${e?.code === 'permission-denied' ? 'Permission denied — check Firestore rules for shared_items.' : 'Could not load shared items. Check connection.'}</div></div>`;
+      const msg = e?.code === 'permission-denied'
+        ? 'Permission denied — check Firestore rules for shared_items.'
+        : e?.code === 'failed-precondition'
+        ? 'Missing Firestore index — open the browser console for a link to create it.'
+        : `Could not load shared items (${e?.code || e?.message || 'unknown error'})`;
+      container.innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><div class="es-text">${msg}</div></div>`;
       console.error('loadSharedInbox error:', e);
     }
   };
@@ -18016,24 +18027,32 @@ window.loadSharedProgramsInbox = async function() {
     const q = window._fbQuery(
       window._fbCollection(window._fbDb, 'shared_items'),
       window._fbWhere('toUid', '==', me.uid),
-      window._fbWhere('type', '==', 'program'),
-      window._fbOrderBy('sentAt', 'desc'),
-      window._fbLimit(20)
+      window._fbLimit(50)
     );
     const snap = await window._fbGetDocs(q);
 
-    if (snap.empty) {
+    // Filter to programs only and sort client-side (avoids composite index requirement)
+    const programDocs = snap.docs
+      .filter(d => d.data().type === 'program')
+      .sort((a, b) => {
+        const aT = a.data().sentAt?.toMillis?.() || 0;
+        const bT = b.data().sentAt?.toMillis?.() || 0;
+        return bT - aT;
+      })
+      .slice(0, 20);
+
+    if (programDocs.length === 0) {
       container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="es-icon" style="font-size:1.6rem">📭</div><div class="es-text">No programs shared with you yet — ask a friend to share theirs!</div></div>';
       if (badge) badge.style.display = 'none';
       return;
     }
 
-    const unread = snap.docs.filter(d => !d.data().read).length;
+    const unread = programDocs.filter(d => !d.data().read).length;
     if (badge) { badge.textContent = unread; badge.style.display = unread > 0 ? '' : 'none'; }
 
     const DAY_N = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-    container.innerHTML = snap.docs.map(docSnap => {
+    container.innerHTML = programDocs.map(docSnap => {
       const d    = docSnap.data();
       const id   = docSnap.id;
       const p    = d.data || {};
@@ -18078,7 +18097,7 @@ window.loadSharedProgramsInbox = async function() {
     }).join('');
 
     // Mark all as read
-    snap.docs.forEach(async docSnap => {
+    programDocs.forEach(async docSnap => {
       if (!docSnap.data().read) {
         try { await window._fbUpdateDoc(window._fbDoc(window._fbDb, 'shared_items', docSnap.id), { read: true }); } catch(e) {}
       }
@@ -18086,7 +18105,12 @@ window.loadSharedProgramsInbox = async function() {
     if (badge) badge.style.display = 'none';
 
   } catch(e) {
-    container.innerHTML = `<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">${e?.code === 'permission-denied' ? '⚠️ Permission denied.' : '⚠️ Could not load — check connection.'}</div>`;
+    const msg = e?.code === 'permission-denied'
+      ? '⚠️ Permission denied — check Firestore rules.'
+      : e?.code === 'failed-precondition'
+      ? '⚠️ Missing Firestore index — open the browser console for a link to create it.'
+      : `⚠️ Could not load (${e?.code || e?.message || 'unknown error'})`;
+    container.innerHTML = `<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">${msg}</div>`;
     console.error('loadSharedProgramsInbox error:', e);
   }
 };
