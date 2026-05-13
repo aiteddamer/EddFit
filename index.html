@@ -239,7 +239,7 @@
         profile:{}, targets:{calories:2000,protein:150,carbs:225,fat:67},
         logs:{}, workouts:[], metrics:[], goals:[], recipes:[],
         customFoods:[], mealPlan:{}, currentWorkout:[], streak:0,
-        prefs:{reminders:false,macros:true}
+        prefs:{reminders:false,macros:true}, pantry:{}
       });
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('app-wrapper').style.display = 'block';
@@ -1506,6 +1506,99 @@ html.dark .macro-warning.warn-red {
   #onboarding { align-items: flex-start; padding: 10px 12px; }
   #sidebar { height: 100%; overflow-y: auto; }
 }
+
+/* ═══════════════════════════════════
+   SMART GROCERY PLANNER — SGP STYLES
+   ═══════════════════════════════════ */
+.sgp-pill {
+  font-size:0.7rem;font-weight:700;padding:4px 11px;border-radius:20px;
+  border:1px solid var(--border-active);background:transparent;
+  color:var(--text-secondary);cursor:pointer;transition:all .15s;
+  white-space:nowrap;
+}
+.sgp-pill:hover { background:var(--bg-hover);color:var(--text-primary); }
+.sgp-pill.sgp-pill-on { background:var(--accent);color:var(--bg-base);border-color:var(--accent); }
+html.dark .sgp-pill.sgp-pill-on { color:#111; }
+
+.sgp-cat-section { margin-bottom:10px; }
+.sgp-cat-header {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;cursor:pointer;user-select:none;
+  border-radius:var(--radius-sm);transition:background .15s;
+}
+.sgp-cat-header:hover { background:var(--bg-hover); }
+.sgp-cat-title { font-size:0.8rem;font-weight:800;color:var(--text-primary);display:flex;align-items:center;gap:7px; }
+.sgp-cat-meta  { font-size:0.67rem;color:var(--text-muted);display:flex;align-items:center;gap:8px; }
+.sgp-cat-chevron { font-size:0.75rem;color:var(--text-muted);transition:transform .2s; }
+.sgp-cat-body { overflow:hidden;transition:max-height .25s ease; }
+
+.sgp-item {
+  display:flex;align-items:center;gap:10px;
+  padding:9px 14px;border-radius:var(--radius-sm);
+  transition:background .12s, opacity .2s;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.sgp-item:hover { background:var(--bg-elevated); }
+.sgp-item.sgp-checked { opacity:.38; }
+.sgp-item.sgp-hidden { display:none; }
+
+.sgp-checkbox {
+  width:19px;height:19px;border-radius:5px;flex-shrink:0;
+  border:2px solid var(--border-active);background:transparent;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;
+}
+.sgp-item.sgp-checked .sgp-checkbox {
+  background:var(--accent);border-color:var(--accent);
+}
+.sgp-item.sgp-checked .sgp-checkbox::after { content:'✓';font-size:11px;color:var(--bg-base);font-weight:900; }
+html.dark .sgp-item.sgp-checked .sgp-checkbox::after { color:#111; }
+
+.sgp-item-name  { font-size:0.83rem;font-weight:600;color:var(--text-primary);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.sgp-item-sub   { font-size:0.67rem;color:var(--text-muted);margin-top:1px; }
+.sgp-item-right { display:flex;align-items:center;gap:8px;flex-shrink:0; }
+
+.sgp-qty-wrap { display:flex;align-items:center;gap:5px; }
+.sgp-qty-btn  { width:22px;height:22px;border-radius:50%;border:1px solid var(--border-active);background:var(--bg-elevated);color:var(--text-secondary);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:background .12s; }
+.sgp-qty-btn:hover { background:var(--bg-hover);color:var(--text-primary); }
+.sgp-qty-val  { font-size:0.75rem;font-weight:700;color:var(--text-primary);min-width:36px;text-align:center; }
+
+.sgp-stock-badge {
+  font-size:0.6rem;font-weight:700;padding:2px 7px;border-radius:10px;
+  white-space:nowrap;cursor:pointer;transition:all .12s;
+}
+.sgp-stock-have  { background:var(--green-dim);color:var(--green); }
+.sgp-stock-low   { background:var(--orange-dim);color:var(--orange); }
+.sgp-stock-buy   { background:var(--red-dim);color:var(--red); }
+.sgp-stock-none  { background:var(--bg-elevated);color:var(--text-muted); }
+
+.sgp-refill-banner {
+  display:flex;align-items:center;gap:8px;
+  padding:8px 14px;border-radius:var(--radius-sm);margin-bottom:6px;
+  background:var(--orange-dim);border:1px solid var(--orange);
+  font-size:0.75rem;color:var(--orange);font-weight:600;
+}
+
+.sgp-empty {
+  text-align:center;padding:32px 20px;color:var(--text-muted);font-size:0.85rem;
+}
+.sgp-empty-icon { font-size:2rem;margin-bottom:8px; }
+
+/* Pantry modal items */
+.sgp-pantry-item {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:6px;
+  background:var(--bg-elevated);cursor:pointer;transition:background .12s;
+}
+.sgp-pantry-item:hover { background:var(--bg-hover); }
+.sgp-pantry-name { font-size:0.83rem;font-weight:600;color:var(--text-primary); }
+.sgp-pantry-sub  { font-size:0.67rem;color:var(--text-muted);margin-top:1px; }
+
+@media (max-width:600px) {
+  .sgp-item-sub { display:none; }
+  .sgp-qty-val  { min-width:28px; }
+}
+
 
 /* Page section title */
 .section-title {
@@ -3351,18 +3444,54 @@ function dismissSplash() {
             <div id="mp-day-breakdown" style="font-size:0.82rem;color:var(--text-secondary)">Click a column header to see daily breakdown</div>
           </div>
         </div>
-        <!-- Shopping List Panel -->
+        <!-- Smart Grocery Planner Panel -->
         <div id="shopping-list-panel" style="display:none;margin-top:16px">
-          <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-              <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:800">🛒 Shopping List — This Week</div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="btn btn-outline btn-sm" onclick="copyShoppingList()">📋 Copy</button>
-                <button class="btn btn-ghost btn-sm" onclick="window._shopChecked={};renderShoppingListContent()" title="Uncheck all items" style="font-size:0.75rem">↺ Reset</button>
-                <button class="btn btn-ghost btn-sm" onclick="toggleShoppingList()">✕ Close</button>
+          <!-- Header card -->
+          <div class="card sgp-header-card" style="margin-bottom:10px;padding:18px 20px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+              <div>
+                <div id="sgp-title" style="font-family:var(--font-display);font-size:1.1rem;font-weight:800;margin-bottom:3px">🛒 Smart Grocery Planner</div>
+                <div id="sgp-subtitle" style="font-size:0.75rem;color:var(--text-muted)">Auto-generated from your meal plan</div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <button class="btn btn-outline btn-sm" onclick="sgpCopyList()" title="Copy to clipboard">📋 Copy</button>
+                <button class="btn btn-outline btn-sm" onclick="sgpOpenPantry()" title="Manage pantry">🏠 Pantry</button>
+                <button class="btn btn-ghost btn-sm" onclick="toggleShoppingList()">✕</button>
               </div>
             </div>
-            <div id="shopping-list-content" style="font-size:0.85rem"></div>
+            <!-- Source + goal filter row -->
+            <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center">
+              <span style="font-size:0.7rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px">Source</span>
+              <button id="sgp-src-plan" class="sgp-pill sgp-pill-on" onclick="sgpSetSource('plan')">Meal Plan</button>
+              <button id="sgp-src-both" class="sgp-pill" onclick="sgpSetSource('both')">+ Logged</button>
+              <span style="font-size:0.7rem;color:var(--border-active);margin:0 2px">|</span>
+              <button id="sgp-filter-all"  class="sgp-pill sgp-pill-on" onclick="sgpSetFilter('all')">All</button>
+              <button id="sgp-filter-buy"  class="sgp-pill" onclick="sgpSetFilter('buy')">🛒 Need to Buy</button>
+              <button id="sgp-filter-low"  class="sgp-pill" onclick="sgpSetFilter('low')">⚠️ Low</button>
+            </div>
+            <!-- Progress bar -->
+            <div style="margin-top:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+                <span id="sgp-progress-label" style="font-size:0.7rem;color:var(--text-muted)">0 / 0 items checked off</span>
+                <span id="sgp-progress-pct" style="font-size:0.7rem;font-weight:700;color:var(--accent)">0%</span>
+              </div>
+              <div style="height:5px;background:var(--bg-elevated);border-radius:4px;overflow:hidden">
+                <div id="sgp-progress-bar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .4s ease"></div>
+              </div>
+            </div>
+          </div>
+          <!-- List content -->
+          <div id="shopping-list-content"></div>
+          <!-- Pantry modal overlay -->
+          <div id="sgp-pantry-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:flex-end;justify-content:center" onclick="if(event.target===this)sgpClosePantry()">
+            <div id="sgp-pantry-modal" style="background:var(--bg-card);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;max-height:82vh;overflow-y:auto;padding:22px 20px 32px;box-shadow:var(--shadow-lg)">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                <div style="font-family:var(--font-display);font-size:1rem;font-weight:800">🏠 Pantry / Stock Levels</div>
+                <button class="btn-icon" onclick="sgpClosePantry()">✕</button>
+              </div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:14px">Tap any item to cycle: ✅ In Stock → ⚠️ Low → 🛒 Need to Buy</div>
+              <div id="sgp-pantry-list"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -5668,6 +5797,7 @@ window._loadFirestore = async function() {
       if (!State.mealPlan) State.mealPlan = {};
       if (!State.recipes)  State.recipes  = [];
       if (!State.customFoods) State.customFoods = [];
+      if (!State.pantry)     State.pantry     = {};
       hideSyncStatus();
       if (State.profile && State.profile.name) {
         startApp();
@@ -10460,20 +10590,74 @@ function mpNav(dir) {
 
 
 // ═══════════════════════════════════════════════════════════════════
-//  SHOPPING LIST GENERATOR
+//  SMART GROCERY PLANNER  (SGP)
 // ═══════════════════════════════════════════════════════════════════
 
-// Common ingredient keywords → grocery category
+// ── Persistent state ──────────────────────────────────────────────
+// State.pantry  = { [normKey]: 'have' | 'low' | 'buy' }  (in State, auto-synced)
+// window._sgpChecked = { [normKey]: true }  (in-memory tick-offs, reset on close)
+// window._sgpQtyOverrides = { [normKey]: grams }  (user quantity edits, in-memory)
+
+window._sgpChecked      = {};
+window._sgpQtyOverrides = {};
+window._sgpSource       = 'plan';   // 'plan' | 'both'
+window._sgpFilter       = 'all';    // 'all' | 'buy' | 'low'
+
+// ── Goal-aware smart title ────────────────────────────────────────
+function sgpGetTitle() {
+  const goal    = (State.profile && State.profile.goal) || 'maintain';
+  const cal     = (State.targets && State.targets.calories) || 2000;
+  const program = (State.programs || []).find(p => p.active);
+  if (goal === 'cut' || cal < 1700)
+    return { icon:'🔥', title:'Fat Loss Grocery Plan', sub:'Lean proteins · vegetables · low-GI carbs' };
+  if (goal === 'bulk' || cal > 2800)
+    return { icon:'📈', title:'Lean Bulk Supply', sub:'Calorie-dense staples · complex carbs · protein' };
+  if (program && /strength|powerl/i.test(program.goal || ''))
+    return { icon:'⚡', title:'Strength Fuel List', sub:'High-protein · recovery foods · whole grains' };
+  if (program && /endur|cardio|run/i.test(program.goal || ''))
+    return { icon:'🏃', title:'Endurance Restock', sub:'Complex carbs · electrolytes · lean protein' };
+  return { icon:'🛒', title:'Weekly Restock', sub:'Auto-generated from your meal plan' };
+}
+
+// ── Pantry helpers ────────────────────────────────────────────────
+function sgpGetPantry()  { return State.pantry || (State.pantry = {}); }
+function sgpStockLevel(norm)   { return sgpGetPantry()[norm] || 'none'; }
+function sgpSetStock(norm, level) {
+  const p = sgpGetPantry();
+  if (level === 'none') delete p[norm];
+  else p[norm] = level;
+  save();
+}
+function sgpCycleStock(norm) {
+  const cur = sgpStockLevel(norm);
+  const next = { none:'have', have:'low', low:'buy', buy:'none' }[cur];
+  sgpSetStock(norm, next);
+  sgpRenderPantryList();
+  sgpRenderList();
+  sgpSyncProgress();
+}
+function sgpStockBadgeHtml(norm) {
+  const s = sgpStockLevel(norm);
+  if (s === 'have') return `<span class="sgp-stock-badge sgp-stock-have" onclick="event.stopPropagation();sgpCycleStock('${_esc(norm)}')">✅ Have</span>`;
+  if (s === 'low')  return `<span class="sgp-stock-badge sgp-stock-low"  onclick="event.stopPropagation();sgpCycleStock('${_esc(norm)}')">⚠️ Low</span>`;
+  if (s === 'buy')  return `<span class="sgp-stock-badge sgp-stock-buy"  onclick="event.stopPropagation();sgpCycleStock('${_esc(norm)}')">🛒 Buy</span>`;
+  return `<span class="sgp-stock-badge sgp-stock-none" onclick="event.stopPropagation();sgpCycleStock('${_esc(norm)}')">+ Stock</span>`;
+}
+
+function _esc(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+// ── Category system ───────────────────────────────────────────────
 const _SHOPPING_CATEGORIES = [
-  { label: '🥩 Meat & Fish',   keywords: ['chicken','beef','turkey','pork','lamb','duck','tuna','salmon','cod','shrimp','prawn','fish','steak','mince','ground','sausage','bacon','ham','brisket','rib','tenderloin','liver','sardine','anchovy','crab','lobster'] },
-  { label: '🥛 Dairy & Eggs',  keywords: ['milk','yoghurt','yogurt','cheese','butter','cream','egg','whey','casein','cottage','kefir','ghee','cheddar','mozzarella','parmesan','ricotta','skyr'] },
-  { label: '🌾 Grains & Carbs',keywords: ['rice','pasta','bread','oat','cereal','quinoa','flour','tortilla','wrap','noodle','bagel','cracker','couscous','barley','rye','spelt','corn','popcorn','granola','muesli'] },
-  { label: '🥦 Vegetables',    keywords: ['broccoli','spinach','kale','lettuce','tomato','cucumber','pepper','carrot','onion','garlic','potato','sweet potato','mushroom','zucchini','celery','cabbage','cauliflower','aubergine','eggplant','asparagus','leek','chard','beet','pea','bean','lentil','edamame','artichoke','squash','pumpkin','turnip','radish','corn','avocado'] },
-  { label: '🍎 Fruit',         keywords: ['apple','banana','orange','grape','berry','blueberry','strawberry','raspberry','mango','pineapple','melon','watermelon','kiwi','peach','pear','plum','cherry','lemon','lime','grapefruit','date','fig','apricot','pomegranate'] },
-  { label: '🥜 Nuts & Seeds',  keywords: ['almond','walnut','cashew','peanut','pistachio','pecan','hazelnut','nut','seed','flaxseed','chia','sunflower','pumpkin seed','hemp','sesame','tahini'] },
-  { label: '🫙 Oils & Condiments', keywords: ['oil','olive','coconut','vinegar','sauce','ketchup','mustard','mayo','dressing','soy','tamari','worcestershire','hot sauce','salsa','hummus','pesto','tahini','jam','honey','syrup','agave'] },
-  { label: '🧂 Spices & Herbs',keywords: ['salt','pepper','cumin','paprika','turmeric','cinnamon','oregano','basil','thyme','rosemary','ginger','garlic powder','onion powder','chilli','cayenne','coriander','parsley','dill','mint','bay','nutmeg','clove','cardamom','saffron','vanilla','herb','spice'] },
-  { label: '🥫 Canned & Packaged', keywords: ['canned','tinned','can of','tin of','chickpea','black bean','kidney','lentil','soup','broth','stock','tomato paste','coconut milk','peanut butter','almond butter','protein bar','protein powder','supplement','shake'] },
+  { label:'🥩 Meat & Fish',      keywords:['chicken','beef','turkey','pork','lamb','duck','tuna','salmon','cod','shrimp','prawn','fish','steak','mince','ground','sausage','bacon','ham','brisket','rib','tenderloin','liver','sardine','anchovy','crab','lobster','mackerel','tilapia','haddock','halibut','sea bass','trout','herring','squid','octopus'] },
+  { label:'🥛 Dairy & Eggs',     keywords:['milk','yoghurt','yogurt','cheese','butter','cream','egg','whey','casein','cottage','kefir','ghee','cheddar','mozzarella','parmesan','ricotta','skyr','feta','gouda','brie'] },
+  { label:'🌾 Grains & Carbs',   keywords:['rice','pasta','bread','oat','cereal','quinoa','flour','tortilla','wrap','noodle','bagel','cracker','couscous','barley','rye','spelt','corn','popcorn','granola','muesli','bulgur','buckwheat','millet','polenta'] },
+  { label:'🥦 Vegetables',       keywords:['broccoli','spinach','kale','lettuce','tomato','cucumber','pepper','carrot','onion','garlic','potato','sweet potato','mushroom','zucchini','celery','cabbage','cauliflower','aubergine','eggplant','asparagus','leek','chard','beet','pea','bean','lentil','edamame','artichoke','squash','pumpkin','turnip','radish','avocado'] },
+  { label:'🍎 Fruit',            keywords:['apple','banana','orange','grape','berry','blueberry','strawberry','raspberry','mango','pineapple','melon','watermelon','kiwi','peach','pear','plum','cherry','lemon','lime','grapefruit','date','fig','apricot','pomegranate'] },
+  { label:'🥜 Nuts & Fats',      keywords:['almond','walnut','cashew','peanut','pistachio','pecan','hazelnut','nut','seed','flaxseed','chia','sunflower','pumpkin seed','hemp','sesame','tahini','oil','olive','coconut'] },
+  { label:'🫙 Pantry & Sauces',  keywords:['oil','vinegar','sauce','ketchup','mustard','mayo','dressing','soy','tamari','worcestershire','hot sauce','salsa','hummus','pesto','jam','honey','syrup','agave','tomato paste','broth','stock'] },
+  { label:'🧂 Spices & Herbs',   keywords:['salt','pepper','cumin','paprika','turmeric','cinnamon','oregano','basil','thyme','rosemary','ginger','garlic powder','onion powder','chilli','cayenne','coriander','parsley','dill','mint','bay','nutmeg','clove','cardamom','vanilla','herb','spice'] },
+  { label:'🥫 Canned & Packed',  keywords:['canned','tinned','can of','tin of','chickpea','black bean','kidney','lentil','soup','coconut milk','peanut butter','almond butter'] },
+  { label:'🧃 Supplements',      keywords:['protein bar','protein powder','supplement','shake','creatine','bcaa','pre-workout','preworkout','mass gainer','collagen','vitamin','omega','fish oil','magnesium','zinc'] },
 ];
 
 function _categorizeFoodItem(name) {
@@ -10485,90 +10669,72 @@ function _categorizeFoodItem(name) {
 }
 
 function _extractBaseIngredient(name) {
-  // Strip portion annotations like "(250g)", "(2 scoops · 60g)", "(3×serving)"
   return name
     .replace(/\s*\(\d+(?:\.\d+)?\s*(?:g|kg|ml|l|oz|lb)\)/gi, '')
     .replace(/\s*\(\d+(?:\.\d+)?\s*[×x]\s*\w+[^)]*\)/gi, '')
     .replace(/\s*\(\d+(?:\.\d+)?\s*\w+\s*·[^)]*\)/gi, '')
     .replace(/\s*\(raw\)/gi, '')
+    .replace(/\s+x[12]\s*$/i, '')
     .trim();
 }
 
-// ── Shopping list state ──────────────────────────────────────────────
-window._shopChecked = {};          // norm → true (ticked off)
-window._shopSource  = 'plan';      // 'plan' | 'both'
-
-function generateShoppingList(source) {
-  source = source || window._shopSource || 'plan';
+// ── Core ingredient aggregation ───────────────────────────────────
+function sgpGenerateList(source) {
+  source = source || window._sgpSource || 'plan';
   const weekDays = getMpWeekDays();
-  const meals = ['breakfast', 'lunch', 'dinner', 'snacks'];
-  const itemMap = {};
-
-  // Build recipe lookup map once
+  const meals    = ['breakfast','lunch','dinner','snacks'];
+  const itemMap  = {};
   const recipeMap = {};
   (State.recipes || []).forEach(r => { recipeMap[r.id] = r; });
 
-  function addRawIngredient(name, grams, cal, protein, carbs, fat, src) {
+  function addRaw(name, grams, cal, protein, carbs, fat, src, freq) {
     const base = _extractBaseIngredient(name);
     const norm = base.toLowerCase().trim();
     if (!norm || norm === 'custom item') return;
     if (!itemMap[norm]) {
       itemMap[norm] = {
-        displayName: base,
-        totalGrams: 0,
-        totalCal: 0,
-        totalProtein: 0,
-        totalCarbs: 0,
-        totalFat: 0,
-        count: 0,
-        sources: new Set(),
-        category: _categorizeFoodItem(base)
+        displayName: base, norm,
+        totalGrams:0, totalCal:0, totalProtein:0, totalCarbs:0, totalFat:0,
+        count:0, sources:new Set(), category: _categorizeFoodItem(base),
+        frequency: 0
       };
     }
-    const entry = itemMap[norm];
-    entry.count++;
-    entry.totalGrams   += (grams   || 0);
-    entry.totalCal     += (cal     || 0);
-    entry.totalProtein += (protein || 0);
-    entry.totalCarbs   += (carbs   || 0);
-    entry.totalFat     += (fat     || 0);
-    entry.sources.add(src || 'plan');
+    const e = itemMap[norm];
+    e.count++;
+    e.frequency += (freq || 1);
+    e.totalGrams   += (grams   || 0);
+    e.totalCal     += (cal     || 0);
+    e.totalProtein += (protein || 0);
+    e.totalCarbs   += (carbs   || 0);
+    e.totalFat     += (fat     || 0);
+    e.sources.add(src || 'plan');
   }
 
   function addItem(it, src) {
     if (!it || !it.name) return;
-    src = src || 'plan';
-
-    // Recipe — expand into individual ingredients
     if (it._mpType === 'recipe' && it._recipeId && recipeMap[it._recipeId]) {
-      const recipe = recipeMap[it._recipeId];
+      const r = recipeMap[it._recipeId];
       const servings = it.qty || 1;
-      (recipe.ingredients || []).forEach(ri => {
-        const f = ri.food;
-        if (!f || !f.name) return;
-        const grams = (ri.grams || 100) * servings;
-        const mult = grams / 100;
-        addRawIngredient(f.name, grams,
-          f.cal * mult, f.protein * mult, f.carbs * mult, f.fat * mult, src);
+      (r.ingredients || []).forEach(ri => {
+        const f = ri.food; if (!f || !f.name) return;
+        const g = (ri.grams || 100) * servings;
+        const m = g / 100;
+        addRaw(f.name, g, f.cal*m, f.protein*m, f.carbs*m, f.fat*m, src);
       });
       return;
     }
-
-    // Regular food or custom food — extract clean name and grams
     const cleanName = _extractBaseIngredient(it.name);
-    // Grams: prefer mode/qty fields, fallback to regex on name
     let grams = 0;
-    if (it.mode === 'gram') {
-      grams = it.qty || 100;
-    } else {
-      const gm = (it.name || '').match(/\((\d+(?:\.\d+)?)\s*g\)/);
+    if (it.mode === 'gram') grams = it.qty || 100;
+    else {
+      const gm = (it.name||'').match(/\((\d+(?:\.\d+)?)\s*g\)/);
       if (gm) grams = parseFloat(gm[1]);
     }
-    addRawIngredient(cleanName, grams, it.cal || 0, it.protein || 0, it.carbs || 0, it.fat || 0, src);
+    addRaw(cleanName, grams, it.cal||0, it.protein||0, it.carbs||0, it.fat||0, src);
   }
 
-  // From meal plan
-  weekDays.forEach(({ key }) => {
+  // Scan meal plan (current week)
+  weekDays.forEach(({key}) => {
     const dayPlan = State.mealPlan[key] || {};
     meals.forEach(meal => {
       let items = dayPlan[meal];
@@ -10578,14 +10744,29 @@ function generateShoppingList(source) {
     });
   });
 
-  // Also from logged meals this week
+  // Optionally also logged meals
   if (source === 'both') {
-    weekDays.forEach(({ key }) => {
+    weekDays.forEach(({key}) => {
       const log = State.logs[key];
       if (!log || !log.meals) return;
       meals.forEach(meal => {
-        const items = log.meals[meal] || [];
-        items.forEach(it => addItem(it, 'logged'));
+        (log.meals[meal] || []).forEach(it => addItem(it, 'logged'));
+      });
+    });
+  }
+
+  // Augment with historical frequency (last 4 weeks logged = refill signal)
+  const today = new Date();
+  for (let d = 0; d < 28; d++) {
+    const dt = new Date(today); dt.setDate(dt.getDate() - d);
+    const k = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+    const log = State.logs[k];
+    if (!log || !log.meals) continue;
+    meals.forEach(meal => {
+      (log.meals[meal] || []).forEach(it => {
+        const base = _extractBaseIngredient(it.name||'');
+        const norm = base.toLowerCase().trim();
+        if (itemMap[norm]) itemMap[norm].frequency++;
       });
     });
   }
@@ -10593,161 +10774,284 @@ function generateShoppingList(source) {
   return itemMap;
 }
 
-function toggleShoppingList() {
-  const panel = document.getElementById('shopping-list-panel');
-  if (!panel) return;
-  const isVisible = panel.style.display !== 'none';
-  if (isVisible) { panel.style.display = 'none'; return; }
-  panel.style.display = '';
-  renderShoppingListContent();
+// ── Format quantity for display ───────────────────────────────────
+function sgpFmtQty(norm, totalGrams) {
+  const override = window._sgpQtyOverrides[norm];
+  const g = override !== undefined ? override : totalGrams;
+  if (!g) return '';
+  if (g >= 1000) return `${(g/1000).toFixed(1)}kg`;
+  return `${Math.round(g)}g`;
 }
 
-function _shopSetSource(src) {
-  window._shopSource = src;
-  const btnPlan = document.getElementById('shop-src-plan');
-  const btnBoth = document.getElementById('shop-src-both');
-  if (btnPlan) { btnPlan.style.background = src==='plan'?'var(--accent)':'var(--bg-elevated)'; btnPlan.style.color = src==='plan'?'#fff':'var(--text-secondary)'; }
-  if (btnBoth) { btnBoth.style.background = src==='both'?'var(--accent)':'var(--bg-elevated)'; btnBoth.style.color = src==='both'?'#fff':'var(--text-secondary)'; }
-  renderShoppingListContent();
-}
-
-function _shopToggleItem(norm, checkbox) {
-  if (checkbox.checked) window._shopChecked[norm] = true;
-  else delete window._shopChecked[norm];
-  const row = document.getElementById('shop-row-' + CSS.escape(norm));
-  if (row) row.style.opacity = checkbox.checked ? '0.38' : '1';
-}
-
-function renderShoppingListContent() {
+// ── Render the full list ──────────────────────────────────────────
+function sgpRenderList() {
   const el = document.getElementById('shopping-list-content');
   if (!el) return;
+  const source = window._sgpSource || 'plan';
+  const filter = window._sgpFilter || 'all';
+  const itemMap = sgpGenerateList(source);
+  const items   = Object.values(itemMap);
 
-  const weekDays = getMpWeekDays();
-  const d1 = new Date(weekDays[0].key).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  const d7 = new Date(weekDays[6].key).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  const source = window._shopSource || 'plan';
+  // Update title
+  const t = sgpGetTitle();
+  const titleEl = document.getElementById('sgp-title');
+  const subEl   = document.getElementById('sgp-subtitle');
+  if (titleEl) titleEl.textContent = `${t.icon} ${t.title}`;
+  if (subEl)   subEl.textContent   = t.sub;
 
-  const itemMap = generateShoppingList(source);
-  const items = Object.values(itemMap);
-
-  const checkedCount = Object.keys(window._shopChecked).length;
-  const totalCount   = items.length;
-  const pctDone      = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
-
-  // ── Source toggle ──────────────────────────────────────────────────
-  let html = `
-    <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
-      <span style="font-size:0.72rem;color:var(--text-muted);font-weight:600">Source:</span>
-      <button id="shop-src-plan" onclick="_shopSetSource('plan')" style="font-size:0.72rem;font-weight:700;padding:4px 12px;border-radius:20px;border:none;cursor:pointer;transition:all 0.15s;background:${source==='plan'?'var(--accent)':'var(--bg-elevated)'};color:${source==='plan'?'#fff':'var(--text-secondary)'}">Meal Plan</button>
-      <button id="shop-src-both" onclick="_shopSetSource('both')" style="font-size:0.72rem;font-weight:700;padding:4px 12px;border-radius:20px;border:none;cursor:pointer;transition:all 0.15s;background:${source==='both'?'var(--accent)':'var(--bg-elevated)'};color:${source==='both'?'#fff':'var(--text-secondary)'}">Plan + Logged Meals</button>
-    </div>`;
-
-  if (items.length === 0) {
-    html += '<div class="empty-state" style="padding:20px"><div class="es-icon">🛒</div><div class="es-text">No meals found for this week.<br>Add meals to your plan to generate a list.</div></div>';
-    el.innerHTML = html;
+  if (!items.length) {
+    el.innerHTML = `<div class="sgp-empty"><div class="sgp-empty-icon">🛒</div><div>No meals planned this week.<br><span style="font-size:0.75rem">Add meals to your plan to generate a list.</span></div></div>`;
+    sgpSyncProgress();
     return;
   }
 
-  // ── Progress bar ───────────────────────────────────────────────────
-  html += `
-    <div style="margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-        <span style="font-size:0.72rem;color:var(--text-muted)">Week of ${d1}–${d7} · <strong>${totalCount} items</strong></span>
-        <span style="font-size:0.72rem;font-weight:700;color:var(--accent)">${checkedCount}/${totalCount} checked off</span>
-      </div>
-      <div style="height:6px;background:var(--bg-elevated);border-radius:4px;overflow:hidden">
-        <div style="height:100%;width:${pctDone}%;background:var(--accent);border-radius:4px;transition:width 0.3s"></div>
-      </div>
-    </div>`;
-
-  // ── Group by category ──────────────────────────────────────────────
-  const byCategory = {};
+  // Group by category
+  const byCat = {};
   items.forEach(it => {
-    if (!byCategory[it.category]) byCategory[it.category] = [];
-    byCategory[it.category].push(it);
+    if (!byCat[it.category]) byCat[it.category] = [];
+    byCat[it.category].push(it);
   });
-
-  const sortedCats = Object.keys(byCategory).sort((a, b) => {
-    if (a === '🛍️ Other') return 1;
-    if (b === '🛍️ Other') return -1;
+  const sortedCats = Object.keys(byCat).sort((a,b) => {
+    if (a==='🛍️ Other') return 1; if (b==='🛍️ Other') return -1;
     return a.localeCompare(b);
   });
 
-  sortedCats.forEach(cat => {
-    const catItems = byCategory[cat].sort((a, b) => a.displayName.localeCompare(b.displayName));
-    const catProt = catItems.reduce((s,i) => s + i.totalProtein, 0);
-    const catCal  = catItems.reduce((s,i) => s + i.totalCal, 0);
-    html += `
-      <div style="margin-bottom:18px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid var(--border)">
-          <span style="font-size:0.72rem;font-weight:800;color:var(--text-secondary);letter-spacing:0.4px;text-transform:uppercase">${cat}</span>
-          <span style="font-size:0.65rem;color:var(--text-muted)">${catCal > 0 ? Math.round(catCal)+' kcal' : ''} ${catProt > 0 ? '· '+Math.round(catProt)+'g protein' : ''}</span>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:2px">`;
+  // Identify refill candidates (used 3+ times in last 28 days AND pantry = low/none)
+  const refillItems = items.filter(it => it.frequency >= 3 && ['low','none'].includes(sgpStockLevel(it.norm)));
 
-    catItems.forEach(it => {
-      const norm = it.displayName.toLowerCase().trim();
-      const isChecked = !!window._shopChecked[norm];
-      const badgeHtml = source === 'both' && it.sources
-        ? [...it.sources].map(s => `<span style="font-size:0.58rem;padding:1px 5px;border-radius:8px;font-weight:700;background:${s==='plan'?'var(--blue-dim)':'var(--green-dim)'};color:${s==='plan'?'var(--blue)':'var(--green)'}">${s==='plan'?'plan':'logged'}</span>`).join(' ')
-        : '';
-      const gramsLabel = it.totalGrams > 0 ? `${Math.round(it.totalGrams)}g` : it.count > 1 ? `x${it.count} this week` : '';
+  let html = '';
+
+  // Refill banner
+  if (refillItems.length) {
+    html += `<div class="sgp-refill-banner" style="margin-bottom:10px">
+      ⚠️ Refill recommended: ${refillItems.map(i=>i.displayName).slice(0,4).join(', ')}${refillItems.length>4?` +${refillItems.length-4} more`:''}
+    </div>`;
+  }
+
+  sortedCats.forEach(cat => {
+    const catItems = byCat[cat].sort((a,b)=>a.displayName.localeCompare(b.displayName));
+
+    // Apply filter
+    const visibleItems = catItems.filter(it => {
+      const stock = sgpStockLevel(it.norm);
+      if (filter === 'buy') return stock === 'buy' || stock === 'none';
+      if (filter === 'low') return stock === 'low';
+      return true; // 'all'
+    });
+    if (!visibleItems.length) return;
+
+    const catCal  = catItems.reduce((s,i)=>s+i.totalCal,0);
+    const catProt = catItems.reduce((s,i)=>s+i.totalProtein,0);
+    const checkedInCat = catItems.filter(it=>window._sgpChecked[it.norm]).length;
+    const catId = 'sgp-cat-' + cat.replace(/[^a-zA-Z0-9]/g,'');
+
+    html += `
+    <div class="sgp-cat-section card" style="padding:0;overflow:hidden;margin-bottom:10px">
+      <div class="sgp-cat-header" onclick="sgpToggleCat('${catId}')">
+        <div class="sgp-cat-title">
+          ${cat}
+          ${checkedInCat>0?`<span style="font-size:0.65rem;padding:1px 7px;border-radius:10px;background:var(--accent-dim);color:var(--accent);font-weight:700">${checkedInCat}/${catItems.length}</span>`:''}
+        </div>
+        <div class="sgp-cat-meta">
+          ${catCal>0?`<span>${Math.round(catCal)} kcal</span>`:''}
+          ${catProt>0?`<span>${Math.round(catProt)}g protein</span>`:''}
+          <span class="sgp-cat-chevron" id="${catId}-chev">▾</span>
+        </div>
+      </div>
+      <div class="sgp-cat-body" id="${catId}" style="max-height:2000px">`;
+
+    visibleItems.forEach(it => {
+      const norm     = it.norm;
+      const checked  = !!window._sgpChecked[norm];
+      const stock    = sgpStockLevel(norm);
+      const qtyStr   = sgpFmtQty(norm, it.totalGrams);
+      const stockBadge = sgpStockBadgeHtml(norm);
+      const refill   = it.frequency >= 3 && stock !== 'have';
 
       html += `
-        <label id="shop-row-${CSS.escape(norm)}" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:7px 8px;border-radius:var(--radius-sm);transition:background 0.1s;opacity:${isChecked?'0.38':'1'}" onmouseover="this.style.background='var(--bg-elevated)'" onmouseout="this.style.background='transparent'">
-          <input type="checkbox" ${isChecked?'checked':''} onchange="_shopToggleItem('${norm.replace(/'/g,"\\'")}',this)" style="width:17px;height:17px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;border-radius:4px">
+        <div class="sgp-item${checked?' sgp-checked':''}" id="sgp-item-${CSS.escape(norm)}" onclick="sgpToggleItem('${_esc(norm)}')">
+          <div class="sgp-checkbox"${checked?' data-checked':''}></div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:0.83rem;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap">${it.displayName} ${badgeHtml}</div>
-            <div style="font-size:0.67rem;color:var(--text-muted);margin-top:1px">${gramsLabel} · ${Math.round(it.totalCal)} kcal · ${Math.round(it.totalProtein)}g P · ${Math.round(it.totalCarbs)}g C · ${Math.round(it.totalFat)}g F</div>
+            <div class="sgp-item-name">${it.displayName}${refill?' <span style="font-size:0.6rem;color:var(--orange)">↺ Refill</span>':''}</div>
+            <div class="sgp-item-sub">${qtyStr?qtyStr+' · ':''}${Math.round(it.totalCal)} kcal · ${Math.round(it.totalProtein)}g P · ${Math.round(it.totalCarbs)}g C · ${Math.round(it.totalFat)}g F</div>
           </div>
-        </label>`;
+          <div class="sgp-item-right" onclick="event.stopPropagation()">
+            ${stockBadge}
+            <div class="sgp-qty-wrap">
+              <button class="sgp-qty-btn" onclick="sgpAdjQty('${_esc(norm)}',${it.totalGrams},-50)">−</button>
+              <div class="sgp-qty-val">${qtyStr||'—'}</div>
+              <button class="sgp-qty-btn" onclick="sgpAdjQty('${_esc(norm)}',${it.totalGrams},50)">+</button>
+            </div>
+          </div>
+        </div>`;
     });
 
     html += `</div></div>`;
   });
 
   el.innerHTML = html;
+  sgpSyncProgress();
 }
 
-function copyShoppingList() {
-  const source = window._shopSource || 'plan';
-  const itemMap = generateShoppingList(source);
-  const items = Object.values(itemMap);
-  if (items.length === 0) {
-    if (typeof showToast === 'function') showToast('No items to copy — plan some meals first!', 'error');
+// ── Toggle item checked state ─────────────────────────────────────
+function sgpToggleItem(norm) {
+  if (window._sgpChecked[norm]) delete window._sgpChecked[norm];
+  else window._sgpChecked[norm] = true;
+  const row = document.getElementById('sgp-item-' + CSS.escape(norm));
+  if (row) row.classList.toggle('sgp-checked', !!window._sgpChecked[norm]);
+  sgpSyncProgress();
+}
+
+// ── Adjust quantity override ──────────────────────────────────────
+function sgpAdjQty(norm, baseGrams, delta) {
+  const cur = window._sgpQtyOverrides[norm] !== undefined ? window._sgpQtyOverrides[norm] : baseGrams;
+  const next = Math.max(0, Math.round(cur + delta));
+  if (next === 0) delete window._sgpQtyOverrides[norm];
+  else window._sgpQtyOverrides[norm] = next;
+  // Update just the qty display without full re-render
+  const row = document.getElementById('sgp-item-' + CSS.escape(norm));
+  if (row) {
+    const qtyVal = row.querySelector('.sgp-qty-val');
+    if (qtyVal) qtyVal.textContent = sgpFmtQty(norm, baseGrams);
+  }
+}
+
+// ── Sync progress bar ─────────────────────────────────────────────
+function sgpSyncProgress() {
+  const source  = window._sgpSource || 'plan';
+  const itemMap = sgpGenerateList(source);
+  const items   = Object.values(itemMap);
+  const total   = items.length;
+  const done    = Object.keys(window._sgpChecked).filter(k => itemMap[k]).length;
+  const pct     = total > 0 ? Math.round(done/total*100) : 0;
+  const bar     = document.getElementById('sgp-progress-bar');
+  const label   = document.getElementById('sgp-progress-label');
+  const pctEl   = document.getElementById('sgp-progress-pct');
+  if (bar)   bar.style.width   = pct + '%';
+  if (label) label.textContent = `${done} / ${total} items checked off`;
+  if (pctEl) pctEl.textContent = pct + '%';
+}
+
+// ── Collapse/expand categories ────────────────────────────────────
+function sgpToggleCat(catId) {
+  const body = document.getElementById(catId);
+  const chev = document.getElementById(catId + '-chev');
+  if (!body) return;
+  const open = body.style.maxHeight !== '0px';
+  body.style.maxHeight = open ? '0px' : '2000px';
+  if (chev) chev.textContent = open ? '▸' : '▾';
+}
+
+// ── Source / filter pill setters ──────────────────────────────────
+function sgpSetSource(src) {
+  window._sgpSource = src;
+  ['plan','both'].forEach(s => {
+    const btn = document.getElementById('sgp-src-'+s);
+    if (btn) btn.classList.toggle('sgp-pill-on', s===src);
+  });
+  sgpRenderList();
+}
+function sgpSetFilter(f) {
+  window._sgpFilter = f;
+  ['all','buy','low'].forEach(s => {
+    const btn = document.getElementById('sgp-filter-'+s);
+    if (btn) btn.classList.toggle('sgp-pill-on', s===f);
+  });
+  sgpRenderList();
+}
+
+// ── Toggle panel open/closed ──────────────────────────────────────
+function toggleShoppingList() {
+  const panel = document.getElementById('shopping-list-panel');
+  if (!panel) return;
+  const isVisible = panel.style.display !== 'none';
+  if (isVisible) {
+    panel.style.display = 'none';
+    window._sgpChecked      = {};
+    window._sgpQtyOverrides = {};
     return;
   }
+  panel.style.display = '';
+  window._sgpChecked      = {};
+  window._sgpQtyOverrides = {};
+  sgpRenderList();
+}
 
-  const byCategory = {};
-  items.forEach(it => {
-    if (!byCategory[it.category]) byCategory[it.category] = [];
-    byCategory[it.category].push(it);
-  });
+// ── Copy list to clipboard ────────────────────────────────────────
+function sgpCopyList() {
+  const source  = window._sgpSource || 'plan';
+  const itemMap = sgpGenerateList(source);
+  const items   = Object.values(itemMap);
+  if (!items.length) { showToast('No items — plan some meals first!','error'); return; }
 
+  const t = sgpGetTitle();
   const weekDays = getMpWeekDays();
   const d1 = new Date(weekDays[0].key).toLocaleDateString('en-US',{month:'short',day:'numeric'});
   const d7 = new Date(weekDays[6].key).toLocaleDateString('en-US',{month:'short',day:'numeric'});
 
-  let text = `SHOPPING LIST (${d1} – ${d7})\n` + '='.repeat(38) + '\n';
-  const sortedCats = Object.keys(byCategory).sort((a,b) => {
-    if (a === '🛍️ Other') return 1; if (b === '🛍️ Other') return -1; return a.localeCompare(b);
-  });
+  const byCat = {};
+  items.forEach(it => { if(!byCat[it.category]) byCat[it.category]=[]; byCat[it.category].push(it); });
+  const sortedCats = Object.keys(byCat).sort((a,b)=>{ if(a==='🛍️ Other') return 1; if(b==='🛍️ Other') return -1; return a.localeCompare(b); });
+
+  let text = `${t.icon} ${t.title} (${d1}–${d7})\n${'─'.repeat(38)}\n`;
   sortedCats.forEach(cat => {
     text += `\n${cat}\n`;
-    byCategory[cat].sort((a,b)=>a.displayName.localeCompare(b.displayName)).forEach(it => {
-      const norm = it.displayName.toLowerCase().trim();
-      const tick = window._shopChecked[norm] ? '✓' : '□';
-      const qty = it.totalGrams > 0 ? `${Math.round(it.totalGrams)}g` : `×${it.count}`;
-      text += `  ${tick} ${it.displayName} (${qty}) — ${Math.round(it.totalCal)} kcal, ${Math.round(it.totalProtein)}g protein\n`;
+    byCat[cat].sort((a,b)=>a.displayName.localeCompare(b.displayName)).forEach(it => {
+      const tick  = window._sgpChecked[it.norm] ? '✓' : '□';
+      const stock = { have:'✅', low:'⚠️', buy:'🛒', none:'' }[sgpStockLevel(it.norm)] || '';
+      const qty   = sgpFmtQty(it.norm, it.totalGrams);
+      text += `  ${tick} ${stock} ${it.displayName}${qty?' ('+qty+')':''} — ${Math.round(it.totalCal)} kcal, ${Math.round(it.totalProtein)}g protein\n`;
     });
   });
 
-  navigator.clipboard.writeText(text).then(() => {
-    if (typeof showToast === 'function') showToast('Shopping list copied to clipboard! 🛒', 'success');
-  }).catch(() => {
-    if (typeof showToast === 'function') showToast('Copy failed — try manually selecting the list.', 'error');
+  navigator.clipboard.writeText(text)
+    .then(()  => showToast('Shopping list copied! 🛒','success'))
+    .catch(()  => showToast('Copy failed — try manually.','error'));
+}
+// Alias for old callers
+function copyShoppingList() { sgpCopyList(); }
+
+// ── Pantry modal ──────────────────────────────────────────────────
+function sgpOpenPantry() {
+  const overlay = document.getElementById('sgp-pantry-overlay');
+  if (!overlay) return;
+  sgpRenderPantryList();
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => {
+    const modal = document.getElementById('sgp-pantry-modal');
+    if (modal) { modal.style.transform='translateY(40px)';modal.style.opacity='0';modal.style.transition='transform .25s ease,opacity .2s'; requestAnimationFrame(()=>{ modal.style.transform='';modal.style.opacity='1'; }); }
   });
 }
+function sgpClosePantry() {
+  const overlay = document.getElementById('sgp-pantry-overlay');
+  if (overlay) overlay.style.display = 'none';
+  sgpRenderList();
+}
+function sgpRenderPantryList() {
+  const el = document.getElementById('sgp-pantry-list');
+  if (!el) return;
+  const source  = window._sgpSource || 'plan';
+  const itemMap = sgpGenerateList(source);
+  const items   = Object.values(itemMap).sort((a,b)=>a.displayName.localeCompare(b.displayName));
+  if (!items.length) { el.innerHTML='<div class="sgp-empty">No items in your plan yet.</div>'; return; }
+
+  el.innerHTML = items.map(it => {
+    const stock = sgpStockLevel(it.norm);
+    const badge = sgpStockBadgeHtml(it.norm);
+    return `<div class="sgp-pantry-item" onclick="sgpCycleStock('${_esc(it.norm)}')">
+      <div>
+        <div class="sgp-pantry-name">${it.displayName}</div>
+        <div class="sgp-pantry-sub">${it.category} · ${sgpFmtQty(it.norm,it.totalGrams)||'—'}</div>
+      </div>
+      ${badge}
+    </div>`;
+  }).join('');
+}
+
+// ── Backward-compat shims ─────────────────────────────────────────
+function renderShoppingListContent() { sgpRenderList(); }
+window._shopChecked = window._sgpChecked;
+
 
 function renderMealPlan() {
   const dates = getMpWeekDates();
