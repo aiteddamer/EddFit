@@ -3081,6 +3081,20 @@ function dismissSplash() {
               <div class="empty-state" style="padding:24px"><div class="es-icon" style="font-size:1.8rem">📋</div><div class="es-text">No custom programs yet. Click "+ Create Program" to build one!</div></div>
             </div>
           </div>
+
+          <!-- Shared programs inbox -->
+          <div style="margin-top:24px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.7px">
+                📬 Shared With Me
+                <span id="shared-programs-badge" style="display:none;background:var(--red);color:#fff;font-size:0.6rem;font-weight:800;border-radius:20px;padding:1px 7px;margin-left:6px;vertical-align:middle">0</span>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="loadSharedProgramsInbox()">↻ Refresh</button>
+            </div>
+            <div id="shared-programs-list">
+              <div style="font-size:0.82rem;color:var(--text-muted);padding:12px 0">Loading…</div>
+            </div>
+          </div>
         </div>
 
         <!-- ── TAB: HISTORY ── -->
@@ -10157,7 +10171,7 @@ function switchWorkoutTab(tab, btn) {
   });
   if (btn) { btn.style.color = 'var(--accent)'; btn.style.borderBottomColor = 'var(--accent)'; }
   if (tab === 'templates') { renderQuickTemplates('all'); }
-  if (tab === 'programs') { renderBuiltinPrograms(); renderPrograms(); renderWeekSchedule(); }
+  if (tab === 'programs') { renderBuiltinPrograms(); renderPrograms(); renderWeekSchedule(); loadSharedProgramsInbox(); }
   if (tab === 'history') {
     document.getElementById('history-count').textContent = `${State.workouts.length} sessions logged`;
     renderWorkoutHistory();
@@ -17981,5 +17995,134 @@ if (typeof _origLoadFS3 === 'function') {
     _ensureMealTemplates();
   };
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  SHARED PROGRAMS INBOX  (inside Programs tab)
+// ═══════════════════════════════════════════════════════════════
+window.loadSharedProgramsInbox = async function() {
+  const container = document.getElementById('shared-programs-list');
+  const badge     = document.getElementById('shared-programs-badge');
+  if (!container) return;
+
+  const me = window._currentUser;
+  if (!me) {
+    container.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted)">Sign in to see shared programs.</div>';
+    return;
+  }
+
+  container.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">Loading…</div>';
+
+  try {
+    const q = window._fbQuery(
+      window._fbCollection(window._fbDb, 'shared_items'),
+      window._fbWhere('toUid', '==', me.uid),
+      window._fbWhere('type', '==', 'program'),
+      window._fbOrderBy('sentAt', 'desc'),
+      window._fbLimit(20)
+    );
+    const snap = await window._fbGetDocs(q);
+
+    if (snap.empty) {
+      container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="es-icon" style="font-size:1.6rem">📭</div><div class="es-text">No programs shared with you yet — ask a friend to share theirs!</div></div>';
+      if (badge) badge.style.display = 'none';
+      return;
+    }
+
+    const unread = snap.docs.filter(d => !d.data().read).length;
+    if (badge) { badge.textContent = unread; badge.style.display = unread > 0 ? '' : 'none'; }
+
+    const DAY_N = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    container.innerHTML = snap.docs.map(docSnap => {
+      const d    = docSnap.data();
+      const id   = docSnap.id;
+      const p    = d.data || {};
+      const dayNames = Object.keys(p.days||{}).map(k => DAY_N[+k]).join(', ') || '—';
+      const unreadDot = !d.read
+        ? `<span style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block;margin-left:6px;flex-shrink:0;vertical-align:middle"></span>`
+        : '';
+      const msgBlock = d.message
+        ? `<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px;font-style:italic">"${d.message}"</div>`
+        : '';
+
+      // Day-by-day exercise preview
+      const exPreview = Object.entries(p.dayExercises||{}).slice(0,3).map(([dayIdx, exs]) => {
+        const dayLabel = DAY_N[+dayIdx] || `Day ${+dayIdx+1}`;
+        const names = (exs||[]).slice(0,3).map(e=>e.name).join(', ');
+        const more  = exs.length > 3 ? ` +${exs.length-3}` : '';
+        return `<div style="font-size:0.72rem;color:var(--text-secondary);margin-top:3px"><span style="font-weight:700;color:var(--text-primary)">${dayLabel}</span> — ${names}${more}</div>`;
+      }).join('');
+      const moreDays = Object.keys(p.dayExercises||{}).length > 3
+        ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">+${Object.keys(p.dayExercises).length - 3} more days…</div>` : '';
+
+      return `
+        <div id="shared-prog-${id}" style="background:var(--bg-card);border:2px solid ${d.read?'var(--border)':'var(--accent)'};border-radius:var(--radius);padding:16px;margin-bottom:12px;transition:all 0.15s">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+                <span style="font-size:0.65rem;padding:2px 8px;border-radius:4px;background:var(--purple-dim);color:var(--purple);font-weight:700">💪 Program</span>
+                ${unreadDot}
+              </div>
+              <div style="font-family:var(--font-display);font-size:1rem;font-weight:800">${p.name||'Untitled Program'}</div>
+              <div style="font-size:0.73rem;color:var(--text-secondary);margin-top:3px">${p.weeks||4} weeks · ${dayNames} · ${p.goal||'general'}</div>
+              ${exPreview}${moreDays}
+              ${msgBlock}
+              <div style="font-size:0.68rem;color:var(--text-muted);margin-top:8px">From <strong>${d.fromName||'Friend'}</strong>${d.fromHandle?' (@'+d.fromHandle+')':''}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="importSharedProgram('${id}', this)">⬇️ Import Program</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--text-muted)" onclick="dismissSharedProgram('${id}', this)">✕ Dismiss</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    // Mark all as read
+    snap.docs.forEach(async docSnap => {
+      if (!docSnap.data().read) {
+        try { await window._fbUpdateDoc(window._fbDoc(window._fbDb, 'shared_items', docSnap.id), { read: true }); } catch(e) {}
+      }
+    });
+    if (badge) badge.style.display = 'none';
+
+  } catch(e) {
+    container.innerHTML = `<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">${e?.code === 'permission-denied' ? '⚠️ Permission denied.' : '⚠️ Could not load — check connection.'}</div>`;
+    console.error('loadSharedProgramsInbox error:', e);
+  }
+};
+
+window.importSharedProgram = async function(docId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; btn.style.opacity = '0.6'; }
+  try {
+    const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'shared_items', docId));
+    if (!snap.exists()) throw new Error('not-found');
+    const d = snap.data();
+    const p = d.data;
+    if (!State.programs) State.programs = [];
+    const newProg = { ...JSON.parse(JSON.stringify(p)), id: Date.now(), active: false, importedFrom: d.fromName || 'Friend', start: new Date().toISOString().split('T')[0] };
+    const exists = State.programs.some(pr => pr.name.toLowerCase() === newProg.name.toLowerCase());
+    if (exists) newProg.name = newProg.name + ' (from ' + (d.fromName || 'friend') + ')';
+    State.programs.push(newProg);
+    save();
+    if (typeof renderPrograms === 'function') renderPrograms();
+    if (typeof showToast === 'function') showToast(`Program "${newProg.name}" added to My Programs! 💪`, 'success');
+    const el = document.getElementById('shared-prog-' + docId);
+    if (el) el.innerHTML = `<div style="text-align:center;padding:12px;font-size:0.85rem;color:var(--green);font-weight:700">✅ Imported — scroll up to see it in My Programs!</div>`;
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '⬇️ Import Program'; btn.style.opacity = '1'; }
+    if (typeof showToast === 'function') showToast('Import failed — try again.', 'error');
+  }
+};
+
+window.dismissSharedProgram = async function(docId, btn) {
+  if (btn) { btn.disabled = true; }
+  try {
+    await window._fbDeleteDoc(window._fbDoc(window._fbDb, 'shared_items', docId));
+    const el = document.getElementById('shared-prog-' + docId);
+    if (el) { el.style.opacity = '0'; el.style.height = '0'; el.style.overflow = 'hidden'; setTimeout(() => el.remove(), 300); }
+  } catch(e) {
+    if (btn) { btn.disabled = false; }
+  }
+};
 </script>
 </body>
