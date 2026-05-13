@@ -4425,32 +4425,92 @@ function dismissSplash() {
           if (typeof showToast==='function') showToast('📲 Open a challenge to rally your squad!','info');
         };
 
-                // ─── Squad Progress Wall renderer (hook into loadFriends) ────────
-        window._renderSquadProgressWall = function(friends) {
+                // ─── Squad Progress Wall renderer ────────────────────────────────
+        // Fetches REAL data from the leaderboard Firestore collection
+        window._renderSquadProgressWall = async function(friends) {
           const wall = document.getElementById('squad-progress-wall');
           if (!wall) return;
           if (!friends || friends.length === 0) {
-            wall.innerHTML = '<div style="text-align:center;padding:24px 0"><div style="font-size:2rem;margin-bottom:8px">💪</div><div style="font-size:0.82rem;color:var(--text-muted)">Add friends to see their progress here</div></div>';
+            wall.innerHTML = `<div style="text-align:center;padding:24px 0">
+              <div style="font-size:2rem;margin-bottom:8px">💪</div>
+              <div style="font-size:0.82rem;color:var(--text-muted)">Create a squad in the Squads tab to see your members here</div>
+            </div>`;
             return;
           }
-          const workoutEmojis = ['💪','🏋️','🦵','⚡','🔥','🏃','🤸'];
-          let html = '';
-          friends.slice(0,6).forEach((f, i) => {
-            const initial = (f.fullName || f.username || 'U').charAt(0).toUpperCase();
-            const workouts = Math.floor(Math.random() * 5) + 1;
-            const streak   = Math.floor(Math.random() * 14);
-            const emoji    = workoutEmojis[i % workoutEmojis.length];
-            html += `<div class="friend-row">
-              <div class="friend-avatar">${initial}</div>
-              <div class="friend-info">
-                <div class="friend-name">${f.fullName || f.username || 'Friend'}</div>
-                <div class="friend-handle">@${f.username || '—'}</div>
-                <div class="friend-streak">🔥 ${streak} day streak · ${workouts} workouts this week</div>
+
+          // Show loading state
+          wall.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted);text-align:center;padding:16px 0">Loading squad stats…</div>';
+
+          // Fetch each member's leaderboard doc (real data)
+          const db = window._fbDb;
+          const results = await Promise.all(friends.slice(0, 8).map(async f => {
+            let workoutsThisWeek = 0, streak = 0, lastSeen = null;
+            try {
+              if (db) {
+                const snap = await window._fbGetDoc(window._fbDoc(db, 'leaderboard', f.uid));
+                if (snap.exists()) {
+                  const d = snap.data();
+                  workoutsThisWeek = d.workouts || 0;
+                  streak           = d.streak   || 0;
+                  lastSeen         = d.updatedAt?.toDate ? d.updatedAt.toDate() : null;
+                }
+              }
+            } catch(e) {}
+            return { f, workoutsThisWeek, streak, lastSeen };
+          }));
+
+          // Sort by workouts this week desc
+          results.sort((a, b) => b.workoutsThisWeek - a.workoutsThisWeek);
+
+          const now = Date.now();
+          wall.innerHTML = results.map(({ f, workoutsThisWeek, streak, lastSeen }, i) => {
+            const name    = f.fullName || f.name || f.username || 'Member';
+            const initial = name.charAt(0).toUpperCase();
+            const rank    = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+
+            // Last active label
+            let lastActiveLabel = 'Never synced';
+            if (lastSeen) {
+              const diffH = Math.floor((now - lastSeen.getTime()) / 3600000);
+              if (diffH < 1)        lastActiveLabel = 'Active just now';
+              else if (diffH < 24)  lastActiveLabel = `Active ${diffH}h ago`;
+              else {
+                const diffD = Math.floor(diffH / 24);
+                lastActiveLabel = diffD === 1 ? 'Active yesterday' : `Active ${diffD}d ago`;
+              }
+            }
+
+            // Activity bar — workouts this week out of 7
+            const barPct = Math.min(100, (workoutsThisWeek / 7) * 100);
+            const barColor = workoutsThisWeek >= 5 ? 'var(--green)' : workoutsThisWeek >= 3 ? 'var(--accent)' : workoutsThisWeek >= 1 ? 'var(--orange)' : 'var(--red)';
+
+            return `<div class="friend-row" style="align-items:flex-start;padding:12px 0;gap:12px">
+              <div style="position:relative;flex-shrink:0">
+                <div class="friend-avatar" style="width:40px;height:40px;font-size:0.9rem;position:relative">
+                  ${f.photoURL ? `<img src="${f.photoURL}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">` : ''}
+                  ${initial}
+                </div>
+                ${rank ? `<span style="position:absolute;bottom:-4px;right:-4px;font-size:0.75rem;line-height:1">${rank}</span>` : ''}
               </div>
-              <div style="font-size:1.4rem">${emoji}</div>
+              <div class="friend-info" style="flex:1;min-width:0">
+                <div class="friend-name">${name}</div>
+                <div class="friend-handle" style="margin-bottom:6px">@${f.username || '—'} · <span style="color:var(--text-muted)">${lastActiveLabel}</span></div>
+                <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px">
+                  <div style="font-size:0.75rem">
+                    <span style="font-weight:800;color:var(--accent)">${workoutsThisWeek}</span>
+                    <span style="color:var(--text-muted)"> workouts this week</span>
+                  </div>
+                  <div style="font-size:0.75rem">
+                    <span style="font-weight:800;color:var(--orange)">🔥 ${streak}</span>
+                    <span style="color:var(--text-muted)"> day streak</span>
+                  </div>
+                </div>
+                <div style="height:4px;border-radius:2px;background:var(--border);overflow:hidden">
+                  <div style="height:100%;width:${barPct}%;background:${barColor};border-radius:2px;transition:width 0.4s ease"></div>
+                </div>
+              </div>
             </div>`;
-          });
-          wall.innerHTML = html;
+          }).join('<div style="border-top:1px solid var(--border)"></div>');
         };
 
         // Hook into existing loadFriends if available
