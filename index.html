@@ -2944,6 +2944,9 @@ function dismissSplash() {
           </div>
         </div>
 
+        <!-- Multi-day macro streak alerts -->
+        <div id="multiday-macro-alerts" style="margin-bottom:0"></div>
+
         <!-- Macro warnings -->
         <div id="macro-warnings-container"></div>
 
@@ -3317,6 +3320,7 @@ function dismissSplash() {
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <button class="btn btn-outline btn-sm" onclick="openMealTemplates()">📋 Templates</button>
+            <button class="btn btn-outline btn-sm" onclick="toggleShoppingList()">🛒 Shopping List</button>
             <button class="btn btn-primary btn-sm" onclick="saveMealTemplate()">💾 Save as Template</button>
             <button class="btn-icon" onclick="mpNav(-1)">←</button>
             <span style="font-size:0.88rem;font-weight:700;min-width:160px;text-align:center" id="mp-week-label"></span>
@@ -3345,6 +3349,20 @@ function dismissSplash() {
           <div class="card">
             <div style="font-family:var(--font-display);font-size:0.9rem;font-weight:700;margin-bottom:14px">📅 Day Detail</div>
             <div id="mp-day-breakdown" style="font-size:0.82rem;color:var(--text-secondary)">Click a column header to see daily breakdown</div>
+          </div>
+        </div>
+        <!-- Shopping List Panel -->
+        <div id="shopping-list-panel" style="display:none;margin-top:16px">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+              <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:800">🛒 Shopping List — This Week</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-outline btn-sm" onclick="copyShoppingList()">📋 Copy</button>
+                <button class="btn btn-ghost btn-sm" onclick="window._shopChecked={};renderShoppingListContent()" title="Uncheck all items" style="font-size:0.75rem">↺ Reset</button>
+                <button class="btn btn-ghost btn-sm" onclick="toggleShoppingList()">✕ Close</button>
+              </div>
+            </div>
+            <div id="shopping-list-content" style="font-size:0.85rem"></div>
           </div>
         </div>
       </div>
@@ -4752,7 +4770,7 @@ function dismissSplash() {
         </div>
         <div class="form-group" style="flex:1">
           <label class="form-label">Unit</label>
-          <select class="form-select" id="food-unit" onchange="updateFoodPreview()">
+          <select class="form-select" id="food-unit" onchange="onFoodUnitChange()">
             <option value="100g">Per 100g</option>
             <option value="gram">Custom grams</option>
           </select>
@@ -4763,8 +4781,9 @@ function dismissSplash() {
           <label class="form-label" id="food-gram-label">Grams</label>
           <input type="number" class="form-input" id="food-gram-val" value="100" min="1" step="1" oninput="updateFoodPreview()" />
         </div>
-        <div style="margin-top:6px">
-          <button type="button" onclick="switchToScoopMode()" style="font-size:0.72rem;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline" id="food-back-to-scoop" style="display:none">Back to scoop mode</button>
+        <div style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap">
+          <button type="button" id="food-back-to-100g" onclick="switchTo100gMode()" style="font-size:0.72rem;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;display:none">&#8617; Back to per 100g</button>
+          <button type="button" id="food-back-to-scoop" onclick="switchToScoopMode()" style="font-size:0.72rem;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;display:none">&#8617; Back to scoop mode</button>
         </div>
       </div>
     </div>
@@ -7590,6 +7609,8 @@ function refreshNutritionPage() {
   document.getElementById('n-pb-fat').style.width = pct(totals.fat, T.fat) + '%';
   // Intelligent macro warnings
   renderMacroWarnings(totals, T);
+  // Multi-day streak alerts
+  renderMultiDayMacroAlerts();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -7723,6 +7744,182 @@ function getMacroWarnings(totals, T) {
   }
 
   return warnings;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+//  MULTI-DAY MACRO IMBALANCE ALERTS  (3+ consecutive days)
+// ═══════════════════════════════════════════════════════════════════
+// Dismissed alert IDs for this session (reset on page load)
+window._dismissedMacroAlerts = new Set();
+
+function dismissMacroAlert(id) {
+  window._dismissedMacroAlerts.add(id);
+  renderMultiDayMacroAlerts();
+}
+
+function _calcStreak(days, testFn) {
+  let streak = 0;
+  for (const day of days) {
+    if (testFn(day.totals)) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function getMultiDayMacroAlerts() {
+  const alerts = [];
+  const T = State.targets;
+  if (!T) return alerts;
+
+  // Collect last 7 days that have food logged (most recent first)
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.getFullYear() + '-' +
+      String(d.getMonth()+1).padStart(2,'0') + '-' +
+      String(d.getDate()).padStart(2,'0');
+    const totals = getTodayTotals(key);
+    if (totals.cal > 0) days.push({ key, totals, daysAgo: i });
+  }
+
+  if (days.length < 3) return alerts;
+
+  const goal = (State.profile && State.profile.goal) || 'maintain';
+
+  // ── Under protein streak ───────────────────────────────────────────
+  const underProteinStreak = _calcStreak(days, t =>
+    T.protein > 0 && (t.protein / T.protein) < 0.75
+  );
+  if (underProteinStreak >= 3 && !window._dismissedMacroAlerts.has('streak-low-protein')) {
+    const slice = days.slice(0, underProteinStreak);
+    const avgProt = Math.round(slice.reduce((s, d) => s + d.totals.protein, 0) / underProteinStreak);
+    const deficit = T.protein - avgProt;
+    const tips = {
+      build: 'Add a protein shake, Greek yoghurt, or an extra chicken breast daily.',
+      cut:   'Low protein on a cut accelerates muscle loss — prioritise lean meats, eggs, and cottage cheese.',
+      lose:  'Protein keeps you full and preserves muscle on a deficit — try tuna, eggs, or cottage cheese.',
+    };
+    const tip = tips[goal] || 'Try adding eggs, tuna, or a protein shake to your meals.';
+    alerts.push({
+      id: 'streak-low-protein',
+      type: 'warn-red',
+      icon: '⚠️',
+      title: `${underProteinStreak}-Day Protein Shortfall`,
+      desc: `Averaging only <strong>${avgProt}g protein/day</strong> (goal: ${T.protein}g) — <strong>${deficit}g short</strong> each day. ${tip}`,
+      streak: underProteinStreak,
+      cta: { label: '+ Log Protein', action: "navigateTo('nutrition')" }
+    });
+  }
+
+  // ── Over fat streak ────────────────────────────────────────────────
+  const overFatStreak = _calcStreak(days, t =>
+    T.fat > 0 && (t.fat / T.fat) > 1.25
+  );
+  if (overFatStreak >= 3 && !window._dismissedMacroAlerts.has('streak-high-fat')) {
+    const slice = days.slice(0, overFatStreak);
+    const avgFat = Math.round(slice.reduce((s, d) => s + d.totals.fat, 0) / overFatStreak);
+    const excessG = avgFat - T.fat;
+    const excessCal = Math.round(excessG * 9);
+    alerts.push({
+      id: 'streak-high-fat',
+      type: 'warn-orange',
+      icon: '⚠️',
+      title: `${overFatStreak}-Day Fat Overrun`,
+      desc: `Fat is averaging <strong>${avgFat}g/day</strong> (goal: ${T.fat}g) — ~<strong>${excessCal} extra kcal/day</strong> from fat alone. Watch dressings, oils, nuts, and cheese portions.`,
+      streak: overFatStreak,
+      cta: { label: 'View Meal Plan', action: "navigateTo('mealplan')" }
+    });
+  }
+
+  // ── Under calories streak ──────────────────────────────────────────
+  const underCalsStreak = _calcStreak(days, t =>
+    T.calories > 0 && (t.cal / T.calories) < 0.60
+  );
+  if (underCalsStreak >= 3 && !window._dismissedMacroAlerts.has('streak-low-cals')) {
+    const slice = days.slice(0, underCalsStreak);
+    const avgCal = Math.round(slice.reduce((s, d) => s + d.totals.cal, 0) / underCalsStreak);
+    alerts.push({
+      id: 'streak-low-cals',
+      type: 'warn-blue',
+      icon: '⚠️',
+      title: `${underCalsStreak}-Day Low Calorie Intake`,
+      desc: `Averaging <strong>${avgCal} kcal/day</strong> (goal: ${T.calories}) for ${underCalsStreak} days. Severe under-eating slows metabolism and impairs recovery. Make sure all meals are logged.`,
+      streak: underCalsStreak,
+      cta: { label: 'Log Meals', action: "navigateTo('nutrition')" }
+    });
+  }
+
+  // ── Over calories streak ───────────────────────────────────────────
+  const overCalsStreak = _calcStreak(days, t =>
+    T.calories > 0 && (t.cal / T.calories) > 1.20
+  );
+  if (overCalsStreak >= 3 && !window._dismissedMacroAlerts.has('streak-high-cals')) {
+    const slice = days.slice(0, overCalsStreak);
+    const avgCal = Math.round(slice.reduce((s, d) => s + d.totals.cal, 0) / overCalsStreak);
+    const excessCal = avgCal - T.calories;
+    const tips = {
+      cut:  'You\'re in a surplus on a cut — check portion sizes and liquid calories.',
+      lose: 'A consistent surplus will stall weight loss — review snacks and condiments.',
+    };
+    const tip = (goal === 'cut' || goal === 'lose') ? tips[goal] || tips.lose : 'If bulking intentionally, this is fine — otherwise review portions.';
+    alerts.push({
+      id: 'streak-high-cals',
+      type: 'warn-orange',
+      icon: '📈',
+      title: `${overCalsStreak}-Day Calorie Surplus`,
+      desc: `Averaging <strong>${avgCal} kcal/day</strong> (goal: ${T.calories}) — <strong>${excessCal} kcal over</strong> each day. ${tip}`,
+      streak: overCalsStreak,
+      cta: { label: 'Review Log', action: "navigateTo('nutrition')" }
+    });
+  }
+
+  // ── Under carbs streak (only flag if carb target set and high) ─────
+  if (T.carbs > 80) {
+    const underCarbsStreak = _calcStreak(days, t =>
+      T.carbs > 0 && (t.carbs / T.carbs) < 0.60
+    );
+    if (underCarbsStreak >= 3 && !window._dismissedMacroAlerts.has('streak-low-carbs')) {
+      const slice = days.slice(0, underCarbsStreak);
+      const avgCarbs = Math.round(slice.reduce((s, d) => s + d.totals.carbs, 0) / underCarbsStreak);
+      alerts.push({
+        id: 'streak-low-carbs',
+        type: 'warn-blue',
+        icon: '⚠️',
+        title: `${underCarbsStreak}-Day Low Carb Intake`,
+        desc: `Averaging <strong>${avgCarbs}g carbs/day</strong> (goal: ${T.carbs}g). Low carbs can reduce workout performance and energy. Add oats, rice, fruit, or whole grains.`,
+        streak: underCarbsStreak,
+        cta: { label: 'Plan Meals', action: "navigateTo('mealplan')" }
+      });
+    }
+  }
+
+  return alerts;
+}
+
+function renderMultiDayMacroAlerts() {
+  const el = document.getElementById('multiday-macro-alerts');
+  if (!el) return;
+  const alerts = getMultiDayMacroAlerts();
+  if (alerts.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div style="margin-bottom:12px">
+      <div style="font-size:0.7rem;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted);margin-bottom:8px">📊 Macro Trend Alerts</div>
+      ${alerts.map(a => `
+        <div class="macro-warning ${a.type}" style="margin-bottom:6px;position:relative">
+          <span class="mw-icon">${a.icon}</span>
+          <div class="mw-body" style="flex:1;min-width:0">
+            <div class="mw-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              ${a.title}
+              <span style="font-size:0.62rem;padding:1px 7px;border-radius:10px;background:rgba(255,255,255,0.12);font-weight:700">${a.streak}-day streak</span>
+            </div>
+            <div class="mw-desc">${a.desc}</div>
+            ${a.cta ? `<button onclick="${a.cta.action}" style="margin-top:7px;font-size:0.72rem;font-weight:700;padding:4px 12px;border-radius:6px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer;opacity:0.85">${a.cta.label} →</button>` : ''}
+          </div>
+          <button onclick="dismissMacroAlert('${a.id}')" title="Dismiss" style="position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(255,255,255,0.15);color:inherit;cursor:pointer;font-size:0.75rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+        </div>`).join('')}
+    </div>`;
 }
 
 function renderMacroWarnings(totals, T) {
@@ -8065,8 +8262,11 @@ function _showCustomGramMode() {
   document.getElementById('food-scoop-wrap').style.display = 'none';
   document.getElementById('food-qty-wrap').style.display   = 'none';
   document.getElementById('food-gram-input').style.display = 'block';
-  const backBtn = document.getElementById('food-back-to-scoop');
-  if (backBtn) backBtn.style.display = selectedFood && _parseServing(selectedFood.serving).grams !== 100 ? '' : 'none';
+  const backScoop = document.getElementById('food-back-to-scoop');
+  const back100g  = document.getElementById('food-back-to-100g');
+  const hasNamed = selectedFood && _parseServing(selectedFood.serving).name !== '' && _parseServing(selectedFood.serving).grams !== 100;
+  if (backScoop) backScoop.style.display = hasNamed ? '' : 'none';
+  if (back100g)  back100g.style.display  = hasNamed ? 'none' : '';
 }
 
 function adjustScoops(delta) {
@@ -8090,6 +8290,27 @@ function switchToScoopMode() {
   const g = parseFloat(document.getElementById('food-gram-val').value) || grams;
   document.getElementById('food-scoop-val').value = Math.max(0.5, Math.round((g / grams) * 2) / 2);
   _showScoopMode();
+  updateFoodPreview();
+}
+
+function onFoodUnitChange() {
+  const unit = document.getElementById('food-unit').value;
+  if (unit === 'gram') {
+    // Carry over the qty*100 as the starting gram value
+    const qty = parseFloat(document.getElementById('food-qty').value) || 1;
+    document.getElementById('food-gram-val').value = Math.round(qty * 100);
+    _showCustomGramMode();
+  } else {
+    _showGram100Mode();
+  }
+  updateFoodPreview();
+}
+
+function switchTo100gMode() {
+  if (!selectedFood) return;
+  const grams = parseFloat(document.getElementById('food-gram-val').value) || 100;
+  document.getElementById('food-qty').value = Math.max(0.1, +(grams / 100).toFixed(1));
+  _showGram100Mode();
   updateFoodPreview();
 }
 
@@ -10237,6 +10458,264 @@ function mpNav(dir) {
   renderMealPlan();
 }
 
+
+// ═══════════════════════════════════════════════════════════════════
+//  SHOPPING LIST GENERATOR
+// ═══════════════════════════════════════════════════════════════════
+
+// Common ingredient keywords → grocery category
+const _SHOPPING_CATEGORIES = [
+  { label: '🥩 Meat & Fish',   keywords: ['chicken','beef','turkey','pork','lamb','duck','tuna','salmon','cod','shrimp','prawn','fish','steak','mince','ground','sausage','bacon','ham','brisket','rib','tenderloin','liver','sardine','anchovy','crab','lobster'] },
+  { label: '🥛 Dairy & Eggs',  keywords: ['milk','yoghurt','yogurt','cheese','butter','cream','egg','whey','casein','cottage','kefir','ghee','cheddar','mozzarella','parmesan','ricotta','skyr'] },
+  { label: '🌾 Grains & Carbs',keywords: ['rice','pasta','bread','oat','cereal','quinoa','flour','tortilla','wrap','noodle','bagel','cracker','couscous','barley','rye','spelt','corn','popcorn','granola','muesli'] },
+  { label: '🥦 Vegetables',    keywords: ['broccoli','spinach','kale','lettuce','tomato','cucumber','pepper','carrot','onion','garlic','potato','sweet potato','mushroom','zucchini','celery','cabbage','cauliflower','aubergine','eggplant','asparagus','leek','chard','beet','pea','bean','lentil','edamame','artichoke','squash','pumpkin','turnip','radish','corn','avocado'] },
+  { label: '🍎 Fruit',         keywords: ['apple','banana','orange','grape','berry','blueberry','strawberry','raspberry','mango','pineapple','melon','watermelon','kiwi','peach','pear','plum','cherry','lemon','lime','grapefruit','date','fig','apricot','pomegranate'] },
+  { label: '🥜 Nuts & Seeds',  keywords: ['almond','walnut','cashew','peanut','pistachio','pecan','hazelnut','nut','seed','flaxseed','chia','sunflower','pumpkin seed','hemp','sesame','tahini'] },
+  { label: '🫙 Oils & Condiments', keywords: ['oil','olive','coconut','vinegar','sauce','ketchup','mustard','mayo','dressing','soy','tamari','worcestershire','hot sauce','salsa','hummus','pesto','tahini','jam','honey','syrup','agave'] },
+  { label: '🧂 Spices & Herbs',keywords: ['salt','pepper','cumin','paprika','turmeric','cinnamon','oregano','basil','thyme','rosemary','ginger','garlic powder','onion powder','chilli','cayenne','coriander','parsley','dill','mint','bay','nutmeg','clove','cardamom','saffron','vanilla','herb','spice'] },
+  { label: '🥫 Canned & Packaged', keywords: ['canned','tinned','can of','tin of','chickpea','black bean','kidney','lentil','soup','broth','stock','tomato paste','coconut milk','peanut butter','almond butter','protein bar','protein powder','supplement','shake'] },
+];
+
+function _categorizeFoodItem(name) {
+  const lower = name.toLowerCase();
+  for (const cat of _SHOPPING_CATEGORIES) {
+    if (cat.keywords.some(kw => lower.includes(kw))) return cat.label;
+  }
+  return '🛍️ Other';
+}
+
+function _extractBaseIngredient(name) {
+  // Strip portion annotations like "(250g)", "(2 scoops · 60g)", "(3×serving)"
+  return name
+    .replace(/\s*\(\d+(?:\.\d+)?\s*(?:g|kg|ml|l|oz|lb)\)/gi, '')
+    .replace(/\s*\(\d+(?:\.\d+)?\s*[×x]\s*\w+[^)]*\)/gi, '')
+    .replace(/\s*\(\d+(?:\.\d+)?\s*\w+\s*·[^)]*\)/gi, '')
+    .replace(/\s*\(raw\)/gi, '')
+    .trim();
+}
+
+// ── Shopping list state ──────────────────────────────────────────────
+window._shopChecked = {};          // norm → true (ticked off)
+window._shopSource  = 'plan';      // 'plan' | 'both'
+
+function generateShoppingList(source) {
+  source = source || window._shopSource || 'plan';
+  const weekDays = getMpWeekDays();
+  const meals = ['breakfast', 'lunch', 'dinner', 'snacks'];
+  const itemMap = {};
+
+  function addItem(it) {
+    if (!it || !it.name) return;
+    const base = _extractBaseIngredient(it.name);
+    const norm = base.toLowerCase().trim();
+    if (!norm) return;
+    if (!itemMap[norm]) {
+      itemMap[norm] = {
+        displayName: base,
+        count: 0,
+        totalCal: 0,
+        totalProtein: 0,
+        totalCarbs: 0,
+        totalFat: 0,
+        totalGrams: 0,
+        sources: new Set(),
+        category: _categorizeFoodItem(base)
+      };
+    }
+    const entry = itemMap[norm];
+    entry.count++;
+    entry.totalCal     += (it.cal     || 0);
+    entry.totalProtein += (it.protein || 0);
+    entry.totalCarbs   += (it.carbs   || 0);
+    entry.totalFat     += (it.fat     || 0);
+    // Try to extract grams from name label
+    const gm = (it.name || '').match(/\((\d+(?:\.\d+)?)\s*g\)/);
+    if (gm) entry.totalGrams += parseFloat(gm[1]);
+    entry.sources.add(it._source || 'plan');
+  }
+
+  // From meal plan
+  weekDays.forEach(({ key }) => {
+    const dayPlan = State.mealPlan[key] || {};
+    meals.forEach(meal => {
+      let items = dayPlan[meal];
+      if (!items) return;
+      if (!Array.isArray(items)) items = [items];
+      items.forEach(it => addItem({ ...it, _source: 'plan' }));
+    });
+  });
+
+  // Also from logged meals this week
+  if (source === 'both') {
+    weekDays.forEach(({ key }) => {
+      const log = State.logs[key];
+      if (!log || !log.meals) return;
+      meals.forEach(meal => {
+        const items = log.meals[meal] || [];
+        items.forEach(it => addItem({ ...it, _source: 'logged' }));
+      });
+    });
+  }
+
+  return itemMap;
+}
+
+function toggleShoppingList() {
+  const panel = document.getElementById('shopping-list-panel');
+  if (!panel) return;
+  const isVisible = panel.style.display !== 'none';
+  if (isVisible) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  renderShoppingListContent();
+}
+
+function _shopSetSource(src) {
+  window._shopSource = src;
+  const btnPlan = document.getElementById('shop-src-plan');
+  const btnBoth = document.getElementById('shop-src-both');
+  if (btnPlan) { btnPlan.style.background = src==='plan'?'var(--accent)':'var(--bg-elevated)'; btnPlan.style.color = src==='plan'?'#fff':'var(--text-secondary)'; }
+  if (btnBoth) { btnBoth.style.background = src==='both'?'var(--accent)':'var(--bg-elevated)'; btnBoth.style.color = src==='both'?'#fff':'var(--text-secondary)'; }
+  renderShoppingListContent();
+}
+
+function _shopToggleItem(norm, checkbox) {
+  if (checkbox.checked) window._shopChecked[norm] = true;
+  else delete window._shopChecked[norm];
+  const row = document.getElementById('shop-row-' + CSS.escape(norm));
+  if (row) row.style.opacity = checkbox.checked ? '0.38' : '1';
+}
+
+function renderShoppingListContent() {
+  const el = document.getElementById('shopping-list-content');
+  if (!el) return;
+
+  const weekDays = getMpWeekDays();
+  const d1 = new Date(weekDays[0].key).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const d7 = new Date(weekDays[6].key).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const source = window._shopSource || 'plan';
+
+  const itemMap = generateShoppingList(source);
+  const items = Object.values(itemMap);
+
+  const checkedCount = Object.keys(window._shopChecked).length;
+  const totalCount   = items.length;
+  const pctDone      = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
+
+  // ── Source toggle ──────────────────────────────────────────────────
+  let html = `
+    <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:0.72rem;color:var(--text-muted);font-weight:600">Source:</span>
+      <button id="shop-src-plan" onclick="_shopSetSource('plan')" style="font-size:0.72rem;font-weight:700;padding:4px 12px;border-radius:20px;border:none;cursor:pointer;transition:all 0.15s;background:${source==='plan'?'var(--accent)':'var(--bg-elevated)'};color:${source==='plan'?'#fff':'var(--text-secondary)'}">Meal Plan</button>
+      <button id="shop-src-both" onclick="_shopSetSource('both')" style="font-size:0.72rem;font-weight:700;padding:4px 12px;border-radius:20px;border:none;cursor:pointer;transition:all 0.15s;background:${source==='both'?'var(--accent)':'var(--bg-elevated)'};color:${source==='both'?'#fff':'var(--text-secondary)'}">Plan + Logged Meals</button>
+    </div>`;
+
+  if (items.length === 0) {
+    html += '<div class="empty-state" style="padding:20px"><div class="es-icon">🛒</div><div class="es-text">No meals found for this week.<br>Add meals to your plan to generate a list.</div></div>';
+    el.innerHTML = html;
+    return;
+  }
+
+  // ── Progress bar ───────────────────────────────────────────────────
+  html += `
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <span style="font-size:0.72rem;color:var(--text-muted)">Week of ${d1}–${d7} · <strong>${totalCount} items</strong></span>
+        <span style="font-size:0.72rem;font-weight:700;color:var(--accent)">${checkedCount}/${totalCount} checked off</span>
+      </div>
+      <div style="height:6px;background:var(--bg-elevated);border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${pctDone}%;background:var(--accent);border-radius:4px;transition:width 0.3s"></div>
+      </div>
+    </div>`;
+
+  // ── Group by category ──────────────────────────────────────────────
+  const byCategory = {};
+  items.forEach(it => {
+    if (!byCategory[it.category]) byCategory[it.category] = [];
+    byCategory[it.category].push(it);
+  });
+
+  const sortedCats = Object.keys(byCategory).sort((a, b) => {
+    if (a === '🛍️ Other') return 1;
+    if (b === '🛍️ Other') return -1;
+    return a.localeCompare(b);
+  });
+
+  sortedCats.forEach(cat => {
+    const catItems = byCategory[cat].sort((a, b) => a.displayName.localeCompare(b.displayName));
+    const catProt = catItems.reduce((s,i) => s + i.totalProtein, 0);
+    const catCal  = catItems.reduce((s,i) => s + i.totalCal, 0);
+    html += `
+      <div style="margin-bottom:18px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid var(--border)">
+          <span style="font-size:0.72rem;font-weight:800;color:var(--text-secondary);letter-spacing:0.4px;text-transform:uppercase">${cat}</span>
+          <span style="font-size:0.65rem;color:var(--text-muted)">${catCal > 0 ? Math.round(catCal)+' kcal' : ''} ${catProt > 0 ? '· '+Math.round(catProt)+'g protein' : ''}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px">`;
+
+    catItems.forEach(it => {
+      const norm = it.displayName.toLowerCase().trim();
+      const isChecked = !!window._shopChecked[norm];
+      const badgeHtml = source === 'both' && it.sources
+        ? [...it.sources].map(s => `<span style="font-size:0.58rem;padding:1px 5px;border-radius:8px;font-weight:700;background:${s==='plan'?'var(--blue-dim)':'var(--green-dim)'};color:${s==='plan'?'var(--blue)':'var(--green)'}">${s==='plan'?'plan':'logged'}</span>`).join(' ')
+        : '';
+      const gramsLabel = it.totalGrams > 0 ? `${Math.round(it.totalGrams)}g total` : `×${it.count} this week`;
+
+      html += `
+        <label id="shop-row-${CSS.escape(norm)}" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:7px 8px;border-radius:var(--radius-sm);transition:background 0.1s;opacity:${isChecked?'0.38':'1'}" onmouseover="this.style.background='var(--bg-elevated)'" onmouseout="this.style.background='transparent'">
+          <input type="checkbox" ${isChecked?'checked':''} onchange="_shopToggleItem('${norm.replace(/'/g,"\\'")}',this)" style="width:17px;height:17px;accent-color:var(--accent);flex-shrink:0;cursor:pointer;border-radius:4px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:0.83rem;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap">${it.displayName} ${badgeHtml}</div>
+            <div style="font-size:0.67rem;color:var(--text-muted);margin-top:1px">${gramsLabel} · ${Math.round(it.totalCal)} kcal · ${Math.round(it.totalProtein)}g P · ${Math.round(it.totalCarbs)}g C · ${Math.round(it.totalFat)}g F</div>
+          </div>
+        </label>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  el.innerHTML = html;
+}
+
+function copyShoppingList() {
+  const source = window._shopSource || 'plan';
+  const itemMap = generateShoppingList(source);
+  const items = Object.values(itemMap);
+  if (items.length === 0) {
+    if (typeof showToast === 'function') showToast('No items to copy — plan some meals first!', 'error');
+    return;
+  }
+
+  const byCategory = {};
+  items.forEach(it => {
+    if (!byCategory[it.category]) byCategory[it.category] = [];
+    byCategory[it.category].push(it);
+  });
+
+  const weekDays = getMpWeekDays();
+  const d1 = new Date(weekDays[0].key).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const d7 = new Date(weekDays[6].key).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+  let text = `SHOPPING LIST (${d1} – ${d7})\n` + '='.repeat(38) + '\n';
+  const sortedCats = Object.keys(byCategory).sort((a,b) => {
+    if (a === '🛍️ Other') return 1; if (b === '🛍️ Other') return -1; return a.localeCompare(b);
+  });
+  sortedCats.forEach(cat => {
+    text += `\n${cat}\n`;
+    byCategory[cat].sort((a,b)=>a.displayName.localeCompare(b.displayName)).forEach(it => {
+      const norm = it.displayName.toLowerCase().trim();
+      const tick = window._shopChecked[norm] ? '✓' : '□';
+      const qty = it.totalGrams > 0 ? `${Math.round(it.totalGrams)}g` : `×${it.count}`;
+      text += `  ${tick} ${it.displayName} (${qty}) — ${Math.round(it.totalCal)} kcal, ${Math.round(it.totalProtein)}g protein\n`;
+    });
+  });
+
+  navigator.clipboard.writeText(text).then(() => {
+    if (typeof showToast === 'function') showToast('Shopping list copied to clipboard! 🛒', 'success');
+  }).catch(() => {
+    if (typeof showToast === 'function') showToast('Copy failed — try manually selecting the list.', 'error');
+  });
+}
+
 function renderMealPlan() {
   const dates = getMpWeekDates();
   const startLabel = dates[0].toLocaleDateString('en-US',{month:'short',day:'numeric'});
@@ -10244,6 +10723,10 @@ function renderMealPlan() {
   document.getElementById('mp-week-label').textContent = `${startLabel} – ${endLabel}`;
   renderMealPlanGrid();
   renderMpWeekSummary();
+
+  // Refresh shopping list panel if open
+  const _slPanel = document.getElementById('shopping-list-panel');
+  if (_slPanel && _slPanel.style.display !== 'none') renderShoppingListContent();
 }
 
 function _renderMpWeekSummaryOld(dates) {
