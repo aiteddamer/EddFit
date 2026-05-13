@@ -3898,8 +3898,9 @@ function dismissSplash() {
         <!-- Tabs -->
         <div class="social-tab-bar">
           <button class="social-tab social-tab-pill active" data-tab="friends"    onclick="switchSocialTab('friends',this)">👥 Friends</button>
+          <button class="social-tab social-tab-pill"        data-tab="squads"     onclick="switchSocialTab('squads',this)">🏋️ Squads</button>
           <button class="social-tab social-tab-pill"        data-tab="challenges" onclick="switchSocialTab('challenges',this)">🏆 Challenges</button>
-          <button class="social-tab social-tab-pill"        data-tab="squad"      onclick="switchSocialTab('squad',this)">🏋️ Train Together</button>
+          <button class="social-tab social-tab-pill"        data-tab="squad"      onclick="switchSocialTab('squad',this)">🤝 Train Together</button>
           <button class="social-tab social-tab-pill"        data-tab="leaderboard" onclick="switchSocialTab('leaderboard',this)">📊 Leaderboard</button>
         </div>
 
@@ -3976,6 +3977,28 @@ function dismissSplash() {
                 <div style="font-size:2rem;margin-bottom:10px">👥</div>
                 <div style="font-size:0.88rem;color:var(--text-muted)">Loading friends…</div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════ SQUADS TAB ═══════════════ -->
+        <div id="social-tab-squads" style="display:none">
+
+          <!-- Header row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+            <div>
+              <div style="font-family:var(--font-display);font-size:1rem;font-weight:800">🏋️ My Squads</div>
+              <div style="font-size:0.78rem;color:var(--text-secondary)">Create named groups from your friends</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openCreateSquad()">+ New Squad</button>
+          </div>
+
+          <div id="squads-list">
+            <div style="text-align:center;padding:48px 0">
+              <div style="font-size:2.5rem;margin-bottom:12px">🏋️</div>
+              <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:700;margin-bottom:6px">No squads yet</div>
+              <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:16px">Create a squad and add your gym bros</div>
+              <button class="btn btn-primary btn-sm" onclick="openCreateSquad()">🚀 Create First Squad</button>
             </div>
           </div>
         </div>
@@ -13593,6 +13616,39 @@ document.addEventListener('click', function(e) {
 </div>
 
 <!-- Create Challenge Modal -->
+<!-- ═══════════════════════════════════════════════════════════════
+     CREATE / EDIT SQUAD MODAL
+═══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-create-squad">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">
+      <span id="squad-modal-title">🏋️ New Squad</span>
+      <button class="btn-icon" onclick="closeModal('modal-create-squad')">✕</button>
+    </div>
+    <div class="form-grid" style="gap:14px">
+      <div class="form-group">
+        <label class="form-label">Squad Name</label>
+        <input type="text" class="form-input" id="squad-name-input" placeholder="e.g. The Boys, Gym Rats, Push Pull…" maxlength="40" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Emoji (optional)</label>
+        <input type="text" class="form-input" id="squad-emoji-input" placeholder="🔥" maxlength="4" style="width:80px" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Add Members</label>
+        <div id="squad-members-checkboxes" style="display:flex;flex-direction:column;gap:8px;margin-top:4px;max-height:180px;overflow-y:auto">
+          <div style="font-size:0.8rem;color:var(--text-muted)">Add friends first</div>
+        </div>
+      </div>
+    </div>
+    <input type="hidden" id="squad-edit-id" value="" />
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-create-squad')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSquad()">💾 Save Squad</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-create-challenge">
   <div class="modal" style="max-width:480px">
     <div class="modal-title">
@@ -13626,7 +13682,10 @@ document.addEventListener('click', function(e) {
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Invite Friends</label>
+        <label class="form-label">Invite — Quick-select a Squad</label>
+        <select class="form-select" id="ch-squad-select" onchange="prefillChallengeFromSquad(this.value)" style="margin-bottom:8px">
+          <option value="">— pick a squad to auto-select members —</option>
+        </select>
         <div id="ch-friends-checkboxes" style="display:flex;flex-direction:column;gap:8px;margin-top:4px;max-height:160px;overflow-y:auto">
           <div style="font-size:0.8rem;color:var(--text-muted)">Add friends first to invite them</div>
         </div>
@@ -13869,7 +13928,8 @@ document.addEventListener('click', function(e) {
 // ── Social state ──────────────────────────────────────────────────────
 const Social = {
   friends: [],
-  squad: [],        // subset of friends the user has pinned as their squad
+  squads: [],       // array of {id, name, emoji, memberUids:[]}
+  squad: [],        // kept for backward compat with Train Together wall (first squad's members)
   pendingIn: [],
   myProfile: null,
   challenges: [],
@@ -13882,7 +13942,7 @@ window.Social = Social; // expose globally so share modal, badges & other script
 
 // ── Tab switching ────────────────────────────────────────────────────
 function resetSocialTabs() {
-  ['challenges','leaderboard','squad'].forEach(t => {
+  ['challenges','leaderboard','squad','squads'].forEach(t => {
     const el = document.getElementById('social-tab-' + t);
     if (el) el.style.display = 'none';
   });
@@ -13908,14 +13968,18 @@ function switchSocialTab(tab, btn) {
   btn.style.borderBottomColor = 'var(--accent)';
   btn.style.fontWeight = '700';
   btn.classList.add('active');
-  ['friends','challenges','leaderboard','squad'].forEach(t => {
+  ['friends','challenges','leaderboard','squad','squads'].forEach(t => {
     const el = document.getElementById('social-tab-' + t);
     if (el) el.style.display = t === tab ? '' : 'none';
   });
   if (tab === 'leaderboard') loadLeaderboard();
   if (tab === 'challenges')  loadChallenges();
+  if (tab === 'squads')      renderSquadsList();
   if (tab === 'squad' && window._renderSquadProgressWall && window.Social) {
-    window._renderSquadProgressWall(window.Social.squad && window.Social.squad.length ? window.Social.squad : []);
+    const wallMembers = Social.squads.length
+      ? Social.friends.filter(f => Social.squads[0].memberUids.includes(f.uid))
+      : [];
+    window._renderSquadProgressWall(wallMembers);
     if (window._updateSocialHeroStats) window._updateSocialHeroStats();
   }
 }
@@ -14367,13 +14431,17 @@ async function loadFriends() {
         if (pSnap.exists()) Social.friends.push({ uid, ...pSnap.data() });
       } catch(e) {}
     }));
-    // Load which friends are in the squad
+    // Load squads from Firestore
     try {
       const myDoc = await window._fbGetDoc(window._fbDoc(db,'users_public',me.uid));
-      const squadUids = (myDoc.exists() && myDoc.data().squadUids) ? myDoc.data().squadUids : [];
-      Social.squad = Social.friends.filter(f => squadUids.includes(f.uid));
-    } catch(e) { Social.squad = []; }
+      Social.squads = (myDoc.exists() && myDoc.data().squads) ? myDoc.data().squads : [];
+      // Backward compat: squad = first squad's members
+      Social.squad = Social.squads.length
+        ? Social.friends.filter(f => Social.squads[0].memberUids.includes(f.uid))
+        : [];
+    } catch(e) { Social.squads = []; Social.squad = []; }
     renderFriendsList();
+    renderSquadsList();
     updateChallengeInviteList();
   } catch(e) { console.error('loadFriends', e); renderFriendsList(); }
 }
@@ -14398,23 +14466,20 @@ function renderFriendsList() {
     const displayName = f.fullName || f.name || f.username || '?';
     const username    = f.username || '';
     const initial     = displayName.charAt(0).toUpperCase();
-    const inSquad     = Social.squad.some(s => s.uid === f.uid);
+    const mySquads    = Social.squads.filter(sq => sq.memberUids.includes(f.uid));
+    const squadPills  = mySquads.map(sq =>
+      `<span style="font-size:0.6rem;padding:1px 6px;border-radius:20px;background:var(--purple-dim);color:var(--purple);font-weight:800;flex-shrink:0">${sq.emoji||'🏋️'} ${sq.name}</span>`
+    ).join('');
     return `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
       <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:0.95rem;color:var(--bg-base);flex-shrink:0;position:relative">
         ${f.photoURL?`<img src="${f.photoURL}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">`:''} ${initial}
       </div>
       <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:6px">
-          <div style="font-size:0.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${displayName}</div>
-          ${inSquad ? '<span style="font-size:0.6rem;padding:1px 6px;border-radius:20px;background:var(--purple-dim);color:var(--purple);font-weight:800;flex-shrink:0">🏋️ SQUAD</span>' : ''}
-        </div>
-        <div style="font-size:0.72rem;color:var(--text-muted)">@${username||'—'}</div>
+        <div style="font-size:0.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${displayName}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:2px">@${username||'—'}</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">${squadPills}</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-        <button onclick="toggleSquadMember('${f.uid}', this)" title="${inSquad?'Remove from squad':'Add to squad'}"
-          style="font-size:0.68rem;padding:3px 9px;border-radius:20px;border:1px solid ${inSquad?'var(--purple)':'var(--border)'};background:${inSquad?'var(--purple-dim)':'var(--bg-elevated)'};color:${inSquad?'var(--purple)':'var(--text-secondary)'};font-weight:700;cursor:pointer;transition:all 0.15s;white-space:nowrap">
-          ${inSquad ? '🏋️ Squad' : '+ Squad'}
-        </button>
         <button onclick="removeFriend('${f.uid}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;padding:4px;border-radius:4px;line-height:1" title="Remove friend" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
       </div>
     </div>`;
@@ -14434,31 +14499,176 @@ async function removeFriend(friendUid) {
   } catch(e) { console.error('removeFriend', e); }
 }
 
-async function toggleSquadMember(friendUid, btn) {
+// ── Save squads array to Firestore ────────────────────────────────
+async function _persistSquads() {
   const me = window._currentUser;
   if (!me) return;
-  const friend = Social.friends.find(f => f.uid === friendUid);
-  if (!friend) return;
-  const inSquad = Social.squad.some(s => s.uid === friendUid);
-  if (inSquad) {
-    Social.squad = Social.squad.filter(s => s.uid !== friendUid);
-  } else {
-    Social.squad = [...Social.squad, friend];
-  }
-  // Persist squadUids to Firestore
   try {
     await window._fbSetDoc(
       window._fbDoc(window._fbDb, 'users_public', me.uid),
-      { squadUids: Social.squad.map(s => s.uid) },
+      { squads: Social.squads },
       { merge: true }
     );
-  } catch(e) { console.warn('toggleSquadMember save error', e); }
-  renderFriendsList();
-  // Re-render squad wall if currently visible
-  if (window._renderSquadProgressWall) {
-    window._renderSquadProgressWall(Social.squad.length ? Social.squad : []);
+  } catch(e) { console.warn('_persistSquads error', e); }
+}
+
+// ── Render the squads list page ────────────────────────────────────
+function renderSquadsList() {
+  const el = document.getElementById('squads-list');
+  if (!el) return;
+  if (!Social.squads.length) {
+    el.innerHTML = `<div style="text-align:center;padding:48px 0">
+      <div style="font-size:2.5rem;margin-bottom:12px">🏋️</div>
+      <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:700;margin-bottom:6px">No squads yet</div>
+      <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:16px">Create a squad and add your gym bros</div>
+      <button class="btn btn-primary btn-sm" onclick="openCreateSquad()">🚀 Create First Squad</button>
+    </div>`;
+    return;
   }
-  showToast(inSquad ? 'Removed from squad 👋' : 'Added to squad 🏋️', 'success');
+  el.innerHTML = Social.squads.map((sq, idx) => {
+    const members = Social.friends.filter(f => sq.memberUids.includes(f.uid));
+    const avatars = members.slice(0,5).map(f => {
+      const init = (f.fullName||f.username||'?').charAt(0).toUpperCase();
+      return `<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--bg-base);border:2px solid var(--bg-card);position:relative;flex-shrink:0">
+        ${f.photoURL?`<img src="${f.photoURL}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">`:''} ${init}
+      </div>`;
+    }).join('');
+    const extra = members.length > 5 ? `<div style="width:32px;height:32px;border-radius:50%;background:var(--bg-elevated);border:2px solid var(--bg-card);display:flex;align-items:center;justify-content:center;font-size:0.68rem;font-weight:700;color:var(--text-secondary)">+${members.length-5}</div>` : '';
+    const memberNames = members.slice(0,3).map(f=>f.fullName||f.username||'?').join(', ') + (members.length>3?` +${members.length-3} more`:'');
+    return `<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:flex-start;gap:14px">
+        <div style="font-size:2rem;flex-shrink:0;line-height:1;padding-top:2px">${sq.emoji||'🏋️'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;margin-bottom:2px">${sq.name}</div>
+          <div style="font-size:0.73rem;color:var(--text-secondary);margin-bottom:10px">${members.length} member${members.length!==1?'s':''} · ${memberNames||'—'}</div>
+          <div style="display:flex;gap:0" id="squad-avatars-${idx}">${avatars}${extra}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-outline btn-sm" onclick="openEditSquad(${idx})">✏️</button>
+          <button class="btn btn-primary btn-sm" onclick="openChallengeForSquad(${idx})">🏆 Challenge</button>
+          <button onclick="deleteSquad(${idx})" title="Delete squad"
+            style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;padding:6px;border-radius:var(--radius-sm);line-height:1"
+            onmouseover="this.style.color='var(--red)';this.style.background='var(--red-dim)'"
+            onmouseout="this.style.color='var(--text-muted)';this.style.background='none'">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Open create squad modal ────────────────────────────────────────
+function openCreateSquad() {
+  document.getElementById('squad-modal-title').textContent = '🏋️ New Squad';
+  document.getElementById('squad-name-input').value = '';
+  document.getElementById('squad-emoji-input').value = '';
+  document.getElementById('squad-edit-id').value = '';
+  _populateSquadMemberCheckboxes([]);
+  openModal('modal-create-squad');
+}
+
+// ── Open edit squad modal ──────────────────────────────────────────
+function openEditSquad(idx) {
+  const sq = Social.squads[idx];
+  if (!sq) return;
+  document.getElementById('squad-modal-title').textContent = '✏️ Edit Squad';
+  document.getElementById('squad-name-input').value = sq.name;
+  document.getElementById('squad-emoji-input').value = sq.emoji||'';
+  document.getElementById('squad-edit-id').value = String(idx);
+  _populateSquadMemberCheckboxes(sq.memberUids);
+  openModal('modal-create-squad');
+}
+
+function _populateSquadMemberCheckboxes(selectedUids) {
+  const el = document.getElementById('squad-members-checkboxes');
+  if (!el) return;
+  if (!Social.friends.length) {
+    el.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted)">Add friends first to include them in a squad</div>';
+    return;
+  }
+  el.innerHTML = Social.friends.map(f => {
+    const name = f.fullName || f.name || f.username || '?';
+    const checked = selectedUids.includes(f.uid) ? 'checked' : '';
+    return `<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 8px;border-radius:var(--radius-sm);transition:background var(--transition)" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
+      <input type="checkbox" value="${f.uid}" ${checked} style="accent-color:var(--accent);width:15px;height:15px;flex-shrink:0" />
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--bg-base);flex-shrink:0">${name.charAt(0).toUpperCase()}</div>
+      <span style="font-size:0.85rem;font-weight:500">${name}</span>
+    </label>`;
+  }).join('');
+}
+
+// ── Save (create or update) a squad ───────────────────────────────
+async function saveSquad() {
+  const name  = (document.getElementById('squad-name-input')?.value||'').trim();
+  const emoji = (document.getElementById('squad-emoji-input')?.value||'').trim();
+  const editId = document.getElementById('squad-edit-id')?.value;
+  if (!name) { showToast('Give your squad a name 💬', 'warn'); return; }
+  const memberUids = [];
+  document.querySelectorAll('#squad-members-checkboxes input[type=checkbox]:checked').forEach(cb => memberUids.push(cb.value));
+  const squadObj = { id: editId !== '' ? Social.squads[+editId]?.id : Date.now().toString(), name, emoji: emoji||'🏋️', memberUids };
+  if (editId !== '') {
+    Social.squads[+editId] = squadObj;
+  } else {
+    Social.squads.push(squadObj);
+  }
+  // Sync backward-compat Social.squad
+  Social.squad = Social.friends.filter(f => Social.squads[0]?.memberUids.includes(f.uid));
+  await _persistSquads();
+  closeModal('modal-create-squad');
+  renderSquadsList();
+  renderFriendsList();
+  updateChallengeInviteList();
+  showToast(editId !== '' ? `Squad "${name}" updated!` : `Squad "${name}" created! 🏋️`, 'success');
+}
+
+// ── Delete a squad ─────────────────────────────────────────────────
+async function deleteSquad(idx) {
+  const sq = Social.squads[idx];
+  if (!sq || !confirm(`Delete squad "${sq.name}"?`)) return;
+  Social.squads.splice(idx, 1);
+  Social.squad = Social.friends.filter(f => Social.squads[0]?.memberUids.includes(f.uid));
+  await _persistSquads();
+  renderSquadsList();
+  renderFriendsList();
+  showToast('Squad deleted', 'info');
+}
+
+// ── Open challenge modal pre-filled for a squad ───────────────────
+function openChallengeForSquad(idx) {
+  const sq = Social.squads[idx];
+  if (!sq) return;
+  // Pre-fill challenge name
+  const nameEl = document.getElementById('ch-name');
+  if (nameEl) nameEl.value = sq.name + ' Challenge';
+  // Set dates
+  openCreateChallenge();
+  // After modal opens, tick all squad members
+  setTimeout(() => {
+    updateChallengeInviteList();
+    document.querySelectorAll('#ch-friends-checkboxes input[type=checkbox]').forEach(cb => {
+      cb.checked = sq.memberUids.includes(cb.value);
+    });
+    // Select the squad in the dropdown
+    const sel = document.getElementById('ch-squad-select');
+    if (sel) sel.value = String(idx);
+  }, 50);
+}
+
+// ── Populate squad selector in challenge modal ────────────────────
+function _updateChallengeSquadSelect() {
+  const sel = document.getElementById('ch-squad-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— pick a squad to auto-select members —</option>' +
+    Social.squads.map((sq, i) => `<option value="${i}">${sq.emoji||'🏋️'} ${sq.name} (${sq.memberUids.length} members)</option>`).join('');
+}
+
+// ── Auto-select members when squad is picked in challenge modal ───
+function prefillChallengeFromSquad(idx) {
+  if (idx === '') return;
+  const sq = Social.squads[+idx];
+  if (!sq) return;
+  document.querySelectorAll('#ch-friends-checkboxes input[type=checkbox]').forEach(cb => {
+    cb.checked = sq.memberUids.includes(cb.value);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -14484,15 +14694,16 @@ function updateChallengeInviteList() {
   if (!el) return;
   if (!Social.friends.length) {
     el.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted)">Add friends first to invite them to challenges</div>';
-    return;
+  } else {
+    el.innerHTML = Social.friends.map(f => `
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 8px;border-radius:var(--radius-sm);transition:background var(--transition)" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
+        <input type="checkbox" value="${f.uid}" style="accent-color:var(--accent);width:15px;height:15px;flex-shrink:0" />
+        <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--bg-base);flex-shrink:0">${(f.fullName||f.name||'?').charAt(0).toUpperCase()}</div>
+        <span style="font-size:0.85rem;font-weight:500">${f.fullName || f.name || f.username}</span>
+      </label>
+    `).join('');
   }
-  el.innerHTML = Social.friends.map(f => `
-    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 8px;border-radius:var(--radius-sm);transition:background var(--transition)" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
-      <input type="checkbox" value="${f.uid}" style="accent-color:var(--accent);width:15px;height:15px;flex-shrink:0" />
-      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--bg-base);flex-shrink:0">${(f.fullName||f.name||'?').charAt(0).toUpperCase()}</div>
-      <span style="font-size:0.85rem;font-weight:500">${f.fullName || f.name || f.username}</span>
-    </label>
-  `).join('');
+  _updateChallengeSquadSelect();
 }
 
 async function createChallenge() {
