@@ -1541,6 +1541,7 @@ html.dark .sgp-pill.sgp-pill-on { color:#111; }
 .sgp-item:hover { background:var(--bg-elevated); }
 .sgp-item.sgp-checked { opacity:.38; }
 .sgp-item.sgp-hidden { display:none; }
+.sgp-item.sgp-pantry-full { opacity:.55; background:var(--green-dim); }
 
 .sgp-checkbox {
   width:19px;height:19px;border-radius:5px;flex-shrink:0;
@@ -3456,9 +3457,12 @@ function dismissSplash() {
               <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
                 <button class="btn btn-outline btn-sm" onclick="sgpCopyList()" title="Copy to clipboard">📋 Copy</button>
                 <button class="btn btn-outline btn-sm" onclick="sgpOpenPantry()" title="Manage pantry">🏠 Pantry</button>
+                <button class="btn btn-outline btn-sm" onclick="sgpShowHistory()" title="Week history" id="sgp-history-btn">📅 History</button>
                 <button class="btn btn-ghost btn-sm" onclick="toggleShoppingList()">✕</button>
               </div>
             </div>
+            <!-- Weekly snapshot info strip -->
+            <div id="sgp-week-strip" style="display:none;margin-top:10px;padding:8px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);font-size:0.72rem;color:var(--text-secondary);display:flex;gap:16px;flex-wrap:wrap"></div>
             <!-- Source + goal filter row -->
             <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center">
               <span style="font-size:0.7rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px">Source</span>
@@ -3482,6 +3486,16 @@ function dismissSplash() {
           </div>
           <!-- List content -->
           <div id="shopping-list-content"></div>
+          <!-- Week history modal overlay -->
+          <div id="sgp-history-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9100;align-items:flex-end;justify-content:center" onclick="if(event.target===this)sgpCloseHistory()">
+            <div id="sgp-history-modal" style="background:var(--bg-card);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:540px;max-height:85vh;overflow-y:auto;padding:22px 20px 36px;box-shadow:var(--shadow-lg)">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                <div style="font-family:var(--font-display);font-size:1rem;font-weight:800">📅 Shopping Week History</div>
+                <button class="btn-icon" onclick="sgpCloseHistory()">✕</button>
+              </div>
+              <div id="sgp-history-content" style="font-size:0.83rem;color:var(--text-secondary)">Loading…</div>
+            </div>
+          </div>
           <!-- Pantry modal overlay -->
           <div id="sgp-pantry-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:flex-end;justify-content:center" onclick="if(event.target===this)sgpClosePantry()">
             <div id="sgp-pantry-modal" style="background:var(--bg-card);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;max-height:82vh;overflow-y:auto;padding:22px 20px 32px;box-shadow:var(--shadow-lg)">
@@ -10590,33 +10604,78 @@ function mpNav(dir) {
 
 
 // ═══════════════════════════════════════════════════════════════════
-//  SMART GROCERY PLANNER  (SGP)
+//  SMART GROCERY PLANNER  v3 — Weekly Intelligence Engine
 // ═══════════════════════════════════════════════════════════════════
-
-// ── Persistent state ──────────────────────────────────────────────
-// State.pantry  = { [normKey]: 'have' | 'low' | 'buy' }  (in State, auto-synced)
-// window._sgpChecked = { [normKey]: true }  (in-memory tick-offs, reset on close)
-// window._sgpQtyOverrides = { [normKey]: grams }  (user quantity edits, in-memory)
+//
+//  Architecture:
+//    Meal Plan → Extract Food Items (foods[]/ingredients[]/items[])
+//    → Aggregate Ingredients → Merge Duplicates
+//    → Compare Previous Week → Dynamic Quantity Scaling
+//    → Weekly Firestore Snapshot → Live Grocery List
+//
+//  Firestore path: users/{uid}/shopping_weeks/{weekId}
+//    weekId format: 2026-W20
+//
+//  State.pantry = { [normKey]: 'have' | 'low' | 'buy' }
+//  window._sgpChecked      = { [normKey]: true }   (in-memory, reset on close)
+//  window._sgpQtyOverrides = { [normKey]: delta }  (user quantity edits, in-memory)
+//  window._sgpWeekSnapshot = { items:{}, weekId, generatedAt, ... }
+//  window._sgpPrevSnapshot = { items:{}, weekId, ... }
 
 window._sgpChecked      = {};
 window._sgpQtyOverrides = {};
 window._sgpSource       = 'plan';   // 'plan' | 'both'
 window._sgpFilter       = 'all';    // 'all' | 'buy' | 'low'
+window._sgpWeekSnapshot = null;
+window._sgpPrevSnapshot = null;
+window._sgpSnapshotSaving = false;
+
+// ── Week ID helpers ────────────────────────────────────────────────
+function sgpGetWeekId(date) {
+  // Returns ISO week string e.g. "2026-W20"
+  const d = date ? new Date(date) : new Date();
+  d.setHours(0,0,0,0);
+  // ISO week: Monday-based
+  const dayOfWeek = d.getDay(); // 0=Sun
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - ((dayOfWeek + 6) % 7));
+  const year  = monday.getFullYear();
+  const jan4  = new Date(year, 0, 4);
+  const startOfWeek1 = new Date(jan4);
+  startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+  const weekNum = Math.round((monday - startOfWeek1) / 604800000) + 1;
+  return `${year}-W${String(weekNum).padStart(2,'0')}`;
+}
+
+function sgpGetWeekBounds(weekId) {
+  // Returns { startDate:'YYYY-MM-DD', endDate:'YYYY-MM-DD' } for a weekId
+  const [yearStr, wStr] = weekId.split('-W');
+  const year = +yearStr, week = +wStr;
+  const jan4 = new Date(year, 0, 4);
+  const startOfWeek1 = new Date(jan4);
+  startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+  const monday = new Date(startOfWeek1);
+  monday.setDate(startOfWeek1.getDate() + (week - 1) * 7);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return { startDate: fmt(monday), endDate: fmt(sunday) };
+}
 
 // ── Goal-aware smart title ────────────────────────────────────────
 function sgpGetTitle() {
   const goal    = (State.profile && State.profile.goal) || 'maintain';
   const cal     = (State.targets && State.targets.calories) || 2000;
   const program = (State.programs || []).find(p => p.active);
+  const weekId  = sgpGetWeekId();
   if (goal === 'cut' || cal < 1700)
-    return { icon:'🔥', title:'Fat Loss Grocery Plan', sub:'Lean proteins · vegetables · low-GI carbs' };
+    return { icon:'🔥', title:'Fat Loss Grocery Plan', sub:`Week ${weekId} · Lean proteins · vegetables · low-GI carbs` };
   if (goal === 'bulk' || cal > 2800)
-    return { icon:'📈', title:'Lean Bulk Supply', sub:'Calorie-dense staples · complex carbs · protein' };
+    return { icon:'📈', title:'Lean Bulk Supply', sub:`Week ${weekId} · Calorie-dense staples · complex carbs · protein` };
   if (program && /strength|powerl/i.test(program.goal || ''))
-    return { icon:'⚡', title:'Strength Fuel List', sub:'High-protein · recovery foods · whole grains' };
+    return { icon:'⚡', title:'Strength Fuel List', sub:`Week ${weekId} · High-protein · recovery foods · whole grains` };
   if (program && /endur|cardio|run/i.test(program.goal || ''))
-    return { icon:'🏃', title:'Endurance Restock', sub:'Complex carbs · electrolytes · lean protein' };
-  return { icon:'🛒', title:'Weekly Restock', sub:'Auto-generated from your meal plan' };
+    return { icon:'🏃', title:'Endurance Restock', sub:`Week ${weekId} · Complex carbs · electrolytes · lean protein` };
+  return { icon:'🛒', title:'Weekly Restock', sub:`Week ${weekId} · Auto-generated from your meal plan` };
 }
 
 // ── Pantry helpers ────────────────────────────────────────────────
@@ -10678,7 +10737,75 @@ function _extractBaseIngredient(name) {
     .trim();
 }
 
+// ── Unit detection and normalization ────────────────────────────────
+// Supported units: g, kg, ml, l, cans, pieces, scoops, oz, lb
+function _detectUnitMode(item) {
+  // Returns { qty, unit, displayUnit } from an item's mode/name/qty
+  const mode = item.mode || 'gram';
+  const qty  = item.qty || 1;
+
+  if (mode === 'gram') {
+    if (qty >= 1000) return { qty: +(qty/1000).toFixed(2), unit:'kg', displayUnit:'kg' };
+    return { qty: Math.round(qty), unit:'g', displayUnit:'g' };
+  }
+  if (mode === 'ml') {
+    if (qty >= 1000) return { qty: +(qty/1000).toFixed(2), unit:'l', displayUnit:'L' };
+    return { qty: Math.round(qty), unit:'ml', displayUnit:'ml' };
+  }
+  if (mode === 'serving') {
+    // Detect serving type from name
+    const name = (item.name||'').toLowerCase();
+    if (/scoop/.test(name)) return { qty: Math.round(qty), unit:'scoops', displayUnit:'scoops' };
+    if (/can|tin/.test(name)) return { qty: Math.round(qty), unit:'cans', displayUnit:'cans' };
+    if (/piece|slice|unit/.test(name)) return { qty: Math.round(qty), unit:'pieces', displayUnit:'pcs' };
+    return { qty: Math.round(qty), unit:'servings', displayUnit:'servings' };
+  }
+  // Try to detect from name patterns like "(100g)" "(2 cans)" "x1"
+  const nameLower = (item.name||'').toLowerCase();
+  const gramMatch = nameLower.match(/\((\d+(?:\.\d+)?)\s*g\)/);
+  if (gramMatch) {
+    const g = parseFloat(gramMatch[1]) * qty;
+    return g >= 1000
+      ? { qty: +(g/1000).toFixed(2), unit:'kg', displayUnit:'kg' }
+      : { qty: Math.round(g), unit:'g', displayUnit:'g' };
+  }
+  const mlMatch = nameLower.match(/\((\d+(?:\.\d+)?)\s*ml\)/);
+  if (mlMatch) return { qty: Math.round(parseFloat(mlMatch[1]) * qty), unit:'ml', displayUnit:'ml' };
+  // Fallback: unit-based food
+  return { qty: Math.round(qty), unit:'pieces', displayUnit:'pcs' };
+}
+
+// Merge two unit quantities: returns { qty, unit }
+function _mergeUnits(existing, incoming) {
+  const eu = existing.unit, iu = incoming.unit;
+  // Same unit family → add
+  if (eu === iu) return { qty: existing.qty + incoming.qty, unit: eu };
+  // g ↔ kg
+  if ((eu === 'g' || eu === 'kg') && (iu === 'g' || iu === 'kg')) {
+    const totalG = (eu==='g'?existing.qty:existing.qty*1000) + (iu==='g'?incoming.qty:incoming.qty*1000);
+    return totalG >= 1000 ? { qty:+(totalG/1000).toFixed(2), unit:'kg' } : { qty:Math.round(totalG), unit:'g' };
+  }
+  // ml ↔ l
+  if ((eu === 'ml' || eu === 'l') && (iu === 'ml' || iu === 'l')) {
+    const totalMl = (eu==='ml'?existing.qty:existing.qty*1000) + (iu==='ml'?incoming.qty:incoming.qty*1000);
+    return totalMl >= 1000 ? { qty:+(totalMl/1000).toFixed(2), unit:'l' } : { qty:Math.round(totalMl), unit:'ml' };
+  }
+  // Incompatible units: keep larger quantity in its unit
+  return existing;
+}
+
+// Convert qty+unit to grams equivalent (for macro scaling)
+function _toGrams(qty, unit) {
+  if (unit === 'g') return qty;
+  if (unit === 'kg') return qty * 1000;
+  if (unit === 'ml') return qty;
+  if (unit === 'l') return qty * 1000;
+  return qty * 100; // pieces/scoops/cans: approx 100g each for macro calc
+}
+
 // ── Core ingredient aggregation ───────────────────────────────────
+// Returns itemMap: { [normKey]: { displayName, norm, qty, unit, totalCal, totalProtein,
+//   totalCarbs, totalFat, count, sources, category, frequency, prevWeekQty, changeRatio } }
 function sgpGenerateList(source) {
   source = source || window._sgpSource || 'plan';
   const weekDays = getMpWeekDays();
@@ -10687,22 +10814,30 @@ function sgpGenerateList(source) {
   const recipeMap = {};
   (State.recipes || []).forEach(r => { recipeMap[r.id] = r; });
 
-  function addRaw(name, grams, cal, protein, carbs, fat, src, freq) {
+  function addRaw(name, qty, unit, cal, protein, carbs, fat, src, freq) {
     const base = _extractBaseIngredient(name);
     const norm = base.toLowerCase().trim();
     if (!norm || norm === 'custom item') return;
     if (!itemMap[norm]) {
       itemMap[norm] = {
         displayName: base, norm,
-        totalGrams:0, totalCal:0, totalProtein:0, totalCarbs:0, totalFat:0,
+        qty: 0, unit: unit || 'g',
+        totalCal:0, totalProtein:0, totalCarbs:0, totalFat:0,
         count:0, sources:new Set(), category: _categorizeFoodItem(base),
-        frequency: 0
+        frequency: 0,
+        prevWeekQty: 0, prevWeekUnit: unit || 'g', changeRatio: 1
       };
     }
     const e = itemMap[norm];
     e.count++;
     e.frequency += (freq || 1);
-    e.totalGrams   += (grams   || 0);
+    // Merge units intelligently
+    if (e.qty === 0) {
+      e.qty = qty; e.unit = unit || 'g';
+    } else {
+      const merged = _mergeUnits({ qty: e.qty, unit: e.unit }, { qty, unit: unit||'g' });
+      e.qty = merged.qty; e.unit = merged.unit;
+    }
     e.totalCal     += (cal     || 0);
     e.totalProtein += (protein || 0);
     e.totalCarbs   += (carbs   || 0);
@@ -10712,6 +10847,8 @@ function sgpGenerateList(source) {
 
   function addItem(it, src) {
     if (!it || !it.name) return;
+
+    // ── Recipe expansion: deep-traverse ingredients ──────────────
     if (it._mpType === 'recipe' && it._recipeId && recipeMap[it._recipeId]) {
       const r = recipeMap[it._recipeId];
       const servings = it.qty || 1;
@@ -10719,43 +10856,68 @@ function sgpGenerateList(source) {
         const f = ri.food; if (!f || !f.name) return;
         const g = (ri.grams || 100) * servings;
         const m = g / 100;
-        addRaw(f.name, g, f.cal*m, f.protein*m, f.carbs*m, f.fat*m, src);
+        addRaw(f.name, g >= 1000 ? +(g/1000).toFixed(2) : Math.round(g),
+               g >= 1000 ? 'kg' : 'g',
+               f.cal*m, f.protein*m, f.carbs*m, f.fat*m, src);
       });
       return;
     }
+
+    // ── Individual food item: parse qty + unit from item ─────────
     const cleanName = _extractBaseIngredient(it.name);
-    let grams = 0;
-    if (it.mode === 'gram') grams = it.qty || 100;
-    else {
-      const gm = (it.name||'').match(/\((\d+(?:\.\d+)?)\s*g\)/);
-      if (gm) grams = parseFloat(gm[1]);
-    }
-    addRaw(cleanName, grams, it.cal||0, it.protein||0, it.carbs||0, it.fat||0, src);
+    const { qty, unit } = _detectUnitMode(it);
+    const gEq = _toGrams(qty, unit); // for macro scaling
+    const scale = gEq / 100;
+    addRaw(cleanName, qty, unit,
+           it.cal || 0, it.protein || 0, it.carbs || 0, it.fat || 0, src);
   }
 
-  // Scan meal plan (current week)
+  // ── Deep-traverse meal plan (current week) ───────────────────────
   weekDays.forEach(({key}) => {
     const dayPlan = State.mealPlan[key] || {};
     meals.forEach(meal => {
-      let items = dayPlan[meal];
-      if (!items) return;
-      if (!Array.isArray(items)) items = [items];
-      items.forEach(it => addItem(it, 'plan'));
+      // Support all data shapes: array, single object, or nested {foods:[]}
+      let slot = dayPlan[meal];
+      if (!slot) return;
+
+      // Normalise to array
+      let items = Array.isArray(slot) ? slot : [slot];
+
+      items.forEach(it => {
+        if (!it) return;
+        // If the slot itself is a meal-object with sub-arrays, dive into them
+        const subFoods = it.foods || it.ingredients || it.items;
+        if (Array.isArray(subFoods) && subFoods.length) {
+          subFoods.forEach(f => addItem(f, 'plan'));
+        } else {
+          addItem(it, 'plan');
+        }
+      });
     });
   });
 
-  // Optionally also logged meals
+  // ── Optionally also logged meals ─────────────────────────────────
   if (source === 'both') {
     weekDays.forEach(({key}) => {
       const log = State.logs[key];
       if (!log || !log.meals) return;
       meals.forEach(meal => {
-        (log.meals[meal] || []).forEach(it => addItem(it, 'logged'));
+        const logItems = log.meals[meal] || [];
+        const arr = Array.isArray(logItems) ? logItems : [logItems];
+        arr.forEach(it => {
+          if (!it) return;
+          const subFoods = it.foods || it.ingredients || it.items;
+          if (Array.isArray(subFoods) && subFoods.length) {
+            subFoods.forEach(f => addItem(f, 'logged'));
+          } else {
+            addItem(it, 'logged');
+          }
+        });
       });
     });
   }
 
-  // Augment with historical frequency (last 4 weeks logged = refill signal)
+  // ── Historical frequency signal (last 4 weeks) ───────────────────
   const today = new Date();
   for (let d = 0; d < 28; d++) {
     const dt = new Date(today); dt.setDate(dt.getDate() - d);
@@ -10763,7 +10925,10 @@ function sgpGenerateList(source) {
     const log = State.logs[k];
     if (!log || !log.meals) continue;
     meals.forEach(meal => {
-      (log.meals[meal] || []).forEach(it => {
+      const logItems = log.meals[meal] || [];
+      const arr = Array.isArray(logItems) ? logItems : [logItems];
+      arr.forEach(it => {
+        if (!it || !it.name) return;
         const base = _extractBaseIngredient(it.name||'');
         const norm = base.toLowerCase().trim();
         if (itemMap[norm]) itemMap[norm].frequency++;
@@ -10771,16 +10936,158 @@ function sgpGenerateList(source) {
     });
   }
 
+  // ── Apply previous-week snapshot for comparison ───────────────────
+  if (window._sgpPrevSnapshot && window._sgpPrevSnapshot.items) {
+    Object.keys(itemMap).forEach(norm => {
+      const prev = window._sgpPrevSnapshot.items[norm];
+      if (prev) {
+        itemMap[norm].prevWeekQty  = prev.qty  || 0;
+        itemMap[norm].prevWeekUnit = prev.unit || itemMap[norm].unit;
+        // Compute ratio: current / prev (1 = same, <1 reduced, >1 increased)
+        const curG  = _toGrams(itemMap[norm].qty,  itemMap[norm].unit);
+        const prevG = _toGrams(prev.qty || 0, prev.unit || 'g');
+        itemMap[norm].changeRatio = prevG > 0 ? +(curG / prevG).toFixed(2) : 1;
+      }
+    });
+  }
+
+  // ── Pantry-aware subtraction ──────────────────────────────────────
+  Object.keys(itemMap).forEach(norm => {
+    const stock = sgpStockLevel(norm);
+    const item  = itemMap[norm];
+    if (stock === 'have') {
+      // Already have plenty — zero out or mark as optional
+      item._pantryFull = true;
+    } else if (stock === 'low') {
+      // Reduce quantity by 50%
+      item.qty = item.unit === 'g' || item.unit === 'ml'
+        ? Math.round(item.qty * 0.5)
+        : Math.max(1, Math.round(item.qty * 0.5));
+      item._pantryLow = true;
+    }
+    // 'buy' or 'none' → keep full quantity
+  });
+
   return itemMap;
 }
 
 // ── Format quantity for display ───────────────────────────────────
-function sgpFmtQty(norm, totalGrams) {
+function sgpFmtQty(norm, baseQty, baseUnit) {
+  // Check for user override (always in grams for override)
   const override = window._sgpQtyOverrides[norm];
-  const g = override !== undefined ? override : totalGrams;
-  if (!g) return '';
-  if (g >= 1000) return `${(g/1000).toFixed(1)}kg`;
-  return `${Math.round(g)}g`;
+  if (override !== undefined) {
+    if (baseUnit === 'g' || baseUnit === 'kg') {
+      const g = override;
+      return g >= 1000 ? `${(g/1000).toFixed(1)}kg` : `${Math.round(g)}g`;
+    }
+    if (baseUnit === 'ml' || baseUnit === 'l') {
+      const ml = override;
+      return ml >= 1000 ? `${(ml/1000).toFixed(1)}L` : `${Math.round(ml)}ml`;
+    }
+    return `${Math.round(override)} ${baseUnit||'pcs'}`;
+  }
+  if (!baseQty) return '';
+  const u = baseUnit || 'g';
+  if (u === 'g')       return `${Math.round(baseQty)}g`;
+  if (u === 'kg')      return `${+baseQty.toFixed(2)}kg`;
+  if (u === 'ml')      return `${Math.round(baseQty)}ml`;
+  if (u === 'l')       return `${+baseQty.toFixed(2)}L`;
+  if (u === 'scoops')  return `${Math.round(baseQty)} scoop${baseQty!==1?'s':''}`;
+  if (u === 'cans')    return `${Math.round(baseQty)} can${baseQty!==1?'s':''}`;
+  if (u === 'pieces')  return `${Math.round(baseQty)} pc${baseQty!==1?'s':''}`;
+  if (u === 'servings')return `${Math.round(baseQty)} serving${baseQty!==1?'s':''}`;
+  return `${Math.round(baseQty)} ${u}`;
+}
+
+// ── Weekly Firestore snapshot engine ─────────────────────────────
+async function sgpLoadWeekSnapshot(weekId) {
+  const user = window._currentUser;
+  if (!user || !window._fbDb) return null;
+  try {
+    const ref = window._fbDoc(window._fbDb, 'users', user.uid, 'shopping_weeks', weekId);
+    const snap = await window._fbGetDoc(ref);
+    if (snap.exists()) return snap.data();
+  } catch(e) { console.warn('SGP: could not load week snapshot', e); }
+  return null;
+}
+
+async function sgpSaveWeekSnapshot(weekId, itemMap) {
+  const user = window._currentUser;
+  if (!user || !window._fbDb || window._sgpSnapshotSaving) return;
+  window._sgpSnapshotSaving = true;
+  try {
+    const bounds = sgpGetWeekBounds(weekId);
+    // Serialise itemMap (Sets can't go to Firestore)
+    const serialisedItems = {};
+    Object.keys(itemMap).forEach(norm => {
+      const it = itemMap[norm];
+      serialisedItems[norm] = {
+        displayName: it.displayName,
+        qty: it.qty,
+        unit: it.unit,
+        totalCal: Math.round(it.totalCal),
+        totalProtein: Math.round(it.totalProtein),
+        totalCarbs: Math.round(it.totalCarbs),
+        totalFat: Math.round(it.totalFat),
+        category: it.category,
+        frequency: it.frequency
+      };
+    });
+    const totals = Object.values(itemMap).reduce((acc, it) => {
+      acc.totalCal += it.totalCal; acc.totalProtein += it.totalProtein;
+      acc.totalCarbs += it.totalCarbs; acc.totalFat += it.totalFat;
+      return acc;
+    }, { totalCal:0, totalProtein:0, totalCarbs:0, totalFat:0 });
+
+    const prevWeekComparison = {};
+    if (window._sgpPrevSnapshot && window._sgpPrevSnapshot.items) {
+      Object.keys(serialisedItems).forEach(norm => {
+        const prev = window._sgpPrevSnapshot.items[norm];
+        if (prev) {
+          prevWeekComparison[norm] = {
+            prevQty: prev.qty, prevUnit: prev.unit,
+            curQty: serialisedItems[norm].qty, curUnit: serialisedItems[norm].unit
+          };
+        }
+      });
+    }
+
+    const doc = {
+      weekId,
+      generatedAt: window._fbServerTs ? window._fbServerTs() : new Date().toISOString(),
+      startDate: bounds.startDate,
+      endDate: bounds.endDate,
+      basedOnMealPlan: true,
+      items: serialisedItems,
+      totals: Object.fromEntries(Object.entries(totals).map(([k,v])=>[k,Math.round(v)])),
+      pantryAdjustments: Object.fromEntries(
+        Object.keys(itemMap)
+          .filter(n => itemMap[n]._pantryFull || itemMap[n]._pantryLow)
+          .map(n => [n, itemMap[n]._pantryFull ? 'skipped' : 'reduced'])
+      ),
+      previousWeekComparison: prevWeekComparison
+    };
+
+    const ref = window._fbDoc(window._fbDb, 'users', user.uid, 'shopping_weeks', weekId);
+    await window._fbSetDoc(ref, doc, { merge: true });
+    window._sgpWeekSnapshot = doc;
+  } catch(e) { console.warn('SGP: could not save week snapshot', e); }
+  finally { window._sgpSnapshotSaving = false; }
+}
+
+// Load current + previous week snapshots
+async function sgpInitWeeklyEngine() {
+  const curWeekId  = sgpGetWeekId();
+  const now = new Date();
+  const lastWeek = new Date(now); lastWeek.setDate(now.getDate() - 7);
+  const prevWeekId = sgpGetWeekId(lastWeek);
+
+  const [cur, prev] = await Promise.all([
+    sgpLoadWeekSnapshot(curWeekId),
+    sgpLoadWeekSnapshot(prevWeekId)
+  ]);
+  window._sgpWeekSnapshot = cur;
+  window._sgpPrevSnapshot = prev;
 }
 
 // ── Render the full list ──────────────────────────────────────────
@@ -10789,6 +11096,7 @@ function sgpRenderList() {
   if (!el) return;
   const source = window._sgpSource || 'plan';
   const filter = window._sgpFilter || 'all';
+  const weekId = sgpGetWeekId();
   const itemMap = sgpGenerateList(source);
   const items   = Object.values(itemMap);
 
@@ -10805,6 +11113,10 @@ function sgpRenderList() {
     return;
   }
 
+  // Auto-save snapshot in background (debounced)
+  clearTimeout(window._sgpSaveTimer);
+  window._sgpSaveTimer = setTimeout(() => sgpSaveWeekSnapshot(weekId, itemMap), 3000);
+
   // Group by category
   const byCat = {};
   items.forEach(it => {
@@ -10819,7 +11131,23 @@ function sgpRenderList() {
   // Identify refill candidates (used 3+ times in last 28 days AND pantry = low/none)
   const refillItems = items.filter(it => it.frequency >= 3 && ['low','none'].includes(sgpStockLevel(it.norm)));
 
-  let html = '';
+  // Build weekly comparison banner
+  let comparisonHtml = '';
+  const changedItems = items.filter(it => it.changeRatio && Math.abs(it.changeRatio - 1) > 0.15);
+  if (changedItems.length && window._sgpPrevSnapshot) {
+    const increased = changedItems.filter(it => it.changeRatio > 1.15);
+    const decreased = changedItems.filter(it => it.changeRatio < 0.85);
+    const parts = [];
+    if (increased.length) parts.push(`📈 More: ${increased.slice(0,3).map(i=>i.displayName).join(', ')}${increased.length>3?` +${increased.length-3}`:''}`);
+    if (decreased.length) parts.push(`📉 Less: ${decreased.slice(0,3).map(i=>i.displayName).join(', ')}${decreased.length>3?` +${decreased.length-3}`:''}`);
+    if (parts.length) {
+      comparisonHtml = `<div class="sgp-refill-banner" style="margin-bottom:10px;background:var(--blue-dim);border-color:var(--blue)">
+        <strong>↔ vs last week:</strong> ${parts.join(' · ')}
+      </div>`;
+    }
+  }
+
+  let html = comparisonHtml;
 
   // Refill banner
   if (refillItems.length) {
@@ -10831,8 +11159,10 @@ function sgpRenderList() {
   sortedCats.forEach(cat => {
     const catItems = byCat[cat].sort((a,b)=>a.displayName.localeCompare(b.displayName));
 
-    // Apply filter
+    // Apply filter + pantry filter
     const visibleItems = catItems.filter(it => {
+      // Hide items the user has fully stocked (unless filter=all)
+      if (it._pantryFull && filter !== 'all') return false;
       const stock = sgpStockLevel(it.norm);
       if (filter === 'buy') return stock === 'buy' || stock === 'none';
       if (filter === 'low') return stock === 'low';
@@ -10861,26 +11191,44 @@ function sgpRenderList() {
       <div class="sgp-cat-body" id="${catId}" style="max-height:2000px">`;
 
     visibleItems.forEach(it => {
-      const norm     = it.norm;
-      const checked  = !!window._sgpChecked[norm];
-      const stock    = sgpStockLevel(norm);
-      const qtyStr   = sgpFmtQty(norm, it.totalGrams);
+      const norm       = it.norm;
+      const checked    = !!window._sgpChecked[norm];
+      const stock      = sgpStockLevel(norm);
+      const qtyStr     = sgpFmtQty(norm, it.qty, it.unit);
       const stockBadge = sgpStockBadgeHtml(norm);
-      const refill   = it.frequency >= 3 && stock !== 'have';
+      const refill     = it.frequency >= 3 && stock !== 'have';
+      const pantryFull = it._pantryFull;
+      const pantryLow  = it._pantryLow;
+
+      // Weekly change indicator
+      let changeTag = '';
+      if (it.changeRatio && it.changeRatio !== 1 && window._sgpPrevSnapshot) {
+        const prevQtyStr = sgpFmtQty(norm, it.prevWeekQty, it.prevWeekUnit);
+        if (it.changeRatio > 1.15) {
+          changeTag = `<span style="font-size:0.6rem;color:var(--green);margin-left:4px">↑ vs ${prevQtyStr||'last wk'}</span>`;
+        } else if (it.changeRatio < 0.85) {
+          changeTag = `<span style="font-size:0.6rem;color:var(--orange);margin-left:4px">↓ vs ${prevQtyStr||'last wk'}</span>`;
+        }
+      }
+
+      // Pantry badge
+      let pantryTag = '';
+      if (pantryFull) pantryTag = `<span style="font-size:0.6rem;color:var(--green);margin-left:4px">✅ In stock</span>`;
+      else if (pantryLow) pantryTag = `<span style="font-size:0.6rem;color:var(--orange);margin-left:4px">⚠️ Qty reduced (low stock)</span>`;
 
       html += `
-        <div class="sgp-item${checked?' sgp-checked':''}" id="sgp-item-${CSS.escape(norm)}" onclick="sgpToggleItem('${_esc(norm)}')">
+        <div class="sgp-item${checked?' sgp-checked':''}${pantryFull?' sgp-pantry-full':''}" id="sgp-item-${CSS.escape(norm)}" onclick="sgpToggleItem('${_esc(norm)}')">
           <div class="sgp-checkbox"${checked?' data-checked':''}></div>
           <div style="flex:1;min-width:0">
-            <div class="sgp-item-name">${it.displayName}${refill?' <span style="font-size:0.6rem;color:var(--orange)">↺ Refill</span>':''}</div>
+            <div class="sgp-item-name">${it.displayName}${refill?' <span style="font-size:0.6rem;color:var(--orange)">↺ Refill</span>':''}${changeTag}${pantryTag}</div>
             <div class="sgp-item-sub">${qtyStr?qtyStr+' · ':''}${Math.round(it.totalCal)} kcal · ${Math.round(it.totalProtein)}g P · ${Math.round(it.totalCarbs)}g C · ${Math.round(it.totalFat)}g F</div>
           </div>
           <div class="sgp-item-right" onclick="event.stopPropagation()">
             ${stockBadge}
             <div class="sgp-qty-wrap">
-              <button class="sgp-qty-btn" onclick="sgpAdjQty('${_esc(norm)}',${it.totalGrams},-50)">−</button>
+              <button class="sgp-qty-btn" onclick="sgpAdjQty('${_esc(norm)}',${it.qty},'${it.unit}',-1)">−</button>
               <div class="sgp-qty-val">${qtyStr||'—'}</div>
-              <button class="sgp-qty-btn" onclick="sgpAdjQty('${_esc(norm)}',${it.totalGrams},50)">+</button>
+              <button class="sgp-qty-btn" onclick="sgpAdjQty('${_esc(norm)}',${it.qty},'${it.unit}',1)">+</button>
             </div>
           </div>
         </div>`;
@@ -10890,10 +11238,9 @@ function sgpRenderList() {
   });
 
   el.innerHTML = html;
+  sgpUpdateWeekStrip(itemMap);
   sgpSyncProgress();
 }
-
-// ── Toggle item checked state ─────────────────────────────────────
 function sgpToggleItem(norm) {
   if (window._sgpChecked[norm]) delete window._sgpChecked[norm];
   else window._sgpChecked[norm] = true;
@@ -10903,16 +11250,23 @@ function sgpToggleItem(norm) {
 }
 
 // ── Adjust quantity override ──────────────────────────────────────
-function sgpAdjQty(norm, baseGrams, delta) {
-  const cur = window._sgpQtyOverrides[norm] !== undefined ? window._sgpQtyOverrides[norm] : baseGrams;
-  const next = Math.max(0, Math.round(cur + delta));
+function sgpAdjQty(norm, baseQty, baseUnit, delta) {
+  const cur = window._sgpQtyOverrides[norm] !== undefined ? window._sgpQtyOverrides[norm] : baseQty;
+  // Choose a sensible step based on unit
+  let step = Math.abs(delta);
+  if (!step || step === 1) {
+    if (baseUnit === 'g' || baseUnit === 'ml') step = 50;
+    else if (baseUnit === 'kg' || baseUnit === 'l') step = 0.25;
+    else step = 1;
+  }
+  const next = Math.max(0, +(cur + (delta >= 0 ? step : -step)).toFixed(2));
   if (next === 0) delete window._sgpQtyOverrides[norm];
   else window._sgpQtyOverrides[norm] = next;
-  // Update just the qty display without full re-render
+  // Update qty display
   const row = document.getElementById('sgp-item-' + CSS.escape(norm));
   if (row) {
     const qtyVal = row.querySelector('.sgp-qty-val');
-    if (qtyVal) qtyVal.textContent = sgpFmtQty(norm, baseGrams);
+    if (qtyVal) qtyVal.textContent = sgpFmtQty(norm, baseQty, baseUnit);
   }
 }
 
@@ -10969,12 +11323,21 @@ function toggleShoppingList() {
     panel.style.display = 'none';
     window._sgpChecked      = {};
     window._sgpQtyOverrides = {};
+    clearTimeout(window._sgpSaveTimer);
     return;
   }
   panel.style.display = '';
   window._sgpChecked      = {};
   window._sgpQtyOverrides = {};
-  sgpRenderList();
+  // Show a loading state while fetching snapshots
+  const contentEl = document.getElementById('shopping-list-content');
+  if (contentEl) contentEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:0.85rem">⏳ Loading weekly data…</div>';
+  // Load current + prev week snapshots, then render
+  sgpInitWeeklyEngine().then(() => {
+    sgpRenderList();
+  }).catch(() => {
+    sgpRenderList(); // render anyway even if Firestore fails
+  });
 }
 
 // ── Copy list to clipboard ────────────────────────────────────────
@@ -10985,22 +11348,25 @@ function sgpCopyList() {
   if (!items.length) { showToast('No items — plan some meals first!','error'); return; }
 
   const t = sgpGetTitle();
-  const weekDays = getMpWeekDays();
-  const d1 = new Date(weekDays[0].key).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  const d7 = new Date(weekDays[6].key).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const weekId = sgpGetWeekId();
+  const bounds = sgpGetWeekBounds(weekId);
+  const d1 = new Date(bounds.startDate).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const d7 = new Date(bounds.endDate).toLocaleDateString('en-US',{month:'short',day:'numeric'});
 
   const byCat = {};
   items.forEach(it => { if(!byCat[it.category]) byCat[it.category]=[]; byCat[it.category].push(it); });
   const sortedCats = Object.keys(byCat).sort((a,b)=>{ if(a==='🛍️ Other') return 1; if(b==='🛍️ Other') return -1; return a.localeCompare(b); });
 
-  let text = `${t.icon} ${t.title} (${d1}–${d7})\n${'─'.repeat(38)}\n`;
+  let text = `${t.icon} ${t.title} — ${weekId} (${d1}–${d7})\n${'─'.repeat(44)}\n`;
   sortedCats.forEach(cat => {
     text += `\n${cat}\n`;
     byCat[cat].sort((a,b)=>a.displayName.localeCompare(b.displayName)).forEach(it => {
       const tick  = window._sgpChecked[it.norm] ? '✓' : '□';
       const stock = { have:'✅', low:'⚠️', buy:'🛒', none:'' }[sgpStockLevel(it.norm)] || '';
-      const qty   = sgpFmtQty(it.norm, it.totalGrams);
-      text += `  ${tick} ${stock} ${it.displayName}${qty?' ('+qty+')':''} — ${Math.round(it.totalCal)} kcal, ${Math.round(it.totalProtein)}g protein\n`;
+      const qty   = sgpFmtQty(it.norm, it.qty, it.unit);
+      const chg   = it.changeRatio && Math.abs(it.changeRatio-1) > 0.15
+        ? (it.changeRatio > 1 ? ' ↑' : ' ↓') : '';
+      text += `  ${tick} ${stock} ${it.displayName}${qty?' ('+qty+')':''}${chg} — ${Math.round(it.totalCal)} kcal, ${Math.round(it.totalProtein)}g protein\n`;
     });
   });
 
@@ -11036,16 +11402,92 @@ function sgpRenderPantryList() {
   if (!items.length) { el.innerHTML='<div class="sgp-empty">No items in your plan yet.</div>'; return; }
 
   el.innerHTML = items.map(it => {
-    const stock = sgpStockLevel(it.norm);
     const badge = sgpStockBadgeHtml(it.norm);
     return `<div class="sgp-pantry-item" onclick="sgpCycleStock('${_esc(it.norm)}')">
       <div>
         <div class="sgp-pantry-name">${it.displayName}</div>
-        <div class="sgp-pantry-sub">${it.category} · ${sgpFmtQty(it.norm,it.totalGrams)||'—'}</div>
+        <div class="sgp-pantry-sub">${it.category} · ${sgpFmtQty(it.norm, it.qty, it.unit)||'—'}</div>
       </div>
       ${badge}
     </div>`;
   }).join('');
+}
+
+// ── Week strip (mini stats bar in header) ─────────────────────────
+function sgpUpdateWeekStrip(itemMap) {
+  const strip = document.getElementById('sgp-week-strip');
+  if (!strip) return;
+  const items = Object.values(itemMap);
+  if (!items.length) { strip.style.display = 'none'; return; }
+  const weekId = sgpGetWeekId();
+  const totCal = Math.round(items.reduce((s,i)=>s+i.totalCal,0));
+  const totP   = Math.round(items.reduce((s,i)=>s+i.totalProtein,0));
+  const snapNote = window._sgpWeekSnapshot
+    ? `<span>💾 Saved</span>` : `<span style="color:var(--orange)">⏳ Saving…</span>`;
+  strip.style.display = 'flex';
+  strip.innerHTML = `
+    <span>📅 <strong>${weekId}</strong></span>
+    <span>🛒 ${items.length} items</span>
+    <span>🔥 ${totCal.toLocaleString()} kcal total</span>
+    <span>💪 ${totP}g protein</span>
+    ${window._sgpPrevSnapshot ? `<span style="color:var(--blue)">↔ vs ${window._sgpPrevSnapshot.weekId}</span>` : ''}
+    ${snapNote}
+  `;
+}
+
+// ── Week history modal ────────────────────────────────────────────
+async function sgpShowHistory() {
+  const overlay = document.getElementById('sgp-history-overlay');
+  const content = document.getElementById('sgp-history-content');
+  if (!overlay || !content) return;
+  overlay.style.display = 'flex';
+  content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted)">⏳ Loading history…</div>';
+
+  const user = window._currentUser;
+  if (!user || !window._fbDb) {
+    content.innerHTML = '<div style="color:var(--text-muted)">Sign in to view history.</div>';
+    return;
+  }
+  try {
+    const colRef = window._fbCollection(window._fbDb, 'users', user.uid, 'shopping_weeks');
+    const snap   = await window._fbGetDocs(colRef);
+    if (snap.empty) {
+      content.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px">No saved weeks yet. Open the shopping list to generate your first snapshot.</div>';
+      return;
+    }
+    const weeks = snap.docs
+      .map(d => d.data())
+      .sort((a,b) => (b.weekId||'').localeCompare(a.weekId||''));
+
+    const curWeekId = sgpGetWeekId();
+    content.innerHTML = weeks.map(w => {
+      const isCur = w.weekId === curWeekId;
+      const itemCount = Object.keys(w.items||{}).length;
+      const totals = w.totals || {};
+      const prevComp = w.previousWeekComparison || {};
+      const changesCount = Object.keys(prevComp).length;
+      return `
+        <div style="padding:12px;border-radius:var(--radius-sm);background:var(--bg-elevated);margin-bottom:8px;border:1px solid ${isCur?'var(--accent)':'var(--border)'}">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:0.9rem">${w.weekId}${isCur?' <span style="font-size:0.65rem;color:var(--accent);background:var(--accent-dim);padding:1px 6px;border-radius:8px">Current</span>':''}</div>
+            <div style="font-size:0.68rem;color:var(--text-muted)">${w.startDate} → ${w.endDate}</div>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:0.72rem;color:var(--text-secondary)">
+            <span>🛒 ${itemCount} items</span>
+            ${totals.totalCal?`<span>🔥 ${Math.round(totals.totalCal).toLocaleString()} kcal</span>`:''}
+            ${totals.totalProtein?`<span>💪 ${Math.round(totals.totalProtein)}g protein</span>`:''}
+            ${changesCount?`<span style="color:var(--blue)">↔ ${changesCount} changes vs prev week</span>`:''}
+          </div>
+          ${itemCount > 0 ? `<div style="margin-top:8px;font-size:0.7rem;color:var(--text-muted)">${Object.values(w.items||{}).slice(0,6).map(i=>`${i.displayName}${i.qty?` (${i.qty}${i.unit||'g'})`:''}`.trim()).join(' · ')}${itemCount>6?` +${itemCount-6} more`:''}</div>` : ''}
+        </div>`;
+    }).join('');
+  } catch(e) {
+    content.innerHTML = `<div style="color:var(--red);font-size:0.82rem">⚠️ Could not load history: ${e.message||'unknown error'}</div>`;
+  }
+}
+function sgpCloseHistory() {
+  const overlay = document.getElementById('sgp-history-overlay');
+  if (overlay) overlay.style.display = 'none';
 }
 
 // ── Backward-compat shims ─────────────────────────────────────────
