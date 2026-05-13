@@ -4709,6 +4709,20 @@ function dismissSplash() {
         <span class="tag tag-orange" id="sfp-carb"></span>
         <span class="tag tag-red" id="sfp-fat"></span>
       </div>
+      <!-- Scoop / serving counter — shown for protein powders, cans, etc. -->
+      <div id="food-scoop-wrap" style="display:none;margin-bottom:8px">
+        <label class="form-label" id="food-scoop-label">Scoops</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button type="button" onclick="adjustScoops(-1)" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--bg-elevated);font-size:1.2rem;cursor:pointer;color:var(--text-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0">−</button>
+          <input type="number" class="form-input" id="food-scoop-val" value="1" min="0.5" step="0.5" style="text-align:center;font-size:1.1rem;font-weight:700;max-width:80px" oninput="updateFoodPreview()" />
+          <button type="button" onclick="adjustScoops(1)"  style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--bg-elevated);font-size:1.2rem;cursor:pointer;color:var(--text-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>
+          <span style="font-size:0.75rem;color:var(--text-muted)" id="food-scoop-g-hint"></span>
+        </div>
+        <div style="margin-top:8px">
+          <button type="button" onclick="switchToCustomGrams()" style="font-size:0.72rem;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline">Enter custom grams instead</button>
+        </div>
+      </div>
+      <!-- Standard 100g / custom grams mode -->
       <div id="food-qty-wrap" class="qty-wrap">
         <div class="form-group" style="flex:0.7">
           <label class="form-label">Quantity</label>
@@ -4726,6 +4740,9 @@ function dismissSplash() {
         <div class="form-group">
           <label class="form-label" id="food-gram-label">Grams</label>
           <input type="number" class="form-input" id="food-gram-val" value="100" min="1" step="1" oninput="updateFoodPreview()" />
+        </div>
+        <div style="margin-top:6px">
+          <button type="button" onclick="switchToScoopMode()" style="font-size:0.72rem;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline" id="food-back-to-scoop" style="display:none">Back to scoop mode</button>
         </div>
       </div>
     </div>
@@ -8001,46 +8018,81 @@ function selectCustomFood(id) {
   safeStyle('selected-food-preview','display','block');
 }
 
+// ── Serving helpers ───────────────────────────────────────────────────
+// Capitalise first letter of a word (scoop → Scoop)
+function _cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+// Parse "31g scoop" → { grams:31, name:'scoop' }  |  "100g" → { grams:100, name:'' }
+function _parseServing(servingStr) {
+  const m = (servingStr || '100g').match(/^(\d+(?:\.\d+)?)\s*(g|ml)\s*(.*)/i);
+  return m ? { grams: parseFloat(m[1]), name: m[3].trim() } : { grams: 100, name: '' };
+}
+
+function _showScoopMode() {
+  document.getElementById('food-scoop-wrap').style.display = 'block';
+  document.getElementById('food-qty-wrap').style.display   = 'none';
+  document.getElementById('food-gram-input').style.display = 'none';
+}
+function _showGram100Mode() {
+  document.getElementById('food-scoop-wrap').style.display = 'none';
+  document.getElementById('food-qty-wrap').style.display   = 'flex';
+  document.getElementById('food-gram-input').style.display = 'none';
+  document.getElementById('food-unit').value = '100g';
+}
+function _showCustomGramMode() {
+  document.getElementById('food-scoop-wrap').style.display = 'none';
+  document.getElementById('food-qty-wrap').style.display   = 'none';
+  document.getElementById('food-gram-input').style.display = 'block';
+  const backBtn = document.getElementById('food-back-to-scoop');
+  if (backBtn) backBtn.style.display = selectedFood && _parseServing(selectedFood.serving).grams !== 100 ? '' : 'none';
+}
+
+function adjustScoops(delta) {
+  const el = document.getElementById('food-scoop-val');
+  if (!el) return;
+  const cur = parseFloat(el.value) || 1;
+  el.value = Math.max(0.5, cur + delta);
+  updateFoodPreview();
+}
+function switchToCustomGrams() {
+  if (!selectedFood) return;
+  const { grams } = _parseServing(selectedFood.serving);
+  const scoops = parseFloat(document.getElementById('food-scoop-val').value) || 1;
+  document.getElementById('food-gram-val').value = Math.round(scoops * grams);
+  _showCustomGramMode();
+  updateFoodPreview();
+}
+function switchToScoopMode() {
+  if (!selectedFood) return;
+  const { grams } = _parseServing(selectedFood.serving);
+  const g = parseFloat(document.getElementById('food-gram-val').value) || grams;
+  document.getElementById('food-scoop-val').value = Math.max(0.5, Math.round((g / grams) * 2) / 2);
+  _showScoopMode();
+  updateFoodPreview();
+}
+
 function selectFood(id) {
   selectedFood = FOOD_DB.find(f=>f.id===id);
   if (!selectedFood) return;
   document.getElementById('food-search').value = selectedFood.name;
   document.getElementById('food-search-results').classList.remove('open');
 
-  // Parse serving string to detect a specific gram/ml weight
-  // e.g. '31g scoop' -> 31, '100g' -> 100, '334g serving' -> 334, '100ml' -> 100
-  const servingStr = selectedFood.serving || '100g';
-  const servingMatch = servingStr.match(/^(\d+(?:\.\d+)?)\s*(g|ml)/i);
-  const servingGrams = servingMatch ? parseFloat(servingMatch[1]) : 100;
-  const isDefaultServing = (servingGrams === 100);
+  const { grams: servingGrams, name: servingName } = _parseServing(selectedFood.serving);
+  const hasNamedServing = servingGrams !== 100 && servingName !== '';
 
-  const unitSelect = document.getElementById('food-unit');
-  const gramInput  = document.getElementById('food-gram-input');
-  const gramVal    = document.getElementById('food-gram-val');
-  const qtyWrap    = document.getElementById('food-qty-wrap');
-  const qtyEl      = document.getElementById('food-qty');
-
-  // Build serving name (e.g. "scoop", "serving", "can") from the serving string
-  const servingName = servingStr.replace(/^\d+(?:\.\d+)?\s*(g|ml)\s*/i, '').trim();
-  const gramLabelEl = document.getElementById('food-gram-label');
-
-  if (!isDefaultServing) {
-    // Pre-select custom grams and pre-fill with the serving weight
-    if (unitSelect)   unitSelect.value = 'gram';
-    if (gramVal)      gramVal.value = servingGrams;
-    if (gramInput)    gramInput.style.display = 'block';
-    if (qtyWrap)      qtyWrap.style.display = 'none';
-    // Update label: "Grams  (1 scoop = 31g)"
-    if (gramLabelEl)  gramLabelEl.textContent = servingName
-      ? 'Grams  (1 ' + servingName + ' = ' + servingGrams + 'g)'
-      : 'Grams';
+  if (hasNamedServing) {
+    // Scoop / serving / can mode
+    const labelEl = document.getElementById('food-scoop-label');
+    const hintEl  = document.getElementById('food-scoop-g-hint');
+    if (labelEl) labelEl.textContent = _cap(servingName) + 's';          // "Scoops" / "Servings" / "Cans"
+    if (hintEl)  hintEl.textContent  = '1 ' + servingName + ' = ' + servingGrams + 'g';
+    document.getElementById('food-scoop-val').value = 1;
+    _showScoopMode();
   } else {
-    // Default 100g mode
-    if (unitSelect)   unitSelect.value = '100g';
-    if (qtyEl)        qtyEl.value = 1;
-    if (gramInput)    gramInput.style.display = 'none';
-    if (qtyWrap)      qtyWrap.style.display = 'flex';
-    if (gramLabelEl)  gramLabelEl.textContent = 'Grams';
+    // Standard 100g mode
+    document.getElementById('food-qty').value = 1;
+    document.getElementById('food-unit').value = '100g';
+    _showGram100Mode();
   }
 
   updateFoodPreview();
@@ -12585,101 +12637,85 @@ function updateMpPreview() {
   `;
 }
 
-// Improved updateFoodPreview for food log modal with gram + serving support
+// Improved updateFoodPreview — scoop / serving / 100g / custom grams
 const _origUpdateFoodPreview = updateFoodPreview;
 updateFoodPreview = function() {
   if (!selectedFood) return;
-  const unit = document.getElementById('food-unit').value;
-  const gramInput = document.getElementById('food-gram-input');
-  const qtyWrap   = document.getElementById('food-qty-wrap');
-  const gramLabel = document.getElementById('food-gram-label'); // optional hint label
-  const isCustomG = unit === 'gram';
-  if (gramInput) gramInput.style.display = isCustomG ? 'block' : 'none';
-  if (qtyWrap)   qtyWrap.style.display   = isCustomG ? 'none'  : 'flex';
+  const f = selectedFood;
+  const { grams: servingGrams, name: servingName } = _parseServing(f.serving);
+  const hasNamedServing = servingGrams !== 100 && servingName !== '';
 
-  const qty = +document.getElementById('food-qty').value || 1;
-  const f   = selectedFood;
+  // Detect active mode
+  const scoopWrap = document.getElementById('food-scoop-wrap');
+  const gramBlock = document.getElementById('food-gram-input');
+  const inScoopMode  = scoopWrap  && scoopWrap.style.display  !== 'none';
+  const inCustomGram = gramBlock  && gramBlock.style.display  !== 'none';
 
-  // Parse the food's canonical serving weight from its serving string
-  const servingStr   = f.serving || '100g';
-  const servingMatch = servingStr.match(/^(\d+(?:\.\d+)?)\s*(g|ml)/i);
-  const servingGrams = servingMatch ? parseFloat(servingMatch[1]) : 100;
+  let multiplier, hint;
 
-  let multiplier;
-  let gramsCurrent;
-  if (unit === 'serving') {
-    multiplier = qty;
-  } else if (unit === '100g') {
-    multiplier = qty; // qty × (100g macros)
-  } else {
-    // Custom grams mode
-    gramsCurrent = +document.getElementById('food-gram-val')?.value || servingGrams;
-    multiplier   = gramsCurrent / 100;
-  }
-
-  // Build serving hint shown under the food name
-  let hint = '';
-  if (unit === 'gram') {
-    const g = gramsCurrent || servingGrams;
-    // If this food has a named serving (e.g. "1 scoop = 31g"), show it
-    if (servingGrams !== 100) {
-      const servingName = servingStr.replace(/^\d+(?:\.\d+)?\s*(g|ml)\s*/i, '').trim() || 'serving';
-      const numScoops   = g / servingGrams;
-      const scoopLabel  = Number.isInteger(numScoops) ? numScoops + '×' + servingStr : g + 'g';
-      hint = scoopLabel + (servingName ? ' · ' + servingName : '');
+  if (inScoopMode) {
+    const scoops = parseFloat(document.getElementById('food-scoop-val').value) || 1;
+    multiplier = scoops;  // DB values are already per 1 serving/scoop
+    const totalG = Math.round(scoops * servingGrams);
+    hint = scoops + ' ' + (scoops === 1 ? servingName : servingName + 's') + ' · ' + totalG + 'g';
+    // Keep gram hint next to +/- buttons in sync
+    const ghint = document.getElementById('food-scoop-g-hint');
+    if (ghint) ghint.textContent = '1 ' + servingName + ' = ' + servingGrams + 'g';
+  } else if (inCustomGram) {
+    const grams = parseFloat(document.getElementById('food-gram-val').value) || servingGrams;
+    multiplier  = hasNamedServing ? grams / servingGrams : grams / 100;
+    if (hasNamedServing) {
+      const n = grams / servingGrams;
+      hint = grams + 'g' + (Number.isFinite(n) ? ' (' + (+n.toFixed(1)) + ' ' + servingName + (n !== 1 ? 's' : '') + ')' : '');
     } else {
-      hint = g + 'g';
+      hint = grams + 'g';
     }
-  } else if (unit === '100g') {
+  } else {
+    // 100g mode
+    const qty = parseFloat(document.getElementById('food-qty').value) || 1;
+    const unit = document.getElementById('food-unit').value;
+    multiplier = unit === '100g' ? qty : qty;
     hint = (qty * 100) + 'g';
-  } else if (unit === 'serving') {
-    hint = qty > 1 ? qty + '× ' + servingStr : servingStr;
   }
 
-  document.getElementById('sfp-name').textContent = f.name;
-  document.getElementById('sfp-cal').textContent  = Math.round(f.cal     * multiplier) + ' kcal';
-  document.getElementById('sfp-pro').textContent  = Math.round(f.protein * multiplier) + 'g protein';
-  document.getElementById('sfp-carb').textContent = Math.round(f.carbs   * multiplier) + 'g carbs';
-  document.getElementById('sfp-fat').textContent  = Math.round(f.fat     * multiplier) + 'g fat';
-
-  // Show the hint below the name if the element exists
+  document.getElementById('sfp-name').textContent  = f.name;
+  document.getElementById('sfp-cal').textContent   = Math.round(f.cal     * multiplier) + ' kcal';
+  document.getElementById('sfp-pro').textContent   = Math.round(f.protein * multiplier) + 'g protein';
+  document.getElementById('sfp-carb').textContent  = Math.round(f.carbs   * multiplier) + 'g carbs';
+  document.getElementById('sfp-fat').textContent   = Math.round(f.fat     * multiplier) + 'g fat';
   const hintEl = document.getElementById('sfp-serving-hint');
-  if (hintEl) hintEl.textContent = hint;
+  if (hintEl) hintEl.textContent = hint || '';
 };
 
-// Better logSelectedFood with gram + unit serving support
+// Better logSelectedFood — scoop / serving / 100g / custom grams
 const _origLogSelectedFood = logSelectedFood;
 logSelectedFood = function() {
   if (!selectedFood) return;
-  const unit = document.getElementById('food-unit').value;
-  const qty  = +document.getElementById('food-qty').value || 1;
-  const f    = selectedFood;
+  const f = selectedFood;
+  const { grams: servingGrams, name: servingName } = _parseServing(f.serving);
+  const hasNamedServing = servingGrams !== 100 && servingName !== '';
 
-  // Parse canonical serving weight
-  const servingStr   = f.serving || '100g';
-  const servingMatch = servingStr.match(/^(\d+(?:\.\d+)?)\s*(g|ml)/i);
-  const servingGrams = servingMatch ? parseFloat(servingMatch[1]) : 100;
+  const scoopWrap = document.getElementById('food-scoop-wrap');
+  const gramBlock = document.getElementById('food-gram-input');
+  const inScoopMode  = scoopWrap && scoopWrap.style.display !== 'none';
+  const inCustomGram = gramBlock && gramBlock.style.display !== 'none';
 
   let multiplier, nameLabel;
-  if (unit === 'serving') {
-    multiplier = qty;
-    const servingLabel = f.serving && f.serving !== '1 serving' ? f.serving : 'serving';
-    nameLabel = f.name + (qty !== 1 ? ` (${qty}×${servingLabel})` : ` (${servingLabel})`);
-  } else if (unit === '100g') {
-    multiplier = qty;
-    nameLabel = f.name + ` (${qty*100}g)`;
+
+  if (inScoopMode) {
+    const scoops  = parseFloat(document.getElementById('food-scoop-val').value) || 1;
+    multiplier    = scoops;  // DB values are already per 1 serving/scoop
+    const totalG  = Math.round(scoops * servingGrams);
+    const sLabel  = scoops === 1 ? servingName : servingName + 's';
+    nameLabel     = f.name + ` (${scoops} ${sLabel} · ${totalG}g)`;
+  } else if (inCustomGram) {
+    const grams  = parseFloat(document.getElementById('food-gram-val').value) || servingGrams;
+    multiplier   = hasNamedServing ? grams / servingGrams : grams / 100;
+    nameLabel    = f.name + ` (${grams}g)`;
   } else {
-    const grams = +document.getElementById('food-gram-val')?.value || servingGrams;
-    multiplier  = grams / 100;
-    // Build a nice label: "31g scoop" → "1 scoop (31g)", "62g" → "2 scoops (62g)"
-    if (servingGrams !== 100) {
-      const servingName = servingStr.replace(/^\d+(?:\.\d+)?\s*(g|ml)\s*/i, '').trim() || 'serving';
-      const numUnits = grams / servingGrams;
-      const unitStr  = Number.isInteger(numUnits) ? numUnits + '× ' + servingStr : grams + 'g';
-      nameLabel = f.name + ` (${unitStr}${servingName ? ' ' + servingName : ''})`;
-    } else {
-      nameLabel = f.name + ` (${grams}g)`;
-    }
+    const qty  = parseFloat(document.getElementById('food-qty').value) || 1;
+    multiplier = qty;
+    nameLabel  = f.name + ` (${qty * 100}g)`;
   }
   const meal = document.getElementById('food-meal-select').value;
   const entry = {
