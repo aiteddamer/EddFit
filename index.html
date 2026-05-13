@@ -15842,7 +15842,7 @@ function renderLeaderboard(entries) {
   };
 
   // ── Open share modal ───────────────────────────────────────
-  window.openShareModal = function(type, idx) {
+  window.openShareModal = function(type, idx, _externalData) {
     _shareType = type;
     _shareIdx  = idx;
     _selectedFriendUid = null;
@@ -15861,6 +15861,23 @@ function renderLeaderboard(entries) {
       if (nameEl)  nameEl.textContent  = _shareData?.name || '—';
       if (macrosEl) macrosEl.textContent = _shareData
         ? `${_shareData.totals.cal} kcal · ${_shareData.totals.protein}g P · ${_shareData.totals.carbs}g C · ${_shareData.totals.fat}g F · ${_shareData.servings} serving(s)`
+        : '—';
+    } else if (type === 'program') {
+      _shareData = _externalData || (State.programs||[])[idx];
+      if (titleEl) titleEl.textContent = '📤 Share Program';
+      if (nameEl)  nameEl.textContent  = _shareData?.name || '—';
+      if (macrosEl) {
+        const p = _shareData || {};
+        const DAY_N = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const dayNames = Object.keys(p.days||{}).map(d=>DAY_N[d]).join(', ');
+        macrosEl.textContent = `${p.weeks||4} weeks · ${dayNames||'—'} · ${p.goal||'general'}`;
+      }
+    } else if (type === 'mealTemplate') {
+      _shareData = _externalData || (State.mealTemplates||[])[idx];
+      if (titleEl) titleEl.textContent = '📤 Share Meal Template';
+      if (nameEl)  nameEl.textContent  = _shareData?.name || '—';
+      if (macrosEl) macrosEl.textContent = _shareData
+        ? `${_shareData.dayCount||0} day(s) · ${_shareData.avgCal||0} avg kcal/day`
         : '—';
     } else {
       _shareData = State.customFoods[idx];
@@ -17742,61 +17759,8 @@ window.updateAchievementsNavBadge = updateAchievementsNavBadge;
 window.shareProgram = function(idx) {
   const p = (State.programs||[])[idx];
   if (!p) return;
-
-  // Re-use the existing share modal — extend openShareModal to accept 'program'
-  const titleEl  = document.getElementById('share-modal-title');
-  const nameEl   = document.getElementById('share-item-name');
-  const macrosEl = document.getElementById('share-item-macros');
-  const msgEl    = document.getElementById('share-message-input');
-  const sendMsg  = document.getElementById('share-send-msg');
-
-  if (titleEl)  titleEl.textContent  = '📤 Share Program';
-  if (nameEl)   nameEl.textContent   = p.name || 'My Program';
-  const allDayIdxs = Object.keys(p.days||{}).map(Number);
-  const DAY_N = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const dayNames = allDayIdxs.map(d => DAY_N[d]).join(', ');
-  if (macrosEl) macrosEl.textContent = `${p.weeks||4} weeks · ${dayNames} · ${p.goal||'general'}`;
-  if (msgEl)    msgEl.value = '';
-  if (sendMsg)  sendMsg.textContent = '';
-
-  // Inject the program into the existing share mechanism
-  window._shareType = 'program';
-  window._shareData = JSON.parse(JSON.stringify(p));
-  window._selectedFriendUid = null;
-
-  // Populate friend list
-  const listEl = document.getElementById('share-friends-list');
-  const friends = (window.Social && window.Social.friends) || [];
-  if (listEl) {
-    if (!friends.length) {
-      listEl.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted)">No friends yet — add friends in Squad Mode.</div>';
-    } else {
-      listEl.innerHTML = friends.map(f => {
-        const name = f.fullName || f.name || f.username || 'Friend';
-        const handle = f.username ? `@${f.username}` : '';
-        return `<div onclick="window._selectFriendForShare('${f.uid}', this)"
-          style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;transition:all 0.15s;background:var(--bg-elevated)" class="share-friend-row">
-          <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;color:var(--accent);flex-shrink:0">${name.charAt(0).toUpperCase()}</div>
-          <div><div style="font-size:0.85rem;font-weight:600">${name}</div>${handle?`<div style="font-size:0.72rem;color:var(--text-muted)">${handle}</div>`:''}</div>
-        </div>`;
-      }).join('');
-    }
-  }
-
-  openModal('modal-share-food');
+  openShareModal('program', idx, JSON.parse(JSON.stringify(p)));
 };
-
-// Patch _selectFriendForShare if not already defined by sharing script
-if (!window._selectFriendForShare) {
-  window._selectFriendForShare = function(uid, el) {
-    window._selectedFriendUid = uid;
-    document.querySelectorAll('.share-friend-row').forEach(r => {
-      r.style.borderColor = 'var(--border)';
-      r.style.background  = 'var(--bg-elevated)';
-    });
-    if (el) { el.style.borderColor = 'var(--accent)'; el.style.background = 'var(--accent-dim)'; }
-  };
-}
 
 // ═══════════════════════════════════════════════════════════════
 //  MEAL TEMPLATES — Save, Browse, Apply, Delete, Share
@@ -18001,47 +17965,12 @@ window.deleteMealTemplate = function(idx) {
   if (typeof showToast === 'function') showToast(`Template "${tpl.name}" deleted.`, 'info');
 };
 
-// ── Share meal template with a friend ──────────────────────────
 window.shareMealTemplate = function(idx) {
   _ensureMealTemplates();
   const tpl = State.mealTemplates[idx];
   if (!tpl) return;
-
-  const titleEl  = document.getElementById('share-modal-title');
-  const nameEl   = document.getElementById('share-item-name');
-  const macrosEl = document.getElementById('share-item-macros');
-  const msgEl    = document.getElementById('share-message-input');
-  const sendMsg  = document.getElementById('share-send-msg');
-
-  if (titleEl)  titleEl.textContent  = '📤 Share Meal Template';
-  if (nameEl)   nameEl.textContent   = tpl.name;
-  if (macrosEl) macrosEl.textContent = `${tpl.dayCount} day(s) · ${tpl.avgCal||0} avg kcal/day`;
-  if (msgEl)    msgEl.value = '';
-  if (sendMsg)  sendMsg.textContent = '';
-
-  window._shareType = 'mealTemplate';
-  window._shareData = JSON.parse(JSON.stringify(tpl));
-  window._selectedFriendUid = null;
-
-  const listEl  = document.getElementById('share-friends-list');
-  const friends = (window.Social && window.Social.friends) || [];
-  if (listEl) {
-    if (!friends.length) {
-      listEl.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted)">No friends yet — add friends in Squad Mode.</div>';
-    } else {
-      listEl.innerHTML = friends.map(f => {
-        const name   = f.fullName || f.name || f.username || 'Friend';
-        const handle = f.username ? `@${f.username}` : '';
-        return `<div onclick="window._selectFriendForShare('${f.uid}', this)"
-          style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;transition:all 0.15s;background:var(--bg-elevated)" class="share-friend-row">
-          <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;color:var(--accent);flex-shrink:0">${name.charAt(0).toUpperCase()}</div>
-          <div><div style="font-size:0.85rem;font-weight:600">${name}</div>${handle?`<div style="font-size:0.72rem;color:var(--text-muted)">${handle}</div>`:''}</div>
-        </div>`;
-      }).join('');
-    }
-  }
   closeModal('modal-meal-templates');
-  openModal('modal-share-food');
+  openShareModal('mealTemplate', idx, JSON.parse(JSON.stringify(tpl)));
 };
 
 // ── Init: ensure mealTemplates on load ──────────────────────────
