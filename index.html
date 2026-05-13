@@ -3076,6 +3076,18 @@ function dismissSplash() {
             <button class="btn btn-sm" onclick="loadScheduledWorkout()" style="background:var(--blue-dim);border:1px solid var(--blue);color:var(--blue);font-size:0.8rem;padding:8px 14px;flex-shrink:0">Load Today's Plan →</button>
           </div>
 
+          <!-- Deload reminder (session tab) -->
+          <div id="deload-session-banner" style="display:none;background:var(--orange-dim);border:1.5px solid var(--orange);border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;display:none">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:1.2rem;flex-shrink:0">🔋</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:0.83rem;font-weight:700;color:var(--orange)" id="deload-session-title">Deload week recommended</div>
+                <div style="font-size:0.73rem;color:var(--text-secondary);margin-top:2px" id="deload-session-body">You've trained hard recently. Consider a lighter session today.</div>
+              </div>
+              <button class="btn btn-sm" onclick="loadDeloadTemplate();navigate('workouts',document.querySelector('[data-tab=session]'))" style="background:var(--orange);color:#fff;border:none;font-size:0.75rem;flex-shrink:0">Load Light 💡</button>
+            </div>
+          </div>
+
           <div style="margin-bottom:14px">
             <!-- Date Navigator -->
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -3223,6 +3235,23 @@ function dismissSplash() {
             <div id="week-comp-labels" style="display:flex;gap:10px"></div>
             <!-- Insight -->
             <div id="week-comp-insight" style="margin-top:12px;font-size:0.78rem;color:var(--text-secondary);padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);border-left:3px solid var(--accent)"></div>
+          </div>
+
+          <!-- ── Deload Week Detector Banner ── -->
+          <div id="deload-banner" style="display:none;margin-bottom:20px;border-radius:var(--radius);padding:18px 20px;border:2px solid var(--orange);background:var(--orange-dim);position:relative;overflow:hidden">
+            <div style="position:absolute;top:-18px;right:-10px;font-size:5rem;opacity:0.08;pointer-events:none;line-height:1">🔋</div>
+            <div style="display:flex;align-items:flex-start;gap:14px">
+              <div style="width:40px;height:40px;border-radius:12px;background:var(--orange-dim);border:1.5px solid var(--orange);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">🔋</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:800;color:var(--orange);margin-bottom:4px" id="deload-title">Time to deload?</div>
+                <div style="font-size:0.78rem;color:var(--text-secondary);line-height:1.5" id="deload-body">You've been pushing hard. A lighter week helps your body recover and come back stronger.</div>
+                <div id="deload-stats-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"></div>
+                <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap" id="deload-actions">
+                  <button class="btn btn-sm" onclick="loadDeloadTemplate()" style="background:var(--orange);color:#fff;border:none;font-size:0.8rem">⚡ Load Deload Workout</button>
+                  <button class="btn btn-ghost btn-sm" style="font-size:0.78rem;color:var(--text-muted)" onclick="dismissDeloadBanner()">Dismiss</button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div id="workout-history">
@@ -3614,19 +3643,7 @@ function dismissSplash() {
           <div class="section-title">🏆 Global Leaderboard</div>
           <button class="btn btn-ghost btn-sm" onclick="loadGlobalLeaderboard()" id="glb-refresh-btn" style="font-size:0.78rem">↻ Refresh</button>
         </div>
-
-        <!-- Season header -->
-        <div id="glb-season-header" style="background:linear-gradient(135deg,var(--accent-dim),var(--bg-elevated));border:1px solid var(--accent);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <span style="font-size:1.5rem">🗓️</span>
-          <div style="flex:1;min-width:0">
-            <div style="font-family:var(--font-display);font-weight:800;font-size:0.95rem;color:var(--text-primary)" id="glb-season-label">Loading season…</div>
-            <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px">Scores reset at the end of each month · Winner gets a permanent trophy</div>
-          </div>
-          <div style="text-align:right;flex-shrink:0">
-            <div style="font-size:0.65rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Resets in</div>
-            <div style="font-family:var(--font-display);font-weight:800;font-size:1.1rem;color:var(--accent)" id="glb-season-countdown">—</div>
-          </div>
-        </div>
+        <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:16px">All EddFit users ranked globally</div>
 
         <!-- Metric tabs -->
         <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
@@ -3656,18 +3673,8 @@ function dismissSplash() {
           <div style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:0.85rem">Loading leaderboard…</div>
         </div>
 
-        <!-- Trophy case for past season winners -->
-        <div id="glb-trophy-case" style="display:none;margin-top:24px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-            <span style="font-size:1.1rem">🏅</span>
-            <div style="font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:var(--text-primary)">Hall of Champions</div>
-            <div style="flex:1;height:1px;background:var(--border);margin-left:4px"></div>
-          </div>
-          <div id="glb-trophy-list" style="display:flex;flex-direction:column;gap:8px"></div>
-        </div>
-
         <div style="font-size:0.7rem;color:var(--text-muted);text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-          Scores update each time users open the leaderboard · Top 50 shown · Resets monthly
+          Scores update each time users open the leaderboard · Top 50 shown
         </div>
       </div>
 
@@ -9019,6 +9026,201 @@ function reloadWorkout(idx) {
     .map(ex => ({...ex, sets: ex.sets.map(s=>({...s,done:false}))}));
   renderWorkoutPage();
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  DELOAD WEEK DETECTOR
+// ═══════════════════════════════════════════════════════════════════
+window._deloadDismissed = false;
+
+/**
+ * Analyse recent training load and decide whether a deload is recommended.
+ * Looks at the last 4 full weeks (excluding current week).
+ * Triggers if: 3+ heavy weeks, or 3-week ascending volume trend, or 2 consecutive spike weeks.
+ */
+function detectDeload() {
+  const workouts = State.workouts || [];
+  if (workouts.length < 3) return null;
+
+  const weekData = [];
+  for (let i = 1; i <= 5; i++) {
+    const bounds = _weekBounds(i);
+    const s = _calcWeekStats(workouts, bounds);
+    weekData.push({ offset: i, ...s, weekKey: _weekDateKey(bounds.start) });
+  }
+
+  const activeWeeks = weekData.filter(w => w.sessions > 0);
+  if (activeWeeks.length < 3) return null;
+
+  const currentWeek = _calcWeekStats(workouts, _weekBounds(0));
+  const recent = activeWeeks.slice(0, 4);
+  const avgVolume   = recent.reduce((s, w) => s + w.volume, 0)   / recent.length;
+  const avgSessions = recent.reduce((s, w) => s + w.sessions, 0) / recent.length;
+  const peakVolume  = Math.max(...recent.map(w => w.volume));
+  const peakSessions = Math.max(...recent.map(w => w.sessions));
+
+  if (avgVolume === 0 && avgSessions === 0) return null;
+
+  const heavyThresh = 0.9;
+  const heavyWeeks = recent.filter(w =>
+    (peakVolume   > 0 && w.volume   >= peakVolume   * heavyThresh) ||
+    (peakSessions > 0 && w.sessions >= peakSessions * heavyThresh)
+  ).length;
+
+  const last3 = activeWeeks.slice(0, 3);
+  const ascending = last3.length === 3 &&
+    last3[2].volume <= last3[1].volume && last3[1].volume <= last3[0].volume &&
+    last3[0].volume > last3[2].volume * 1.15;
+
+  const last2 = activeWeeks.slice(0, 2);
+  const recentSpike = last2.length === 2 &&
+    avgVolume > 0 &&
+    last2[0].volume >= avgVolume * 1.20 &&
+    last2[1].volume >= avgVolume * 1.20;
+
+  const shouldDeload = heavyWeeks >= 3 || ascending || recentSpike;
+  if (!shouldDeload) return null;
+
+  let reason = '';
+  if (ascending) {
+    reason = 'Your training volume has been climbing for 3 straight weeks — a classic signal to back off and let your body absorb the work.';
+  } else if (recentSpike) {
+    reason = 'The last 2 weeks were significantly above your normal training load. A lighter week now prevents accumulated fatigue from derailing your progress.';
+  } else {
+    reason = `${heavyWeeks} of your last ${recent.length} weeks were near your peak load. That\'s a lot of consistent hard work — reward it with a recovery week.`;
+  }
+
+  const isImp = typeof isImperial === 'function' && isImperial();
+  const unit = isImp ? 'lbs' : 'kg';
+  const dispVol = v => Math.round(isImp ? v * 2.20462 : v).toLocaleString();
+
+  return {
+    reason,
+    heavyWeeks,
+    recentSessions: recent[0] ? recent[0].sessions : 0,
+    recentVolume: recent[0] ? recent[0].volume : 0,
+    avgSessions: Math.round(avgSessions * 10) / 10,
+    avgVolume,
+    unit,
+    dispVol,
+    currentWeekSessions: currentWeek.sessions,
+  };
+}
+
+function renderDeloadBanner() {
+  const banner        = document.getElementById('deload-banner');
+  const sessionBanner = document.getElementById('deload-session-banner');
+  if (!banner) return;
+
+  if (window._deloadDismissed) {
+    banner.style.display = 'none';
+    if (sessionBanner) sessionBanner.style.display = 'none';
+    return;
+  }
+
+  const result = detectDeload();
+
+  if (!result) {
+    banner.style.display = 'none';
+    if (sessionBanner) sessionBanner.style.display = 'none';
+    return;
+  }
+
+  const titleEl = document.getElementById('deload-title');
+  const bodyEl  = document.getElementById('deload-body');
+  if (titleEl) titleEl.textContent = result.currentWeekSessions === 0
+    ? '🔋 Time for a deload week?'
+    : '🔋 Consider a deload this week';
+  if (bodyEl) bodyEl.textContent = result.reason;
+
+  const statsRow = document.getElementById('deload-stats-row');
+  if (statsRow) {
+    statsRow.innerHTML = [
+      { label: 'Avg sessions/wk', val: result.avgSessions },
+      { label: 'Last week sessions', val: result.recentSessions },
+      { label: 'Last week vol (' + result.unit + ')', val: result.dispVol(result.recentVolume) },
+    ].map(s => `
+      <div style="background:var(--bg-card);border-radius:var(--radius-sm);padding:8px 12px;min-width:80px">
+        <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:800;color:var(--orange)">${s.val}</div>
+        <div style="font-size:0.62rem;color:var(--text-muted);margin-top:1px">${s.label}</div>
+      </div>`).join('');
+  }
+
+  banner.style.display = '';
+
+  if (sessionBanner) {
+    const stEl = document.getElementById('deload-session-title');
+    const sbEl = document.getElementById('deload-session-body');
+    if (stEl) stEl.textContent = 'Deload week recommended 🔋';
+    if (sbEl) sbEl.textContent = 'You\'ve been pushing hard (avg ' + result.avgSessions + ' sessions/wk). A lighter session today = better long-term gains.';
+    sessionBanner.style.display = '';
+  }
+}
+
+function dismissDeloadBanner() {
+  window._deloadDismissed = true;
+  const banner = document.getElementById('deload-banner');
+  const sessionBanner = document.getElementById('deload-session-banner');
+  if (banner) {
+    banner.style.transition = 'opacity 0.3s';
+    banner.style.opacity = '0';
+    setTimeout(() => { banner.style.display = 'none'; banner.style.opacity = ''; }, 320);
+  }
+  if (sessionBanner) sessionBanner.style.display = 'none';
+  State.deloadDismissedAt = Date.now();
+  save();
+}
+
+/**
+ * Load a deload template — compound movements, 2 sets each, low volume.
+ * User should aim for ~50–60 % of their normal working weight.
+ */
+function loadDeloadTemplate() {
+  const deloadExercises = [
+    { name: 'Squat',             muscle: 'Legs',      sets: [{reps:8,weight:0,done:false},{reps:8,weight:0,done:false}] },
+    { name: 'Bench Press',       muscle: 'Chest',     sets: [{reps:8,weight:0,done:false},{reps:8,weight:0,done:false}] },
+    { name: 'Barbell Row',       muscle: 'Back',      sets: [{reps:8,weight:0,done:false},{reps:8,weight:0,done:false}] },
+    { name: 'Overhead Press',    muscle: 'Shoulders', sets: [{reps:8,weight:0,done:false},{reps:8,weight:0,done:false}] },
+    { name: 'Romanian Deadlift', muscle: 'Legs',      sets: [{reps:10,weight:0,done:false},{reps:10,weight:0,done:false}] },
+  ];
+
+  if (State.currentWorkout && State.currentWorkout.length) {
+    if (!confirm('Replace current session with the Deload workout?')) return;
+  }
+  State.currentWorkout = deloadExercises;
+
+  // Switch to session tab
+  const sessionTabBtn = document.querySelector('.workout-tab[data-tab="session"]');
+  if (sessionTabBtn) switchWorkoutTab('session', sessionTabBtn);
+
+  renderWorkoutPage();
+  showToast('💡 Deload loaded! Use ~50–60 % of your usual weight for each exercise.', 'info');
+}
+
+// Patch renderWorkoutHistory to also refresh deload banner
+(function() {
+  const _origRWH = window.renderWorkoutHistory;
+  window.renderWorkoutHistory = function() {
+    if (typeof _origRWH === 'function') _origRWH.apply(this, arguments);
+    renderDeloadBanner();
+  };
+})();
+
+// Restore dismissal state after Firestore load
+(function() {
+  const _origLoad = window._loadFirestore;
+  if (typeof _origLoad !== 'function') return;
+  window._loadFirestore = async function() {
+    await _origLoad.apply(this, arguments);
+    if (State.deloadDismissedAt) {
+      const age = Date.now() - State.deloadDismissedAt;
+      window._deloadDismissed = age <= 7 * 24 * 60 * 60 * 1000;
+      if (!window._deloadDismissed) delete State.deloadDismissedAt;
+    } else {
+      window._deloadDismissed = false;
+    }
+    renderDeloadBanner();
+  };
+})();
 
 // ═══════════════════════════════════════════════════════════════════
 //  CALENDAR
@@ -19846,44 +20048,16 @@ window.shareMealTemplate = function(idx) {
 };
 
 // ═══════════════════════════════════════════════════════════════
-//  GLOBAL LEADERBOARD  —  SEASONAL (monthly reset + trophy)
+//  GLOBAL LEADERBOARD
 // ═══════════════════════════════════════════════════════════════
 window._glbMetric = 'workouts';
-
-// Returns "YYYY-MM" for the current month
-function _currentSeasonKey() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-}
-
-// Returns a human-readable month name, e.g. "May 2026"
-function _seasonLabel(key) {
-  const [y, m] = key.split('-').map(Number);
-  return new Date(y, m-1, 1).toLocaleString('default', { month:'long', year:'numeric' });
-}
-
-// Returns days remaining until end of month
-function _daysUntilReset() {
-  const now  = new Date();
-  const last = new Date(now.getFullYear(), now.getMonth()+1, 0); // last day of month
-  const diff = last - now;
-  const days = Math.ceil(diff / (1000*60*60*24));
-  return days;
-}
-
-// Update season header UI
-function _updateSeasonUI() {
-  const labelEl     = document.getElementById('glb-season-label');
-  const countdownEl = document.getElementById('glb-season-countdown');
-  if (labelEl)     labelEl.textContent     = '🗓️ ' + _seasonLabel(_currentSeasonKey()) + ' Season';
-  if (countdownEl) countdownEl.textContent = _daysUntilReset() + 'd left';
-}
 
 window.setGlbMetric = function(metric, btn) {
   window._glbMetric = metric;
   document.querySelectorAll('.glb-metric-btn').forEach(b => {
     b.className = b === btn ? 'btn btn-primary btn-sm glb-metric-btn' : 'btn btn-ghost btn-sm glb-metric-btn';
   });
+  // Re-render from cache if available, else reload
   if (window._glbCache) {
     _renderGlobalLeaderboard(window._glbCache);
   } else {
@@ -19893,133 +20067,10 @@ window.setGlbMetric = function(metric, btn) {
 
 const GLB_UNITS = { workouts: 'workouts', streak: 'day streak', calGoalDays: 'cal goal days' };
 
-// ── Season reset: archive winner, clear leaderboard ─────────────────────────
-async function _checkAndHandleSeasonReset() {
-  const db  = window._fbDb;
-  const me  = window._currentUser;
-  if (!db || !me) return;
-
-  const seasonKey = _currentSeasonKey();
-  const metaRef   = window._fbDoc(db, 'leaderboard_meta', 'season');
-
-  try {
-    const metaSnap = await window._fbGetDoc(metaRef);
-    const meta     = metaSnap.exists() ? metaSnap.data() : {};
-    const lastSeason = meta.currentSeason || '';
-
-    // Same month → nothing to do
-    if (lastSeason === seasonKey) return;
-
-    // New month detected — archive the winner of the previous season
-    if (lastSeason) {
-      try {
-        const snap = await window._fbGetDocs(window._fbCollection(db, 'leaderboard'));
-        if (!snap.empty) {
-          const entries = snap.docs.map(d => ({ ...d.data(), docId: d.id }));
-          const best = entries.reduce((a, b) => ((a.workouts||0) >= (b.workouts||0) ? a : b));
-          if (best && best.uid) {
-            // Save to Hall of Champions
-            await window._fbSetDoc(
-              window._fbDoc(db, 'leaderboard_seasons', lastSeason),
-              {
-                season:      lastSeason,
-                seasonLabel: _seasonLabel(lastSeason),
-                winnerUid:   best.uid,
-                winnerName:  best.name || 'Anonymous',
-                winnerPhoto: best.photoURL || '',
-                workouts:    best.workouts    || 0,
-                streak:      best.streak      || 0,
-                calGoalDays: best.calGoalDays || 0,
-                archivedAt:  window._fbServerTs(),
-              }
-            );
-          }
-          // Clear all leaderboard entries for the new season
-          const deletions = snap.docs.map(d =>
-            window._fbDeleteDoc(window._fbDoc(db, 'leaderboard', d.id))
-          );
-          await Promise.allSettled(deletions);
-          window._glbCache = null;
-        }
-      } catch(e) { console.warn('season archive error', e); }
-    }
-
-    // Mark current season
-    await window._fbSetDoc(metaRef, { currentSeason: seasonKey }, { merge: true });
-
-  } catch(e) { console.warn('season reset check error', e); }
-}
-
-// ── Load trophy case (Hall of Champions) ────────────────────────────────────
-async function _loadTrophyCase() {
-  const container  = document.getElementById('glb-trophy-case');
-  const listEl     = document.getElementById('glb-trophy-list');
-  if (!container || !listEl) return;
-
-  try {
-    const snap = await window._fbGetDocs(window._fbCollection(window._fbDb, 'leaderboard_seasons'));
-    if (snap.empty) { container.style.display = 'none'; return; }
-
-    const seasons = snap.docs
-      .map(d => d.data())
-      .sort((a, b) => b.season.localeCompare(a.season))
-      .slice(0, 12);
-
-    container.style.display = '';
-    const meUid = window._currentUser?.uid;
-
-    listEl.innerHTML = seasons.map((s, i) => {
-      const initials = (s.winnerName || '?').charAt(0).toUpperCase();
-      const isMe     = s.winnerUid === meUid;
-      const trophyColor = i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--accent)';
-      return `
-        <div style="
-          display:flex;align-items:center;gap:10px;
-          padding:10px 12px;
-          border-radius:var(--radius-sm);
-          background:${isMe ? 'var(--accent-dim)' : 'var(--bg-elevated)'};
-          border:1px solid ${isMe ? 'var(--accent)' : 'var(--border)'};
-        ">
-          <span style="font-size:1.4rem;flex-shrink:0">🏆</span>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:0.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">${s.seasonLabel || s.season}</div>
-            <div style="
-              font-family:var(--font-display);font-weight:800;font-size:0.9rem;
-              color:${isMe ? 'var(--accent)' : 'var(--text-primary)'};
-              white-space:nowrap;overflow:hidden;text-overflow:ellipsis
-            ">
-              <div style="
-                display:inline-block;width:22px;height:22px;border-radius:50%;
-                background:linear-gradient(135deg,${trophyColor},var(--accent));
-                vertical-align:middle;text-align:center;line-height:22px;
-                font-size:0.7rem;font-weight:800;color:#fff;margin-right:6px;position:relative;overflow:hidden;
-              ">
-                ${s.winnerPhoto ? `<img src="${s.winnerPhoto}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.style.display='none'">` : ''}
-                ${initials}
-              </div>
-              ${s.winnerName}${isMe ? ' (you) 👑' : ''}
-            </div>
-          </div>
-          <div style="text-align:right;flex-shrink:0">
-            <div style="font-family:var(--font-display);font-weight:800;font-size:1rem;color:${trophyColor}">${s.workouts || 0}</div>
-            <div style="font-size:0.62rem;color:var(--text-muted)">workouts</div>
-          </div>
-        </div>`;
-    }).join('');
-
-  } catch(e) {
-    container.style.display = 'none';
-    console.warn('trophy case load error', e);
-  }
-}
-
-// ── Main load function ───────────────────────────────────────────────────────
 window.loadGlobalLeaderboard = async function() {
   const list = document.getElementById('glb-leaderboard-list');
   const myRankCard = document.getElementById('glb-my-rank');
   if (!list) return;
-
-  _updateSeasonUI();
 
   const me = window._currentUser;
   if (!me) {
@@ -20030,10 +20081,7 @@ window.loadGlobalLeaderboard = async function() {
   list.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:0.85rem">⏳ Loading…</div>';
   if (myRankCard) myRankCard.style.display = 'none';
 
-  // Check & handle monthly reset (only first user to open in a new month triggers archive)
-  await _checkAndHandleSeasonReset();
-
-  // Push own score for this season
+  // Push own score first
   try {
     const myScores = (typeof calcAllLbScores === 'function') ? calcAllLbScores() : { workouts:0, streak:0, calGoalDays:0 };
     await window._fbSetDoc(
@@ -20045,20 +20093,20 @@ window.loadGlobalLeaderboard = async function() {
         workouts:    myScores.workouts,
         streak:      myScores.streak,
         calGoalDays: myScores.calGoalDays,
-        season:      _currentSeasonKey(),
         updatedAt:   window._fbServerTs()
       },
       { merge: true }
     );
   } catch(e) { console.warn('glb score push error', e); }
 
-  // Fetch current season scores
+  // Fetch top 50 from leaderboard collection (sorted client-side to avoid index)
   try {
-    const snap = await window._fbGetDocs(window._fbCollection(window._fbDb, 'leaderboard'));
+    const snap = await window._fbGetDocs(
+      window._fbCollection(window._fbDb, 'leaderboard')
+    );
 
     if (snap.empty) {
       list.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No users on the leaderboard yet — be the first!</div></div>';
-      await _loadTrophyCase();
       return;
     }
 
@@ -20077,7 +20125,6 @@ window.loadGlobalLeaderboard = async function() {
 
     window._glbCache = allEntries;
     _renderGlobalLeaderboard(allEntries);
-    await _loadTrophyCase();
 
   } catch(e) {
     const msg = e?.code === 'permission-denied'
@@ -20098,6 +20145,7 @@ function _renderGlobalLeaderboard(allEntries) {
 
   // Sort by selected metric, take top 50
   const sorted = allEntries.slice().sort((a, b) => (b[metric]||0) - (a[metric]||0)).slice(0, 50);
+  const myGlobalRank = sorted.findIndex(e => e.isMe);
 
   // My rank card
   if (myRankCard) {
@@ -20109,7 +20157,7 @@ function _renderGlobalLeaderboard(allEntries) {
       document.getElementById('glb-my-rank-medal').textContent =
         rankNum === 1 ? '🥇' : rankNum === 2 ? '🥈' : rankNum === 3 ? '🥉' : `#${rankNum}`;
       document.getElementById('glb-my-rank-name').textContent = myEntry.name + ' (you)';
-      document.getElementById('glb-my-rank-sub').textContent  = `Ranked ${rankNum} of ${allEntries.length} · ${_seasonLabel(_currentSeasonKey())} season`;
+      document.getElementById('glb-my-rank-sub').textContent  = `Ranked ${rankNum} of ${allEntries.length} users`;
       document.getElementById('glb-my-rank-score').textContent = myEntry[metric] || 0;
       document.getElementById('glb-my-rank-unit').textContent  = unit;
     }
@@ -20121,16 +20169,9 @@ function _renderGlobalLeaderboard(allEntries) {
   }
 
   list.innerHTML = sorted.map((e, i) => {
-    const isTop3   = i < 3;
-    // Trophy crown for #1
-    const medalIcon = i === 0
-      ? `<span style="font-size:1.4rem">🏆</span>`
-      : i === 1 ? `<span style="font-size:1.3rem">🥈</span>`
-      : i === 2 ? `<span style="font-size:1.3rem">🥉</span>`
-      : `<span style="font-size:0.85rem;font-weight:700;color:var(--text-muted)">#${i+1}</span>`;
+    const medal    = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span style="font-size:0.85rem;font-weight:700;color:var(--text-muted)">#${i+1}</span>`;
     const initials = (e.name || '?').charAt(0).toUpperCase();
-    // Gold shimmer ring for #1
-    const avatarBorder = i === 0 ? 'box-shadow:0 0 0 2px #FFD700,0 0 8px 2px rgba(255,215,0,0.4)' : '';
+    const isTop3   = i < 3;
     return `
       <div style="
         display:flex;align-items:center;gap:12px;
@@ -20141,7 +20182,7 @@ function _renderGlobalLeaderboard(allEntries) {
         margin-bottom:${isTop3 ? '8px' : '0'};
         ${!isTop3 && i < sorted.length - 1 ? 'border-bottom:1px solid var(--border)' : ''}
       ">
-        <span style="min-width:30px;text-align:center">${medalIcon}</span>
+        <span style="font-size:${isTop3?'1.3rem':'1rem'};min-width:30px;text-align:center">${medal}</span>
         <div style="
           width:${isTop3?'40px':'34px'};height:${isTop3?'40px':'34px'};
           border-radius:50%;
@@ -20149,8 +20190,7 @@ function _renderGlobalLeaderboard(allEntries) {
           display:flex;align-items:center;justify-content:center;
           font-family:var(--font-display);font-weight:800;
           font-size:${isTop3?'0.9rem':'0.78rem'};
-          color:var(--bg-base);flex-shrink:0;position:relative;overflow:hidden;
-          ${avatarBorder}
+          color:var(--bg-base);flex-shrink:0;position:relative;overflow:hidden
         ">
           ${e.photoURL ? `<img src="${e.photoURL}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.style.display='none'">` : ''}
           ${initials}
@@ -20161,14 +20201,14 @@ function _renderGlobalLeaderboard(allEntries) {
             font-weight:${e.isMe||isTop3?'700':'600'};
             color:${e.isMe?'var(--accent)':'var(--text-primary)'};
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis
-          ">${e.name}${e.isMe?' (you)':''}${i===0?' 👑':''}</div>
+          ">${e.name}${e.isMe?' (you)':''}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="
             font-family:var(--font-display);
             font-size:${isTop3?'1.2rem':'1rem'};
             font-weight:800;
-            color:${i===0?'#FFD700':e.isMe?'var(--accent)':isTop3?'var(--text-primary)':'var(--text-secondary)'}
+            color:${e.isMe?'var(--accent)':isTop3?'var(--text-primary)':'var(--text-secondary)'}
           ">${e[metric]||0}</div>
           <div style="font-size:0.63rem;color:var(--text-muted)">${unit}</div>
         </div>
