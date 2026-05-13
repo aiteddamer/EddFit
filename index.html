@@ -3884,7 +3884,11 @@ function dismissSplash() {
             </div>
             <div class="hero-stat">
               <div class="hero-stat-val" id="hero-rank">—</div>
-              <div class="hero-stat-lbl">Your Rank</div>
+              <div class="hero-stat-lbl" id="hero-rank-lbl">💪 Sessions Rank</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-val" id="hero-squad-rank">—</div>
+              <div class="hero-stat-lbl" id="hero-squad-rank-lbl">🏋️ Squad Rank</div>
             </div>
           </div>
         </div>
@@ -4254,17 +4258,68 @@ function dismissSplash() {
 
         // ─── Hero Stats update ───────────────────────────────────────────
         window._updateSocialHeroStats = function() {
-          const friendsCount = (window.Social && window.Social.friends) ? window.Social.friends.length : 0;
-          const challengesCount = (window.Social && window.Social.challenges) ? window.Social.challenges.length : 0;
+          const Social   = window.Social || {};
+          const State    = window.State  || {};
+          const me       = window._currentUser;
+          const friendsCount    = (Social.friends    || []).length;
+          const challengesCount = (Social.challenges || []).length;
+
           const el1 = document.getElementById('hero-friends-count');
           const el2 = document.getElementById('hero-challenges-count');
           const el3 = document.getElementById('hero-rank');
           if (el1) el1.textContent = friendsCount;
           if (el2) el2.textContent = challengesCount;
-          if (el3) el3.textContent = friendsCount > 0 ? '#' + (Math.min(friendsCount, 5) + 1) : '—';
+
+          // ── Real rank from _lbCache (set by loadLeaderboard) ─────────────
+          // Reflects whichever metric is active: 💪 Sessions / 🔥 Streak / 🎯 Cal Goal
+          const el3lbl = document.getElementById('hero-rank-lbl');
+          if (el3) {
+            if (!me || friendsCount === 0) {
+              el3.textContent = '—';
+              if (el3lbl) el3lbl.textContent = 'Your Rank';
+            } else {
+              const cached = window._lbCache || [];
+              const metric = (Social.lbMetric) || 'workouts';
+              const metricLabel = metric === 'streak' ? '🔥 Streak Rank'
+                                : metric === 'calories' ? '🎯 Cal Rank'
+                                : '💪 Sessions Rank';
+              if (el3lbl) el3lbl.textContent = metricLabel;
+              if (cached.length > 0) {
+                // _lbCache is already sorted desc by current metric score
+                const myIdx = cached.findIndex(e => e.uid === me.uid);
+                el3.textContent = myIdx >= 0 ? '#' + (myIdx + 1) : '—';
+              } else {
+                el3.textContent = '…'; // leaderboard not loaded yet
+              }
+            }
+          }
+
+          // ── Squad Rank: rank among squad members only ──────────────────────
+          const elSR    = document.getElementById('hero-squad-rank');
+          const elSRLbl = document.getElementById('hero-squad-rank-lbl');
+          if (elSR) {
+            const metric = (Social.lbMetric) || 'workouts';
+            const metricLabelSq = metric === 'streak'   ? '🔥 Streak Rank'
+                                : metric === 'calories' ? '🎯 Cal Rank'
+                                : '💪 Sessions Rank';
+            if (elSRLbl) elSRLbl.textContent = '🏋️ Squad ' + (metric === 'streak' ? 'Streak' : metric === 'calories' ? 'Cal' : 'Rank');
+            const allSquads = Social.squads || [];
+            const squadUids = new Set();
+            allSquads.forEach(sq => (sq.memberUids || []).forEach(uid => squadUids.add(uid)));
+            if (!me || squadUids.size === 0) {
+              elSR.textContent = '—';
+              if (elSRLbl) elSRLbl.textContent = '🏋️ Squad Rank';
+            } else {
+              elSR.textContent = '…';
+              window._calcSquadRank(metric, me, [...squadUids])
+                .then(r => { elSR.textContent = r; })
+                .catch(() => { elSR.textContent = '—'; });
+            }
+          }
+
           // Update stat chips
-          const streak = (window.State && window.State.streak) ? window.State.streak : 0;
-          const workouts = (window.State && window.State.workouts) ? window.State.workouts.length : 0;
+          const streak   = State.streak || 0;
+          const workouts = (State.workouts || []).length;
           const sc = document.getElementById('my-streak-chip');
           const wc = document.getElementById('my-workouts-chip');
           const cc = document.getElementById('my-challenges-chip');
@@ -4511,6 +4566,42 @@ function dismissSplash() {
               </div>
             </div>`;
           }).join('<div style="border-top:1px solid var(--border)"></div>');
+        };
+
+        // ─── Squad Rank Calculator ───────────────────────────────────────
+        // Fetches leaderboard docs for all squad member UIDs, adds the current
+        // user's live score, sorts by metric, and returns "#N of M" string.
+        window._calcSquadRank = async function(metric, me, squadUids) {
+          const metricField = metric === 'streak' ? 'streak'
+                            : metric === 'calories' ? 'calGoalDays'
+                            : 'workouts';
+
+          // My live score (never stale)
+          const myScores = (typeof calcAllLbScores === 'function') ? calcAllLbScores() : { workouts:0, streak:0, calGoalDays:0 };
+          const myScore  = myScores[metricField] || 0;
+
+          // Fetch each squad member's leaderboard doc in parallel
+          const memberScores = await Promise.all(squadUids.map(async uid => {
+            try {
+              const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'leaderboard', uid));
+              const score = snap.exists() ? (snap.data()[metricField] || 0) : 0;
+              return { uid, score };
+            } catch(e) { return { uid, score: 0 }; }
+          }));
+
+          // Build combined list: me + squad members (de-dupe in case me is in squad)
+          const allEntries = [{ uid: me.uid, score: myScore }];
+          memberScores.forEach(m => {
+            if (m.uid !== me.uid) allEntries.push(m);
+          });
+
+          // Sort descending
+          allEntries.sort((a, b) => b.score - a.score);
+
+          const myIdx = allEntries.findIndex(e => e.uid === me.uid);
+          const rank  = myIdx >= 0 ? myIdx + 1 : allEntries.length;
+          const total = allEntries.length;
+          return '#' + rank + ' of ' + total;
         };
 
         // Hook into existing loadFriends if available
@@ -15238,6 +15329,7 @@ function setLbPeriod(period, btn) {
 
 function setLbMetric(metric, btn) {
   Social.lbMetric = metric;
+  if (window._updateSocialHeroStats) window._updateSocialHeroStats(); // refresh rank label + value
   document.querySelectorAll('.lb-metric-btn').forEach(b => {
     b.style.background = 'var(--bg-elevated)';
     b.style.borderColor = 'var(--border)';
@@ -15378,7 +15470,9 @@ async function loadLeaderboard() {
   };
   const entries = [myEntry, ...Object.values(friendMap)];
   entries.sort((a, b) => b.score - a.score);
+  window._lbCache = entries; // cache for hero rank stat
   renderLeaderboard(entries);
+  if (window._updateSocialHeroStats) window._updateSocialHeroStats();
 }
 
 const LB_UNITS = { workouts: 'workouts', streak: 'day streak', calories: 'days' };
