@@ -3809,12 +3809,13 @@ function dismissSplash() {
                 <button class="btn btn-outline" onclick="importData()">📥 Import Data (JSON)</button>
                 <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="handleImportFile(event)" />
                 <div style="border-top:1px solid var(--border);padding-top:10px">
-                  <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Google Drive Sync</div>
-                  <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:10px">Back up your data to Google Drive, then restore it on any device.</div>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Google Drive Sync</div>
+                  <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:10px">Back up directly to your Google Drive. Auto-saves every 5 min after first backup.</div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
                     <button class="btn btn-outline" style="flex:1;min-width:120px" onclick="gdriveBackup()">☁️ Back up to Drive</button>
                     <button class="btn btn-outline" style="flex:1;min-width:120px" onclick="gdriveRestore()">🔄 Restore from Drive</button>
                   </div>
+                  <button class="btn btn-outline" style="width:100%;font-size:0.75rem;opacity:0.7" onclick="gdriveSignOut()">⛔ Disconnect Drive</button>
                   <div id="gdrive-status" style="font-size:0.72rem;margin-top:8px;color:var(--text-muted);min-height:16px"></div>
                 </div>
                 <button class="btn btn-danger" onclick="resetOnboarding()">🔄 Reset & Re-do Onboarding</button>
@@ -10129,104 +10130,198 @@ function handleImportFile(e) {
   e.target.value = '';
 }
 
-// ── Google Drive Sync ────────────────────────────────────────────────────────────
-const GDRIVE_FILENAME = 'eddfit-backup.json';
+// ── Google Drive Sync (Real API) ─────────────────────────────────────────────────
+const GDRIVE_CLIENT_ID  = '770627906150-o0v1mgfekrji16mlngvds4bhl4frt0vr.apps.googleusercontent.com';
+const GDRIVE_API_KEY    = 'AIzaSyDCgaLr7KDmq_xI01sZmvTXDu3pHru0Z5I';
+const GDRIVE_SCOPES     = 'https://www.googleapis.com/auth/drive.file';
+const GDRIVE_FILENAME   = 'eddfit-backup.json';
+const GDRIVE_AUTOSAVE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+let _gdriveTokenClient  = null;
+let _gdriveAccessToken  = null;
+let _gdriveFileId       = null;
+let _gdriveAutoSaveTimer = null;
+let _gdriveGapiReady    = false;
+let _gdriveGisReady     = false;
 
 function gdriveStatus(msg, color) {
   const el = document.getElementById('gdrive-status');
   if (el) { el.textContent = msg; el.style.color = color || 'var(--text-muted)'; }
 }
 
-function gdriveBackup() {
-  // Step 1: trigger the file download
-  const json = JSON.stringify(State, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = GDRIVE_FILENAME;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+// Load Google API scripts dynamically
+function _loadGdriveScripts() {
+  return new Promise((resolve) => {
+    if (_gdriveGapiReady && _gdriveGisReady) { resolve(); return; }
+    let gapiDone = false, gisDone = false;
+    function check() { if (gapiDone && gisDone) resolve(); }
 
-  // Step 2: show modal with a direct "Open Google Drive" button
-  showGDriveModal(`
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-      <div style="font-size:1.8rem">☁️</div>
-      <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:800">Back Up to Google Drive</div>
-    </div>
-    <div style="padding:12px 14px;background:var(--green-dim);border:1px solid var(--green);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--green);font-weight:600;margin-bottom:18px">
-      ✅ <strong>eddfit-backup.json</strong> downloaded to your device
-    </div>
-    <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:14px">Now upload it to Google Drive in 2 clicks:</div>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);font-size:0.83rem">
-        <span style="font-size:1.1rem;flex-shrink:0">1️⃣</span>
-        <span>Click <strong>Open Google Drive</strong> below</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);font-size:0.83rem">
-        <span style="font-size:1.1rem;flex-shrink:0">2️⃣</span>
-        <span>Click <strong>+ New → File upload</strong> and select <strong>eddfit-backup.json</strong></span>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px">
-      <button class="btn btn-outline" style="flex:1" onclick="closeGDriveModal()">Done</button>
-      <button class="btn btn-primary" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px"
-        onclick="window.open('https://drive.google.com/drive/my-drive','_blank')">
-        <svg width="16" height="16" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
-          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
-          <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-          <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-          <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-          <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-        </svg>
-        Open Google Drive
-      </button>
-    </div>
-  `);
-  gdriveStatus('✓ File saved — upload it to Drive to complete backup', 'var(--green)');
+    if (!document.getElementById('gapi-script')) {
+      const s = document.createElement('script');
+      s.id  = 'gapi-script';
+      s.src = 'https://apis.google.com/js/api.js';
+      s.onload = () => {
+        gapi.load('client', async () => {
+          await gapi.client.init({ apiKey: GDRIVE_API_KEY, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+          _gdriveGapiReady = true;
+          gapiDone = true;
+          check();
+        });
+      };
+      document.head.appendChild(s);
+    } else { gapiDone = true; check(); }
+
+    if (!document.getElementById('gis-script')) {
+      const s2 = document.createElement('script');
+      s2.id  = 'gis-script';
+      s2.src = 'https://accounts.google.com/gsi/client';
+      s2.onload = () => {
+        _gdriveTokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: GDRIVE_CLIENT_ID,
+          scope: GDRIVE_SCOPES,
+          callback: (resp) => {
+            if (resp.error) { gdriveStatus('❌ Auth failed: ' + resp.error, 'var(--red)'); return; }
+            _gdriveAccessToken = resp.access_token;
+            gapi.client.setToken({ access_token: resp.access_token });
+            window._gdriveAuthCallback && window._gdriveAuthCallback();
+          }
+        });
+        _gdriveGisReady = true;
+        gisDone = true;
+        check();
+      };
+      document.head.appendChild(s2);
+    } else { gisDone = true; check(); }
+  });
 }
 
-function gdriveRestore() {
-  showGDriveModal(`
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-      <div style="font-size:1.8rem">🔄</div>
-      <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:800">Restore from Google Drive</div>
-    </div>
-    <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:14px">Get your backup file from Google Drive, then load it here:</div>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);font-size:0.83rem">
-        <span style="font-size:1.1rem;flex-shrink:0">1️⃣</span>
-        <span>Click <strong>Open Google Drive</strong> below</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);font-size:0.83rem">
-        <span style="font-size:1.1rem;flex-shrink:0">2️⃣</span>
-        <span>Find <strong>eddfit-backup.json</strong>, right-click → <strong>Download</strong></span>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);font-size:0.83rem">
-        <span style="font-size:1.1rem;flex-shrink:0">3️⃣</span>
-        <span>Come back here and click <strong>Load File</strong></span>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px">
-      <button class="btn btn-primary" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px"
-        onclick="window.open('https://drive.google.com/drive/search?q=eddfit-backup.json','_blank')">
-        <svg width="16" height="16" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
-          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
-          <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-          <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-          <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-          <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-        </svg>
-        Open Google Drive
-      </button>
-      <button class="btn btn-outline" style="flex:1" onclick="closeGDriveModal();importData()">📥 Load File</button>
-    </div>
-  `);
-  gdriveStatus('Open Drive, download your backup, then load it here', 'var(--text-muted)');
+// Request auth token then run callback
+async function _gdriveAuthorize(callback) {
+  await _loadGdriveScripts();
+  window._gdriveAuthCallback = callback;
+  if (_gdriveAccessToken) { callback(); return; }
+  _gdriveTokenClient.requestAccessToken({ prompt: 'consent' });
+}
+
+// Find existing backup file ID in Drive
+async function _gdriveFindFile() {
+  const resp = await gapi.client.drive.files.list({
+    q: `name='${GDRIVE_FILENAME}' and trashed=false`,
+    fields: 'files(id,name,modifiedTime)',
+    spaces: 'drive'
+  });
+  const files = resp.result.files || [];
+  return files.length ? files[0].id : null;
+}
+
+// Upload (create or update) backup file to Drive
+async function _gdriveUpload(jsonStr) {
+  const fileId = _gdriveFileId || await _gdriveFindFile();
+  const metadata = { name: GDRIVE_FILENAME, mimeType: 'application/json' };
+  const boundary = '-------EddFitBoundary';
+  const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${jsonStr}\r\n--${boundary}--`;
+
+  const method = fileId ? 'PATCH' : 'POST';
+  const url    = fileId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+    : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+
+  const resp = await fetch(url, {
+    method,
+    headers: {
+      'Authorization': 'Bearer ' + _gdriveAccessToken,
+      'Content-Type': `multipart/related; boundary=${boundary}`
+    },
+    body
+  });
+  const data = await resp.json();
+  _gdriveFileId = data.id;
+  return data;
+}
+
+// Manual backup button
+async function gdriveBackup() {
+  gdriveStatus('Connecting to Google Drive…', 'var(--text-muted)');
+  _gdriveAuthorize(async () => {
+    try {
+      gdriveStatus('Saving backup…', 'var(--text-muted)');
+      const json = JSON.stringify(State, null, 2);
+      await _gdriveUpload(json);
+      const now = new Date().toLocaleTimeString();
+      gdriveStatus(`✅ Backed up to Drive at ${now}`, 'var(--green)');
+      _gdriveStartAutoSave();
+    } catch(e) {
+      console.error('Drive backup error', e);
+      gdriveStatus('❌ Backup failed — try again', 'var(--red)');
+    }
+  });
+}
+
+// Restore from Drive using Picker
+async function gdriveRestore() {
+  gdriveStatus('Connecting to Google Drive…', 'var(--text-muted)');
+  _gdriveAuthorize(async () => {
+    try {
+      // Try to find the file automatically first
+      const fileId = await _gdriveFindFile();
+      if (!fileId) {
+        gdriveStatus('No backup found in Drive. Back up first!', 'var(--orange)');
+        return;
+      }
+      gdriveStatus('Downloading backup…', 'var(--text-muted)');
+      const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: { 'Authorization': 'Bearer ' + _gdriveAccessToken }
+      });
+      if (!resp.ok) throw new Error('Download failed');
+      const data = await resp.json();
+      if (!data || typeof data !== 'object') throw new Error('Invalid backup data');
+
+      // Confirm before overwriting
+      if (!confirm('Restore backup from Google Drive? This will replace your current data.')) {
+        gdriveStatus('Restore cancelled', 'var(--text-muted)');
+        return;
+      }
+
+      Object.assign(State, data);
+      await window._saveFirestore();
+      _gdriveFileId = fileId;
+      gdriveStatus('✅ Restored from Drive!', 'var(--green)');
+      setTimeout(() => location.reload(), 1200);
+    } catch(e) {
+      console.error('Drive restore error', e);
+      gdriveStatus('❌ Restore failed — try again', 'var(--red)');
+    }
+  });
+}
+
+// Auto-save: runs every 5 min after first successful backup
+function _gdriveStartAutoSave() {
+  if (_gdriveAutoSaveTimer) return; // already running
+  _gdriveAutoSaveTimer = setInterval(async () => {
+    if (!_gdriveAccessToken || !_gdriveFileId) return;
+    try {
+      const json = JSON.stringify(State, null, 2);
+      await _gdriveUpload(json);
+      const now = new Date().toLocaleTimeString();
+      gdriveStatus(`☁️ Auto-saved at ${now}`, 'var(--green)');
+    } catch(e) {
+      console.warn('Drive auto-save failed', e);
+      // Token may have expired — clear it so next manual action re-auths
+      _gdriveAccessToken = null;
+    }
+  }, GDRIVE_AUTOSAVE_INTERVAL);
+  console.log('[Drive] Auto-save started (every 5 min)');
+}
+
+// Sign out of Drive (revoke token)
+function gdriveSignOut() {
+  if (_gdriveAccessToken) {
+    google.accounts.oauth2.revoke(_gdriveAccessToken);
+    _gdriveAccessToken = null;
+    _gdriveFileId = null;
+  }
+  if (_gdriveAutoSaveTimer) { clearInterval(_gdriveAutoSaveTimer); _gdriveAutoSaveTimer = null; }
+  gdriveStatus('Disconnected from Google Drive', 'var(--text-muted)');
 }
 
 function showGDriveModal(html) {
