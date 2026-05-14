@@ -10132,7 +10132,7 @@ function handleImportFile(e) {
 
 // ── Google Drive Sync (Real API) ─────────────────────────────────────────────────
 const GDRIVE_CLIENT_ID  = '770627906150-o0v1mgfekrji16mlngvds4bhl4frt0vr.apps.googleusercontent.com';
-const GDRIVE_API_KEY    = 'AIzaSyDCgaLr7KDmq_xI01sZmvTXDu3pHru0Z5I';
+const GDRIVE_API_KEY    = 'AIzaSyBa0J_jAEWCXbXrj5ktiad5YA066702uUI';
 const GDRIVE_SCOPES     = 'https://www.googleapis.com/auth/drive.file';
 const GDRIVE_FILENAME   = 'eddfit-backup.json';
 const GDRIVE_AUTOSAVE_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -10252,7 +10252,8 @@ async function gdriveBackup() {
       _gdriveStartAutoSave();
     } catch(e) {
       console.error('Drive backup error', e);
-      gdriveStatus('❌ Backup failed — try again', 'var(--red)');
+      const msg = e?.result?.error?.message || e?.message || 'Unknown error';
+      gdriveStatus('❌ ' + msg, 'var(--red)');
     }
   });
 }
