@@ -20981,20 +20981,25 @@ window.dismissSharedProgram = async function(docId, btn) {
     const fat = +document.getElementById('s-fat')?.value      || State.targets.fat;
 
     const newTargets = { calories: cal, protein: pro, carbs: carb, fat: fat };
-    const result = commitNewTargets(newTargets, true); // apply to current week
+
+    // Append immutable snapshot so future-date lookups get new values immediately
+    recordTargetChange(newTargets);
+    State.targets = { calories: cal, protein: pro, carbs: carb, fat: fat };
+
+    const result = commitNewTargets(newTargets, true);
 
     save();
     if (typeof initUI === 'function') initUI();
     if (typeof refreshDashboard === 'function') refreshDashboard();
+    if (typeof _refreshSettingsTargetsSummary === 'function') _refreshSettingsTargetsSummary();
 
     const changeText = result.changes.length > 0
       ? '\n' + result.changes.join(' · ')
       : '';
     if (typeof showToast === 'function') {
-      showToast(`Targets updated for Week ${weekNumFromId(result.weekId)}! ✅${changeText}`, 'success');
+      showToast(`Targets updated! ✅${changeText}`, 'success');
     }
 
-    // Render the week history UI if visible
     _renderWeekHistoryIfVisible();
   };
 
@@ -21007,6 +21012,14 @@ window.dismissSharedProgram = async function(docId, btn) {
     const fat  = +document.getElementById('am-fat-slider')?.value  || State.targets.fat;
 
     const newTargets = { calories: cal, protein: pro, carbs: carb, fat: fat };
+
+    // 1. Append immutable dated snapshot so getTargetsForDay(any future date) returns new values
+    recordTargetChange(newTargets);
+
+    // 2. Keep State.targets in sync for UI defaults
+    State.targets = { calories: cal, protein: pro, carbs: carb, fat: fat };
+
+    // 3. Commit to weekly snapshot system (for reports/calendar)
     const result = commitNewTargets(newTargets, true);
 
     save();
@@ -21015,12 +21028,14 @@ window.dismissSharedProgram = async function(docId, btn) {
     if (typeof refreshDashboard === 'function') refreshDashboard();
     if (typeof refreshNutritionPage === 'function') refreshNutritionPage();
     if (typeof updateGoalDisplays === 'function') updateGoalDisplays();
+    // Refresh the Settings page targets card immediately
+    if (typeof _refreshSettingsTargetsSummary === 'function') _refreshSettingsTargetsSummary();
 
     const changeText = result.changes.length > 0
       ? ' ' + result.changes.join(' · ')
       : '';
     if (typeof showToast === 'function') {
-      showToast(`Targets locked for Wk ${weekNumFromId(result.weekId)}!${changeText} 🔒`, 'success');
+      showToast(`Targets updated!${changeText ? ' ' + changeText : ''} Old days preserved 🔒`, 'success');
     }
     _renderWeekHistoryIfVisible();
   };
