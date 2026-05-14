@@ -16078,11 +16078,12 @@ function bmRenderPanel(key, data) {
   const diffColor = {Beginner:'var(--green)',Intermediate:'var(--orange)',Advanced:'var(--red)'};
   const diffBg    = {Beginner:'var(--green-dim)',Intermediate:'var(--orange-dim)',Advanced:'var(--red-dim)'};
   const exHtml = data.exercises.map((ex, i) => `
-    <div id="bm-card-${key}-${i}" style="border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);overflow:hidden;cursor:pointer;transition:border-color var(--transition)"
-      onclick="bmToggleVideo('${key}',${i})"
+    <div id="bm-card-${key}-${i}" style="border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);overflow:hidden;transition:border-color var(--transition)"
       onmouseover="this.style.borderColor='var(--accent)'"
       onmouseout="this.style.borderColor=window._bmOpenCard==='${key}-${i}'?'var(--accent)':'var(--border)'">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px">
+      <!-- Header row — clicking this toggles the video -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;cursor:pointer"
+        onclick="bmToggleVideo('${key}',${i})">
         <div style="flex:1;min-width:0">
           <div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:6px">
             <span id="bm-arrow-${key}-${i}" style="font-size:0.7rem;color:var(--accent);transition:transform 0.2s">▶</span>
@@ -16092,36 +16093,38 @@ function bmRenderPanel(key, data) {
         </div>
         <span style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:${diffBg[ex.diff]};color:${diffColor[ex.diff]};font-weight:700;flex-shrink:0">${ex.diff}</span>
       </div>
-      <div id="bm-video-${key}-${i}" style="display:none;border-top:1px solid var(--border)">
-        <div id="bm-player-${key}-${i}" style="position:relative;width:100%;aspect-ratio:16/9;background:#111;overflow:hidden;border-radius:0">
-          <!-- YouTube iframe sized larger to hide controls bar -->
+      <!-- Video section — clicks inside here do NOT bubble to card -->
+      <div id="bm-video-${key}-${i}" style="display:none;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
+        <div id="bm-player-${key}-${i}" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden">
+          <!-- iframe fills container exactly; controls hidden via API -->
           <iframe id="bm-iframe-${key}-${i}"
-            style="position:absolute;top:-60px;left:-10px;width:calc(100% + 20px);height:calc(100% + 120px);border:none;pointer-events:none"
+            style="position:absolute;top:0;left:0;width:100%;height:100%;border:none"
             allow="autoplay;encrypted-media" allowfullscreen></iframe>
-          <!-- Click overlay to play/pause -->
-          <div id="bm-overlay-${key}-${i}" onclick="bmPlayerToggle('${key}',${i})"
-            style="position:absolute;inset:0;cursor:pointer;z-index:2;display:flex;align-items:center;justify-content:center">
+          <!-- Overlay: play/pause on click, hidden when playing -->
+          <div id="bm-overlay-${key}-${i}"
+            onclick="event.stopPropagation();bmPlayerToggle('${key}',${i})"
+            style="position:absolute;inset:0;cursor:pointer;z-index:2;display:flex;align-items:center;justify-content:center;background:transparent">
             <div id="bm-playbtn-${key}-${i}"
-              style="width:52px;height:52px;border-radius:50%;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;transition:opacity 0.3s;opacity:1">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="white"><polygon points="5,2 18,10 5,18"/></svg>
+              style="width:56px;height:56px;border-radius:50%;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;transition:opacity 0.25s;opacity:0">
+              <svg width="22" height="22" viewBox="0 0 20 20" fill="white"><polygon points="5,2 18,10 5,18"/></svg>
             </div>
           </div>
-          <!-- Custom bottom bar -->
-          <div style="position:absolute;bottom:0;left:0;right:0;z-index:3;background:linear-gradient(transparent,rgba(0,0,0,0.85));padding:8px 12px 8px;display:flex;align-items:center;gap:10px">
-            <button onclick="bmPlayerToggle('${key}',${i})" id="bm-pbtn-${key}-${i}"
-              style="background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center">
+          <!-- Custom controls bar -->
+          <div onclick="event.stopPropagation()" style="position:absolute;bottom:0;left:0;right:0;z-index:3;background:linear-gradient(transparent,rgba(0,0,0,0.88));padding:6px 12px 8px;display:flex;align-items:center;gap:10px">
+            <button onclick="event.stopPropagation();bmPlayerToggle('${key}',${i})" id="bm-pbtn-${key}-${i}"
+              style="background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;flex-shrink:0">
               <svg id="bm-picon-${key}-${i}" width="18" height="18" viewBox="0 0 20 20" fill="white"><polygon points="5,2 18,10 5,18"/></svg>
             </button>
-            <div style="flex:1;height:3px;background:rgba(255,255,255,0.25);border-radius:2px;cursor:pointer" onclick="bmPlayerSeek(event,'${key}',${i})">
+            <div style="flex:1;height:3px;background:rgba(255,255,255,0.25);border-radius:2px;cursor:pointer" onclick="event.stopPropagation();bmPlayerSeek(event,'${key}',${i})">
               <div id="bm-prog-${key}-${i}" style="height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width 0.5s linear"></div>
             </div>
             <span id="bm-time-${key}-${i}" style="font-size:0.65rem;color:rgba(255,255,255,0.8);white-space:nowrap;font-family:monospace">0:00</span>
-            <button onclick="bmPlayerMute('${key}',${i})" id="bm-mbtn-${key}-${i}"
-              style="background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center">
+            <button onclick="event.stopPropagation();bmPlayerMute('${key}',${i})" id="bm-mbtn-${key}-${i}"
+              style="background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;flex-shrink:0">
               <svg id="bm-micon-${key}-${i}" width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
             </button>
-            <button onclick="bmPlayerFS('${key}',${i})"
-              style="background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center">
+            <button onclick="event.stopPropagation();bmPlayerFS('${key}',${i})"
+              style="background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;flex-shrink:0">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
             </button>
           </div>
@@ -16180,13 +16183,17 @@ function bmCreatePlayer(key, i, videoId) {
   // Use IFrame API to create player in the iframe element
   window._ytPlayers[pid] = new YT.Player('bm-iframe-' + key + '-' + i, {
     videoId: videoId,
+    width: '100%',
+    height: '100%',
     playerVars: { autoplay:1, rel:0, modestbranding:1, playsinline:1, controls:0, disablekb:1, fs:0, iv_load_policy:3 },
     events: {
       onReady: (e) => {
         e.target.setVolume(100);
-        // Show play button briefly then hide
-        const btn = document.getElementById('bm-playbtn-' + key + '-' + i);
-        if (btn) { btn.style.opacity = '0'; }
+        // Make sure the iframe YT creates fills the container
+        const iframeEl = document.querySelector('#bm-player-' + key + '-' + i + ' iframe');
+        if (iframeEl) {
+          iframeEl.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none';
+        }
         bmStartProgressTimer(key, i);
       },
       onStateChange: (e) => {
