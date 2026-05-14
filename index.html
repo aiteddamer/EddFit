@@ -16078,21 +16078,31 @@ function bmRenderPanel(key, data) {
   const diffColor = {Beginner:'var(--green)',Intermediate:'var(--orange)',Advanced:'var(--red)'};
   const diffBg    = {Beginner:'var(--green-dim)',Intermediate:'var(--orange-dim)',Advanced:'var(--red-dim)'};
   const exHtml = data.exercises.map((ex, i) => `
-    <div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;background:var(--bg-elevated);transition:border-color var(--transition)" onmouseover="this.style.borderColor='var(--border-active)'" onmouseout="this.style.borderColor='var(--border)'">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-        <div style="flex:1">
-          <div style="font-size:0.88rem;font-weight:600;color:var(--text-primary)">${ex.name}</div>
-          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px">${ex.meta}</div>
-          <div style="margin-top:6px">
-            <span style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:${diffBg[ex.diff]};color:${diffColor[ex.diff]};font-weight:700">${ex.diff}</span>
+    <div id="bm-card-${key}-${i}" style="border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);overflow:hidden;cursor:pointer;transition:border-color var(--transition)"
+      onclick="bmToggleVideo('${key}',${i})"
+      onmouseover="this.style.borderColor='var(--accent)'"
+      onmouseout="this.style.borderColor=window._bmOpenCard==='${key}-${i}'?'var(--accent)':'var(--border)'">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:6px">
+            <span id="bm-arrow-${key}-${i}" style="font-size:0.7rem;color:var(--accent);transition:transform 0.2s">▶</span>
+            ${ex.name}
           </div>
+          <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px">${ex.meta}</div>
         </div>
-        <button id="bm-add-${key}-${i}" onclick="bmAddToWorkout('${key}','${i}','${ex.name.replace(/'/g,"\\'")}','${data.name}')"
-          style="flex-shrink:0;font-size:0.72rem;padding:5px 12px;border:1px solid var(--border);border-radius:20px;background:transparent;color:var(--text-secondary);cursor:pointer;transition:all var(--transition);white-space:nowrap"
-          onmouseover="this.style.background='var(--accent)';this.style.color='var(--bg-base)';this.style.borderColor='var(--accent)'"
-          onmouseout="if(!this.classList.contains('bm-added')){this.style.background='transparent';this.style.color='var(--text-secondary)';this.style.borderColor='var(--border)'}">
-          + Add
-        </button>
+        <span style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:${diffBg[ex.diff]};color:${diffColor[ex.diff]};font-weight:700;flex-shrink:0">${ex.diff}</span>
+      </div>
+      <div id="bm-video-${key}-${i}" style="display:none;border-top:1px solid var(--border)">
+        <div style="position:relative;width:100%;aspect-ratio:16/9;background:#000">
+          <iframe id="bm-iframe-${key}-${i}" style="width:100%;height:100%;border:none;display:block" allowfullscreen allow="autoplay;encrypted-media"></iframe>
+        </div>
+        <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <div style="font-size:0.72rem;color:var(--text-secondary);flex:1">${BM_EX_TIPS[ex.name] ? '💡 ' + BM_EX_TIPS[ex.name] : ''}</div>
+          <button id="bm-add-${key}-${i}" onclick="event.stopPropagation();bmAddToWorkout('${key}','${i}','${ex.name.replace(/'/g,"\\'")}','${data.name}')"
+            style="flex-shrink:0;font-size:0.75rem;padding:6px 14px;border:1px solid var(--accent);border-radius:20px;background:var(--accent-dim);color:var(--accent);cursor:pointer;font-weight:700;transition:all var(--transition)">
+            + Add to Workout
+          </button>
+        </div>
       </div>
     </div>
   `).join('');
@@ -16102,12 +16112,280 @@ function bmRenderPanel(key, data) {
       <div style="width:12px;height:12px;border-radius:50%;background:${data.color};flex-shrink:0"></div>
       <div>
         <div style="font-family:var(--font-display);font-size:1rem;font-weight:700">${data.name}</div>
-        <div style="font-size:0.75rem;color:var(--text-secondary)">${data.exercises.length} exercises · tap + Add to log</div>
+        <div style="font-size:0.75rem;color:var(--text-secondary)">${data.exercises.length} exercises · tap to watch & add</div>
       </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:520px;padding-right:2px">${exHtml}</div>
+    <div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:560px;padding-right:2px">${exHtml}</div>
   `;
 }
+
+window._bmOpenCard = null;
+function bmToggleVideo(key, i) {
+  const cardId  = key + '-' + i;
+  const videoEl = document.getElementById('bm-video-' + key + '-' + i);
+  const iframe  = document.getElementById('bm-iframe-' + key + '-' + i);
+  const arrow   = document.getElementById('bm-arrow-' + key + '-' + i);
+  const card    = document.getElementById('bm-card-' + key + '-' + i);
+
+  // Close previously open card
+  if (window._bmOpenCard && window._bmOpenCard !== cardId) {
+    const [pk, pi] = window._bmOpenCard.split(/-(?=[^-]*$)/); // split on last dash
+    const prevVideo  = document.getElementById('bm-video-'  + pk + '-' + pi);
+    const prevIframe = document.getElementById('bm-iframe-' + pk + '-' + pi);
+    const prevArrow  = document.getElementById('bm-arrow-'  + pk + '-' + pi);
+    if (prevVideo)  prevVideo.style.display = 'none';
+    if (prevIframe) prevIframe.src = '';
+    if (prevArrow)  { prevArrow.textContent = '▶'; prevArrow.style.transform = ''; }
+  }
+
+  if (!videoEl) return;
+
+  const isOpen = videoEl.style.display !== 'none';
+  if (isOpen) {
+    videoEl.style.display = 'none';
+    iframe.src = '';
+    arrow.textContent  = '▶';
+    arrow.style.transform = '';
+    card.style.borderColor = 'var(--border)';
+    window._bmOpenCard = null;
+  } else {
+    videoEl.style.display = 'block';
+    arrow.textContent  = '▼';
+    arrow.style.transform = 'rotate(0deg)';
+    card.style.borderColor = 'var(--accent)';
+    window._bmOpenCard = cardId;
+    // Get exercise name from BM_DB
+    const exName = BM_DB[key] && BM_DB[key].exercises[i] ? BM_DB[key].exercises[i].name : '';
+    const videoId = BM_VIDEO_IDS[exName];
+    if (videoId) {
+      iframe.src = 'https://www.youtube-nocookie.com/embed/' + videoId + '?autoplay=1&rel=0&modestbranding=1&playsinline=1';
+    } else {
+      iframe.src = 'https://www.youtube-nocookie.com/embed?listType=search&list=' + encodeURIComponent(exName + ' exercise form guide') + '&autoplay=1';
+    }
+    // Scroll card into view
+    setTimeout(() => document.getElementById('bm-card-' + key + '-' + i)?.scrollIntoView({behavior:'smooth', block:'nearest'}), 100);
+  }
+}
+
+// ── Exercise Video Library ─────────────────────────────────────────────────
+// YouTube video IDs for each exercise (curated form-guide videos)
+const BM_VIDEO_IDS = {
+  // CHEST
+  'Barbell bench press':          'rT7DgCr-3pg',
+  'Incline dumbbell press':       'DbFgADa2PL8',
+  'Cable fly':                    'WEM9FCIPlxQ',
+  'Push-up':                      'IODxDxX7oi4',
+  'Dips (chest focus)':           'yN6Q1UI_xb0',
+  'Decline bench press':          'LfyQTdGtpg0',
+  // ABS
+  'Plank':                        'ASdvN_XEl_c',
+  'Cable crunch':                 'taI4XduLpTk',
+  'Hanging leg raise':            'hdng3Nm1x70',
+  'Ab wheel rollout':             'D9LpeHXEOFs',
+  'Bicycle crunch':               '9FGilxCbdz8',
+  'Dragon flag':                  'pvz7k5gO-DE',
+  // SHOULDERS
+  'Overhead press':               'QAQ64hK4vGk',
+  'Lateral raise':                'FeJpBGNv_Gg',
+  'Arnold press':                 'vj2w851ZHRM',
+  'Face pull':                    'HSoHeSjDOVY',
+  'Upright row':                  'amCU-ziHITM',
+  'Rear delt fly':                'EA7u4Q_8HQ0',
+  // BICEPS
+  'Barbell curl':                 'kwG2ipFRgfo',
+  'Hammer curl':                  'zC3nLlEvin4',
+  'Incline dumbbell curl':        '5PPhbkNGmhA',
+  'Preacher curl':                'fIwP-FRFNU8',
+  'Chin-up':                      'brhRXlOhsAM',
+  'Concentration curl':           'Jvj2wV0vOYU',
+  // FOREARMS
+  'Wrist curl':                   'rGTpMhv2-18',
+  'Reverse wrist curl':           'rGTpMhv2-18',
+  "Farmer's carry":               'Fab6e7gAVoU',
+  'Dead hang':                    'DH1GCkFoUnM',
+  // QUADS
+  'Barbell squat':                'ultWZbUMPL8',
+  'Leg press':                    'IZxyjW7MPJQ',
+  'Leg extension':                'YyvSfVjQeL0',
+  'Bulgarian split squat':        '2C-uNgKwPLE',
+  'Front squat':                  'm4ytaCJZDoA',
+  'Hack squat':                   'EdtPAMPOFOc',
+  // GLUTES
+  'Hip thrust':                   'SEdqd1n0cvg',
+  'Romanian deadlift':            'JCXUYuzwNrM',
+  'Glute bridge':                 '8bbE64NuDTU',
+  'Cable kickback':               'Yn2S3MnNNzI',
+  'Step-up':                      'dQqApCGd5Ss',
+  'Sumo squat':                   'YJq1hw292KA',
+  // CALVES
+  'Standing calf raise':          'gwLzBkvU8y4',
+  'Seated calf raise':            'JbyjNymZOt0',
+  'Donkey calf raise':            '9ePFBxDkKjk',
+  'Jump rope':                    'u3zgHI8QnqE',
+  // TRAPS
+  'Barbell shrug':                'g6qbq4Lf1FI',
+  'Dumbbell shrug':               'cJRVVxmytaM',
+  'Rack pull':                    'wxIvWHCAmRE',
+  // LATS
+  'Pull-up':                      'eGo4IYlbE5g',
+  'Lat pulldown':                 'CAwf7n6Tugg',
+  'Seated cable row':             'GZbfZ033f74',
+  'Bent-over row':                'FWJR5Ve8UT4',
+  'Single-arm dumbbell row':      'roCP1QfdQyQ',
+  'T-bar row':                    'j3ZoGSMHmzE',
+  // TRICEPS
+  'Close-grip bench press':       'nEF0bv2FW04',
+  'Tricep pushdown':              '2-LAMcpzODU',
+  'Overhead tricep extension':    'YbX7Wd8jQ-Q',
+  'Skull crusher':                'd_KZxkY_5cM',
+  'Dips (tricep focus)':          'yN6Q1UI_xb0',
+  // HAMSTRINGS
+  'Leg curl (lying)':             'ELOCsoDSmrg',
+  'Nordic curl':                  '4s5yBsq6Q_c',
+  'Good morning':                 'YA-h3n9L4YU',
+  'Glute-ham raise':              'ph3pddpKzzw',
+  // LOWER BACK
+  'Deadlift':                     'op9kVnSso6Q',
+  'Hyperextension':               'ph3pddpKzzw',
+  'Superman hold':                'cc6UVNM_e_w',
+};
+
+const BM_EX_TIPS = {
+  'Barbell bench press':    'Keep shoulder blades retracted and feet flat. Lower the bar to mid-chest, elbows ~45°.',
+  'Incline dumbbell press': 'Set bench to 30–45°. Press straight up, not forward. Squeeze chest at the top.',
+  'Cable fly':              'Slight elbow bend throughout. Lead with your elbows, not your hands.',
+  'Push-up':                'Straight line from head to heels. Lower chest to 1 inch from floor.',
+  'Dips (chest focus)':     'Lean forward ~30°, elbows flare slightly. Go until shoulders are below elbows.',
+  'Decline bench press':    'Secure your legs first. Same bar path as flat bench — control the descent.',
+  'Plank':                  'Squeeze glutes and abs hard. Breathe normally. Avoid sagging hips.',
+  'Cable crunch':           'Hinge at the hips, pull elbows to thighs. Contract abs fully at bottom.',
+  'Hanging leg raise':      'Start from dead hang. Raise legs keeping them straight, avoid swinging.',
+  'Ab wheel rollout':       'Start kneeling. Roll out until hips drop, pull back with lats and abs.',
+  'Bicycle crunch':         'Rotate torso, not neck. Touch elbow to opposite knee, extend the other leg.',
+  'Dragon flag':            'Keep body rigid. Lower slowly — this is an eccentric-focused movement.',
+  'Overhead press':         'Bar starts at collarbone. Push straight up, head through at the top. Full lockout.',
+  'Lateral raise':          'Lead with elbows, slight forward tilt. Stop at shoulder height. No swinging.',
+  'Arnold press':           'Rotate palms during press. Full range of motion from chin to overhead lockout.',
+  'Face pull':              'Pull to forehead level, elbows high and wide. Great for shoulder health.',
+  'Upright row':            'Use a shoulder-width grip. Pull elbows high, bar grazes body throughout.',
+  'Rear delt fly':          'Hinge to near-horizontal. Slight elbow bend. Lead with elbows, not hands.',
+  'Barbell curl':           'Elbows stay pinned at sides. Full extension at bottom, full contraction at top.',
+  'Hammer curl':            'Neutral grip (thumbs up). No wrist rotation. Excellent for brachialis.',
+  'Incline dumbbell curl':  'Let arms hang fully at bottom to maximize stretch on long head of bicep.',
+  'Preacher curl':          'Full stretch at bottom. Control the negative — don\'t let weight drop.',
+  'Chin-up':                'Underhand grip. Pull chest to bar, squeeze shoulder blades at top.',
+  'Concentration curl':     'Elbow braced against inner thigh. Full range. Focus on the peak contraction.',
+  'Wrist curl':             'Forearms rest on bench, palms up. Let wrists drop fully before curling up.',
+  'Reverse wrist curl':     'Same setup, palms down. Slower progress expected — forearm extensors are weaker.',
+  "Farmer's carry":         'Grip hard, shoulders back and down. Walk with purpose, don\'t waddle.',
+  'Dead hang':              'Relax the shoulders to decompress spine. Build toward 60 sec consistently.',
+  'Barbell squat':          'Bar on upper traps, chest up, brace core. Knees track over toes, drive hips back.',
+  'Leg press':              'Feet shoulder-width. Don\'t lock knees at top. Control descent — 2 sec down.',
+  'Leg extension':          'Isolation movement — don\'t go too heavy. Flex quad hard at the top.',
+  'Bulgarian split squat':  'Rear foot on bench, front foot far enough forward. Stay upright or lean slightly.',
+  'Front squat':            'Wrists in front rack or cross-arm. Upright torso is the goal. Elbows high.',
+  'Hack squat':             'Feet shoulder-width, toes slightly out. Full depth if flexibility allows.',
+  'Hip thrust':             'Shoulder blades on bench, bar over hips. Drive hips up — squeeze glutes hard.',
+  'Romanian deadlift':      'Slight knee bend, hinge at hips, bar drags down legs. Feel hamstring stretch.',
+  'Glute bridge':           'Feet flat, drive hips up, squeeze glutes at top for 1–2 sec. Bodyweight first.',
+  'Cable kickback':         'Slight forward lean. Squeeze glute hard at end range. Don\'t use momentum.',
+  'Step-up':                'Full foot on box. Drive through heel. Don\'t push off the trailing leg.',
+  'Sumo squat':             'Wide stance, toes out 45°. Keep knees tracking over toes throughout.',
+  'Standing calf raise':    'Full stretch at bottom, pause at top. Single leg for progression.',
+  'Seated calf raise':      'Targets soleus more than standing. Go heavy with slow negatives.',
+  'Donkey calf raise':      'Greater hip flexion hits gastrocnemius differently — stretch is key.',
+  'Jump rope':              'Stay on balls of feet. Small bounces, keep arms close to body.',
+  'Barbell shrug':          'Straight arms. Shrug straight UP — no rolling. Hold 1 sec at top.',
+  'Dumbbell shrug':         'Same as barbell — straight up, no rolling. Better range of motion.',
+  'Rack pull':              'Set pins just below knee. Heavier than deadlift — great for trap thickness.',
+  'Pull-up':                'Dead hang start. Pull chest to bar. Full extension at bottom every rep.',
+  'Lat pulldown':           'Slight lean back, pull bar to upper chest. Feel the lats stretch at top.',
+  'Seated cable row':       'Sit tall, row to lower chest. Squeeze shoulder blades at end, pause 1 sec.',
+  'Bent-over row':          'Hinge ~45°, row to lower chest. Elbows close to body for lat emphasis.',
+  'Single-arm dumbbell row':'Brace on bench. Row to hip, not armpit. Get a full stretch at the bottom.',
+  'T-bar row':              'Wide grip = more chest, narrow grip = more back. Control the descent.',
+  'Close-grip bench press': 'Shoulder-width grip. Tuck elbows to 45°. Lower to lower chest / sternum.',
+  'Tricep pushdown':        'Elbows pinned at sides. Push to full lockout. Don\'t let elbows flare.',
+  'Overhead tricep extension':'Stand or sit. Full stretch overhead, extend fully. Great long-head exercise.',
+  'Skull crusher':          'Lower bar to forehead (or behind head). Keep elbows pointing at ceiling.',
+  'Dips (tricep focus)':    'Stay upright, elbows close. Go to just above 90° — no need to go deeper.',
+  'Leg curl (lying)':       'Curl heels to glutes. Hold 1 sec at top. Lower slowly — 3 sec negative.',
+  'Nordic curl':            'Kneel, feet anchored. Lower body with control — this is brutally hard.',
+  'Good morning':           'Bar on upper traps. Hinge at hips, soft knee bend. Feel hamstrings load.',
+  'Glute-ham raise':        'Start parallel to floor. Use hamstrings to pull body up — not back extension.',
+  'Deadlift':               'Bar over mid-foot. Hinge, grip, brace, push floor away. Bar stays close.',
+  'Hyperextension':         'Hinge at hips, not lower back. Hold plate for added resistance. Don\'t hyperextend.',
+  'Superman hold':          'Lift arms and legs simultaneously. Squeeze glutes and lower back at top.',
+};
+
+let _evCurrentEx = null; // { name, muscle, muscleName, diff, meta }
+
+function openExerciseVideo(exName, muscleKey, diff, meta) {
+  const data    = BM_DB[muscleKey];
+  const videoId = BM_VIDEO_IDS[exName];
+  const tip     = BM_EX_TIPS[exName] || '';
+  const diffColor = { Beginner:'var(--green)', Intermediate:'var(--orange)', Advanced:'var(--red)' };
+  const diffBg    = { Beginner:'var(--green-dim)', Intermediate:'var(--orange-dim)', Advanced:'var(--red-dim)' };
+
+  _evCurrentEx = { name: exName, muscle: muscleKey, muscleName: data ? data.name : muscleKey, diff, meta };
+
+  document.getElementById('ev-title').textContent = exName;
+  document.getElementById('ev-meta').textContent  = (data ? data.name + ' · ' : '') + meta;
+
+  const badge = document.getElementById('ev-diff-badge');
+  badge.textContent    = diff;
+  badge.style.background = diffBg[diff]  || 'var(--bg-elevated)';
+  badge.style.color      = diffColor[diff] || 'var(--text-secondary)';
+
+  document.getElementById('ev-tips').textContent = tip ? '💡 ' + tip : '';
+
+  // Load video
+  const loading = document.getElementById('ev-loading');
+  const iframe  = document.getElementById('ev-iframe');
+  if (videoId) {
+    loading.style.display = 'flex';
+    iframe.src = '';
+    setTimeout(() => {
+      iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+      loading.style.display = 'none';
+    }, 200);
+  } else {
+    // Fallback: open YouTube search
+    iframe.src = '';
+    loading.innerHTML = `<div style="font-size:1.8rem">🔍</div><div style="font-size:0.82rem;color:var(--text-secondary);text-align:center;padding:0 20px">No embedded video yet.<br><a href="https://www.youtube.com/results?search_query=${encodeURIComponent(exName+' form guide')}" target="_blank" style="color:var(--accent)">Watch on YouTube ↗</a></div>`;
+    loading.style.display = 'flex';
+  }
+
+  document.getElementById('modal-exercise-video').style.display = 'flex';
+}
+
+function closeExerciseVideo() {
+  document.getElementById('modal-exercise-video').style.display = 'none';
+  document.getElementById('ev-iframe').src = ''; // stop video
+}
+
+function bmAddFromVideo() {
+  if (!_evCurrentEx) return;
+  const { name, muscle, muscleName } = _evCurrentEx;
+  // Find the index in BM_DB
+  const exList = BM_DB[muscle] ? BM_DB[muscle].exercises : [];
+  const idx = exList.findIndex(e => e.name === name);
+  const btn = document.getElementById('ev-add-btn');
+  bmAddToWorkout(muscle, idx >= 0 ? idx : 0, name, muscleName);
+  if (btn) {
+    btn.textContent    = '✓ Added!';
+    btn.style.background   = 'var(--green-dim)';
+    btn.style.color        = 'var(--green)';
+    btn.style.borderColor  = 'var(--green)';
+    setTimeout(() => {
+      btn.textContent    = '+ Add to Workout';
+      btn.style.background   = 'var(--accent-dim)';
+      btn.style.color        = 'var(--accent)';
+      btn.style.borderColor  = 'var(--accent)';
+    }, 2000);
+  }
+}
+// ── End Exercise Video Library ─────────────────────────────────────────────
 
 function bmAddToWorkout(key, idx, name, muscle) {
   const btn = document.getElementById('bm-add-' + key + '-' + idx);
@@ -16146,6 +16424,34 @@ document.addEventListener('click', function(e) {
   if (nav) setTimeout(() => bmSetView('front'), 80);
 });
 </script>
+<!-- ── Exercise Video Modal ─────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-exercise-video" onclick="if(event.target===this)closeExerciseVideo()" style="z-index:9999">
+  <div class="modal" style="max-width:520px;padding:0;overflow:hidden;border-radius:var(--radius);background:var(--bg-card)">
+    <div style="padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="min-width:0">
+        <div id="ev-title" style="font-family:var(--font-display);font-size:0.95rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        <div id="ev-meta" style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px"></div>
+      </div>
+      <button class="btn-icon" onclick="closeExerciseVideo()" style="flex-shrink:0">✕</button>
+    </div>
+    <!-- video embed area -->
+    <div id="ev-video-wrap" style="position:relative;width:100%;background:#000;aspect-ratio:16/9">
+      <iframe id="ev-iframe" style="width:100%;height:100%;border:none;display:block" allowfullscreen allow="autoplay; encrypted-media"></iframe>
+      <div id="ev-loading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:var(--bg-elevated)">
+        <div style="font-size:2rem">🎥</div>
+        <div style="font-size:0.82rem;color:var(--text-secondary)">Loading video…</div>
+      </div>
+    </div>
+    <!-- tips -->
+    <div id="ev-tips" style="padding:14px 18px;font-size:0.8rem;color:var(--text-secondary);line-height:1.55;border-top:1px solid var(--border)"></div>
+    <!-- footer -->
+    <div style="padding:10px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div id="ev-diff-badge" style="font-size:0.7rem;padding:3px 10px;border-radius:20px;font-weight:700"></div>
+      <button id="ev-add-btn" style="font-size:0.78rem;padding:7px 16px;border-radius:20px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);cursor:pointer;font-weight:700;transition:all var(--transition)"
+        onclick="bmAddFromVideo()">+ Add to Workout</button>
+    </div>
+  </div>
+</div>
 <!-- Calendar Past-Session Edit Workout Modal -->
 <div class="modal-overlay" id="modal-cal-edit-workout">
   <div class="modal" style="max-width:600px;max-height:92vh;padding:0;overflow:hidden;display:flex;flex-direction:column">
