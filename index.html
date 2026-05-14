@@ -3676,14 +3676,48 @@ function dismissSplash() {
       <div class="page" id="page-settings">
         <div class="section-title">Settings</div>
 
-        <!-- Redirect banner -->
+        <!-- ── Calorie & Macro Targets — single authoritative place ── -->
+        <div class="card" style="margin-bottom:18px;border:1px solid var(--accent-glow)">
+          <div style="display:flex;align-items:flex-start;gap:14px">
+            <span style="font-size:1.8rem;flex-shrink:0;margin-top:2px">🎯</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-family:var(--font-display);font-weight:800;font-size:1rem;margin-bottom:3px">Calorie &amp; Macro Targets</div>
+              <div style="font-size:0.76rem;color:var(--text-secondary);margin-bottom:10px;line-height:1.5">
+                This is the <strong>only place</strong> you change your calorie or macro goals.<br>
+                <span style="color:var(--accent);font-weight:600">🔒 History-safe:</span> changing targets today never rewrites your past — old days keep their original goals forever.
+              </div>
+              <!-- Live targets summary -->
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px" id="settings-targets-summary">
+                <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:9px;text-align:center">
+                  <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--accent)" id="st-cal">—</div>
+                  <div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px">kcal</div>
+                </div>
+                <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:9px;text-align:center">
+                  <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--blue)" id="st-pro">—</div>
+                  <div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px">protein</div>
+                </div>
+                <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:9px;text-align:center">
+                  <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--orange)" id="st-carb">—</div>
+                  <div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px">carbs</div>
+                </div>
+                <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:9px;text-align:center">
+                  <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--red)" id="st-fat">—</div>
+                  <div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px">fat</div>
+                </div>
+              </div>
+              <button class="btn btn-primary" onclick="openAdjustMacrosModal()" style="width:100%">🎚 Change My Targets</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Profile redirect ── -->
         <div style="display:flex;align-items:center;gap:14px;background:var(--bg-elevated);border-radius:var(--radius);padding:14px 16px;margin-bottom:20px;border:1px solid var(--border)">
           <span style="font-size:1.4rem">👤</span>
           <div style="flex:1">
-            <div style="font-weight:700;font-size:0.9rem">Profile &amp; FitProfile</div>
-            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Name, weight, height, age and nutrition targets are in My Account</div>
+            <div style="font-weight:700;font-size:0.9rem">Profile &amp; Body Stats</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Name, weight, height, age and fitness goal</div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="openAccountModal()">Open →</button>
+          <button class="btn btn-outline btn-sm" onclick="openAccountModal()">Open →</button>
         </div>
 
         <div class="grid-2">
@@ -7488,7 +7522,7 @@ function initUI() {
   _sv('s-carbs', State.targets.carbs);
   _sv('s-fat', State.targets.fat);
   loadApiKeyStatus();
-  // Dash label
+  _refreshSettingsTargetsSummary();
   document.getElementById('dash-date-label').textContent = now.toLocaleDateString('en-US',{weekday:'long'});
   // Apply unit system labels
   applyUnitLabels();
@@ -7571,7 +7605,7 @@ function navigate(page, el) {
   if (page === 'recipes')   { if (typeof renderRecipesPage  === 'function') renderRecipesPage(); if (typeof renderCustomFoods === 'function') renderCustomFoods(); }
   if (page === 'records')   { if (typeof renderRecordsPage  === 'function') renderRecordsPage(); }
   if (page === 'reports')   { if (typeof renderReports      === 'function') renderReports(); }
-  if (page === 'settings')  { loadApiKeyStatus(); }
+  if (page === 'settings')  { loadApiKeyStatus(); _refreshSettingsTargetsSummary(); }
   if (page === 'social')    { if (typeof renderSocialPage   === 'function') renderSocialPage(); }
   if (page === 'achievements') { if (typeof renderAchievementsPage === 'function') renderAchievementsPage(); }
   if (page === 'globalleaderboard') { if (typeof loadGlobalLeaderboard === 'function') loadGlobalLeaderboard(); }
@@ -9929,6 +9963,18 @@ function _refreshApiKeyStatus() {
   }
   if (hintEl) hintEl.textContent = provider.hint;
 }
+
+// Populate the live targets summary on the Settings page
+function _refreshSettingsTargetsSummary() {
+  const dk = (typeof todayKey === 'function') ? todayKey() : new Date().toISOString().split('T')[0];
+  const T = (typeof getTargetsForDay === 'function') ? getTargetsForDay(dk) : (State.targets || {});
+  const _s = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  _s('st-cal',  T.calories || '—');
+  _s('st-pro',  T.protein  ? T.protein  + 'g' : '—');
+  _s('st-carb', T.carbs    ? T.carbs    + 'g' : '—');
+  _s('st-fat',  T.fat      ? T.fat      + 'g' : '—');
+}
+window._refreshSettingsTargetsSummary = _refreshSettingsTargetsSummary;
 
 function loadApiKeyStatus() {
   // Sync buttons + status text
@@ -14131,6 +14177,7 @@ function saveAdjustedMacros() {
   if (typeof refreshDashboard  === 'function') refreshDashboard();
   if (typeof refreshNutritionPage === 'function') refreshNutritionPage();
   if (typeof updateGoalDisplays === 'function') updateGoalDisplays();
+  if (typeof _refreshSettingsTargetsSummary === 'function') _refreshSettingsTargetsSummary();
 }
 
 // ── Accept current weight as new TDEE base ────────────────────────────
@@ -15238,12 +15285,20 @@ document.addEventListener('visibilitychange', function() {
 
     <!-- Header -->
     <div style="padding:20px 24px 0;position:sticky;top:0;background:var(--bg-card);z-index:2;border-bottom:1px solid var(--border);padding-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <div>
-          <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:800">🧠 Smart Macro Targets</div>
-          <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px">Medically-guided • Based on your profile & goal</div>
+          <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:800">🎯 Update Calorie &amp; Macro Targets</div>
+          <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px">Changes apply from today — all past days are permanently preserved</div>
         </div>
         <button class="btn-icon" onclick="closeModal('modal-adjust-macros')">✕</button>
+      </div>
+
+      <!-- Snapshot info notice -->
+      <div style="display:flex;align-items:center;gap:10px;background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:12px">
+        <span style="font-size:1.1rem;flex-shrink:0">🔒</span>
+        <div style="font-size:0.74rem;line-height:1.5;color:var(--text-primary)">
+          <strong>Your history is safe.</strong> Saving new targets creates a snapshot starting <em>today</em>. All previous days — calories, adherence, reports — stay exactly as they were. Nothing is retroactively changed.
+        </div>
       </div>
 
       <!-- Live Preview Strip -->
@@ -16067,26 +16122,29 @@ document.addEventListener('click', function(e) {
       </div>
 
       <div style="border-top:1px solid var(--border);padding-top:14px">
-        <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Daily Targets</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Calories (kcal)</label>
-            <input type="number" class="form-input" id="fp-cal" placeholder="2000" />
+        <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Daily Nutrition Targets</div>
+        <!-- Read-only snapshot display -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px" id="fp-targets-display">
+          <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:10px;text-align:center">
+            <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:800;color:var(--accent)" id="fp-cal-display">—</div>
+            <div style="font-size:0.62rem;color:var(--text-muted);margin-top:2px">kcal</div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Protein (g)</label>
-            <input type="number" class="form-input" id="fp-protein" placeholder="150" />
+          <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:10px;text-align:center">
+            <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:800;color:var(--blue)" id="fp-protein-display">—</div>
+            <div style="font-size:0.62rem;color:var(--text-muted);margin-top:2px">protein</div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Carbs (g)</label>
-            <input type="number" class="form-input" id="fp-carbs" placeholder="225" />
+          <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:10px;text-align:center">
+            <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:800;color:var(--orange)" id="fp-carbs-display">—</div>
+            <div style="font-size:0.62rem;color:var(--text-muted);margin-top:2px">carbs</div>
           </div>
-          <div class="form-group" style="grid-column:1/-1">
-            <label class="form-label">Fat (g)</label>
-            <input type="number" class="form-input" id="fp-fat" placeholder="67" />
+          <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:10px;text-align:center">
+            <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:800;color:var(--red)" id="fp-fat-display">—</div>
+            <div style="font-size:0.62rem;color:var(--text-muted);margin-top:2px">fat</div>
           </div>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="openAdjustMacrosModal();closeModal('modal-account')" style="width:100%;margin-top:8px">🎚 Use Macro Sliders Instead</button>
+        <!-- Hidden inputs kept for saveFitProfile backwards-compat (values are never shown/edited here) -->
+        <input type="hidden" id="fp-cal" /><input type="hidden" id="fp-protein" /><input type="hidden" id="fp-carbs" /><input type="hidden" id="fp-fat" />
+        <button class="btn btn-primary" onclick="openAdjustMacrosModal();closeModal('modal-account')" style="width:100%;font-size:0.85rem">🎚 Update Calorie &amp; Macro Targets</button>
       </div>
 
       <div id="fp-save-msg" style="font-size:0.78rem;min-height:16px;text-align:center"></div>
@@ -16322,6 +16380,16 @@ async function openAccountModal() {
   document.getElementById('fp-protein').value= State.targets?.protein  || '';
   document.getElementById('fp-carbs').value  = State.targets?.carbs    || '';
   document.getElementById('fp-fat').value    = State.targets?.fat      || '';
+  // Populate read-only target display using today's immutable snapshot
+  (function() {
+    const _dk = (typeof todayKey === 'function') ? todayKey() : new Date().toISOString().split('T')[0];
+    const _t = (typeof getTargetsForDay === 'function') ? getTargetsForDay(_dk) : (State.targets || {});
+    const _set = (id, val, suffix) => { const el = document.getElementById(id); if (el) el.textContent = val + (suffix||''); };
+    _set('fp-cal-display', _t.calories || '—');
+    _set('fp-protein-display', (_t.protein || '—') + (_t.protein ? 'g' : ''));
+    _set('fp-carbs-display',   (_t.carbs   || '—') + (_t.carbs   ? 'g' : ''));
+    _set('fp-fat-display',     (_t.fat     || '—') + (_t.fat     ? 'g' : ''));
+  })();
   document.getElementById('fp-save-msg').textContent = '';
 
   // ── Settings tab ──
