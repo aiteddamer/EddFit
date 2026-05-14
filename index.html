@@ -7465,18 +7465,20 @@ function initUI() {
   const h = now.getHours();
   const greeting = h<12?'Good morning':h<17?'Good afternoon':'Good evening';
   document.getElementById('wb-greeting').textContent = `${greeting}, ${p.name||'there'} 👋`;
-  // Targets
-  document.getElementById('bar-protein-goal').textContent = State.targets.protein;
-  document.getElementById('bar-carbs-goal').textContent = State.targets.carbs;
-  document.getElementById('bar-fat-goal').textContent = State.targets.fat;
-  document.getElementById('dash-cal-goal').textContent = State.targets.calories;
-  document.getElementById('dash-protein-goal').textContent = State.targets.protein;
+  // Targets — always show today's immutable snapshot in display elements
+  const _today = (typeof todayKey === 'function') ? todayKey() : new Date().toISOString().split('T')[0];
+  const _todayT = (typeof getTargetsForDay === 'function') ? getTargetsForDay(_today) : State.targets;
+  document.getElementById('bar-protein-goal').textContent = _todayT.protein;
+  document.getElementById('bar-carbs-goal').textContent = _todayT.carbs;
+  document.getElementById('bar-fat-goal').textContent = _todayT.fat;
+  document.getElementById('dash-cal-goal').textContent = _todayT.calories;
+  document.getElementById('dash-protein-goal').textContent = _todayT.protein;
   // Nutrition page targets
-  document.getElementById('n-cal-goal').textContent = State.targets.calories;
-  document.getElementById('n-pro-goal').textContent = State.targets.protein;
-  document.getElementById('n-carb-goal').textContent = State.targets.carbs;
-  document.getElementById('n-fat-goal').textContent = State.targets.fat;
-  // Settings fields
+  document.getElementById('n-cal-goal').textContent = _todayT.calories;
+  document.getElementById('n-pro-goal').textContent = _todayT.protein;
+  document.getElementById('n-carb-goal').textContent = _todayT.carbs;
+  document.getElementById('n-fat-goal').textContent = _todayT.fat;
+  // Settings fields — show current editable targets (State.targets is for UI defaults only)
   const _sv = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
   _sv('s-name', p.name||'');
   _sv('s-weight', p.weight||'');
@@ -7597,7 +7599,9 @@ function pct(val, total) { return total > 0 ? clamp(Math.round((val/total)*100),
 // ═══════════════════════════════════════════════════════════════════
 function refreshDashboard() {
   const totals = getTodayTotals();
-  const T = State.targets;
+  // Always use today's immutable snapshot — never mutable State.targets
+  const today = (typeof todayKey === 'function') ? todayKey() : new Date().toISOString().split('T')[0];
+  const T = (typeof getTargetsForDay === 'function') ? getTargetsForDay(today) : State.targets;
   const remaining = T.calories - totals.cal;
 
   document.getElementById('dash-cal-rem').textContent = remaining > 0 ? remaining : 0;
@@ -7937,7 +7941,8 @@ function dismissMacroAlert(id) {
 function _calcStreak(days, testFn) {
   let streak = 0;
   for (const day of days) {
-    if (testFn(day.totals)) streak++;
+    // Pass both totals and the full day object so testFn can access day.dayT
+    if (testFn(day.totals, day)) streak++;
     else break;
   }
   return streak;
@@ -7945,10 +7950,15 @@ function _calcStreak(days, testFn) {
 
 function getMultiDayMacroAlerts() {
   const alerts = [];
-  const T = State.targets; // current targets used as baseline for live alerts
+  // Use today's snapshot as the reference for multi-day trend display labels only.
+  // Individual per-day comparisons below use each day's own snapshot.
+  const today = (typeof todayKey === 'function') ? todayKey()
+    : new Date().toISOString().split('T')[0];
+  const T = (typeof getTargetsForDay === 'function') ? getTargetsForDay(today) : State.targets;
   if (!T) return alerts;
 
-  // Collect last 7 days that have food logged (most recent first)
+  // Collect last 7 days that have food logged (most recent first),
+  // storing each day's own snapshot targets alongside totals.
   const days = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date();
@@ -7957,7 +7967,9 @@ function getMultiDayMacroAlerts() {
       String(d.getMonth()+1).padStart(2,'0') + '-' +
       String(d.getDate()).padStart(2,'0');
     const totals = getTodayTotals(key);
-    if (totals.cal > 0) days.push({ key, totals, daysAgo: i });
+    // Each day gets its OWN snapshot targets — this is the key fix
+    const dayT = (typeof getTargetsForDay === 'function') ? getTargetsForDay(key) : T;
+    if (totals.cal > 0) days.push({ key, totals, dayT, daysAgo: i });
   }
 
   if (days.length < 3) return alerts;
@@ -7965,8 +7977,8 @@ function getMultiDayMacroAlerts() {
   const goal = (State.profile && State.profile.goal) || 'maintain';
 
   // ── Under protein streak ───────────────────────────────────────────
-  const underProteinStreak = _calcStreak(days, t =>
-    T.protein > 0 && (t.protein / T.protein) < 0.75
+  const underProteinStreak = _calcStreak(days, (t, day) =>
+    (day.dayT.protein || T.protein) > 0 && (t.protein / (day.dayT.protein || T.protein)) < 0.75
   );
   if (underProteinStreak >= 3 && !window._dismissedMacroAlerts.has('streak-low-protein')) {
     const slice = days.slice(0, underProteinStreak);
@@ -7990,8 +8002,8 @@ function getMultiDayMacroAlerts() {
   }
 
   // ── Over fat streak ────────────────────────────────────────────────
-  const overFatStreak = _calcStreak(days, t =>
-    T.fat > 0 && (t.fat / T.fat) > 1.25
+  const overFatStreak = _calcStreak(days, (t, day) =>
+    (day.dayT.fat || T.fat) > 0 && (t.fat / (day.dayT.fat || T.fat)) > 1.25
   );
   if (overFatStreak >= 3 && !window._dismissedMacroAlerts.has('streak-high-fat')) {
     const slice = days.slice(0, overFatStreak);
@@ -8010,8 +8022,8 @@ function getMultiDayMacroAlerts() {
   }
 
   // ── Under calories streak ──────────────────────────────────────────
-  const underCalsStreak = _calcStreak(days, t =>
-    T.calories > 0 && (t.cal / T.calories) < 0.60
+  const underCalsStreak = _calcStreak(days, (t, day) =>
+    (day.dayT.calories || T.calories) > 0 && (t.cal / (day.dayT.calories || T.calories)) < 0.60
   );
   if (underCalsStreak >= 3 && !window._dismissedMacroAlerts.has('streak-low-cals')) {
     const slice = days.slice(0, underCalsStreak);
@@ -8028,8 +8040,8 @@ function getMultiDayMacroAlerts() {
   }
 
   // ── Over calories streak ───────────────────────────────────────────
-  const overCalsStreak = _calcStreak(days, t =>
-    T.calories > 0 && (t.cal / T.calories) > 1.20
+  const overCalsStreak = _calcStreak(days, (t, day) =>
+    (day.dayT.calories || T.calories) > 0 && (t.cal / (day.dayT.calories || T.calories)) > 1.20
   );
   if (overCalsStreak >= 3 && !window._dismissedMacroAlerts.has('streak-high-cals')) {
     const slice = days.slice(0, overCalsStreak);
@@ -8053,8 +8065,8 @@ function getMultiDayMacroAlerts() {
 
   // ── Under carbs streak (only flag if carb target set and high) ─────
   if (T.carbs > 80) {
-    const underCarbsStreak = _calcStreak(days, t =>
-      T.carbs > 0 && (t.carbs / T.carbs) < 0.60
+    const underCarbsStreak = _calcStreak(days, (t, day) =>
+      (day.dayT.carbs || T.carbs) > 0 && (t.carbs / (day.dayT.carbs || T.carbs)) < 0.60
     );
     if (underCarbsStreak >= 3 && !window._dismissedMacroAlerts.has('streak-low-carbs')) {
       const slice = days.slice(0, underCarbsStreak);
@@ -8547,7 +8559,9 @@ function logSelectedFood() {
   // Snapshot active goal/calorie-target so changing FitProfile later won't retroactively alter past logs
   if (!State.logs[k].goalSnapshot) {
     State.logs[k].goalSnapshot = State.profile?.goal || 'maintain';
-    State.logs[k].calorieTargetSnapshot = State.targets?.calories || 2000;
+    // Use the immutable snapshot for the nutrition date, not mutable State.targets
+    const _logT = (typeof getTargetsForDay === 'function') ? getTargetsForDay(k) : State.targets;
+    State.logs[k].calorieTargetSnapshot = _logT?.calories || 2000;
   }
   State.logs[k].meals[meal].push(entry);
   save();
@@ -16386,8 +16400,11 @@ function saveFitProfile() {
   if (pro)  State.targets.protein  = pro;
   if (carb) State.targets.carbs    = carb;
   if (fat)  State.targets.fat      = fat;
-  // Record a dated snapshot so past days retain their original goals
+  // Record a dated snapshot so past days retain their original goals.
+  // This appends an IMMUTABLE effectiveFrom entry — old snapshots are never modified.
   if (typeof recordTargetChange === 'function') recordTargetChange(State.targets);
+  // Also commit to the weekly snapshot system so reports remain frozen
+  if (typeof commitNewTargets === 'function') commitNewTargets(State.targets, true);
 
   if (typeof saveData === 'function') saveData();
   if (typeof updateGoalDisplays === 'function') updateGoalDisplays();
@@ -17063,7 +17080,7 @@ function calcChallengeScore(ch) {
   }
 
   // ── 🔥 Calorie Goal Streak ───────────────────────────────────────
-  // Count days where you hit ≥90% of your calorie target
+  // Count days where you hit ≥90% of your calorie target for THAT day
   if (ch.type === 'calorie_streak') {
     let count = 0;
     const startD = new Date(start + 'T00:00:00');
@@ -17073,7 +17090,9 @@ function calcChallengeScore(ch) {
       const log = (State.logs||{})[k];
       if (!log) continue;
       const cal = Object.values(log.meals||{}).flat().reduce((s, f) => s + (f.cal||0), 0);
-      if (cal >= ((State.targets||{}).calories||2000) * 0.9) count++;
+      // Use that day's snapshot — not the current mutable State.targets
+      const dayT = (typeof getTargetsForDay === 'function') ? getTargetsForDay(k) : (State.targets||{});
+      if (cal >= (dayT.calories||2000) * 0.9) count++;
     }
     return count;
   }
@@ -17118,7 +17137,7 @@ function calcChallengeScore(ch) {
   }
 
   // ── 🥩 Protein King ──────────────────────────────────────────────
-  // Count days where you hit ≥90% of your protein target
+  // Count days where you hit ≥90% of your protein target FOR THAT DAY
   if (ch.type === 'protein_goal') {
     let count = 0;
     const startD = new Date(start + 'T00:00:00');
@@ -17128,7 +17147,9 @@ function calcChallengeScore(ch) {
       const log = (State.logs||{})[k];
       if (!log) continue;
       const pro = Object.values(log.meals||{}).flat().reduce((s, f) => s + (f.protein||0), 0);
-      if (pro >= ((State.targets||{}).protein||150) * 0.9) count++;
+      // Use that day's snapshot — not the current mutable State.targets
+      const dayT = (typeof getTargetsForDay === 'function') ? getTargetsForDay(k) : (State.targets||{});
+      if (pro >= (dayT.protein||150) * 0.9) count++;
     }
     return count;
   }
@@ -17348,7 +17369,7 @@ function calcAllLbScores() {
   ).length;
   // streak (global, not range-bound)
   const streak = State.streak || 0;
-  // calorie goal days in range
+  // calorie goal days in range — compare each day against ITS OWN snapshot target
   let calGoalDays = 0;
   const startD = new Date(start + 'T00:00:00');
   const endD   = new Date(end   + 'T00:00:00');
@@ -17357,7 +17378,9 @@ function calcAllLbScores() {
     const log = (State.logs||{})[k];
     if (!log) continue;
     const cal = Object.values(log.meals||{}).flat().reduce((s, f) => s + (f.cal||0), 0);
-    if (cal >= ((State.targets||{}).calories||2000) * 0.9) calGoalDays++;
+    // Use that day's snapshot — never the current mutable targets
+    const dayT = (typeof getTargetsForDay === 'function') ? getTargetsForDay(k) : (State.targets||{});
+    if (cal >= (dayT.calories||2000) * 0.9) calGoalDays++;
   }
   return { workouts, streak, calGoalDays };
 }
@@ -20616,57 +20639,118 @@ window.dismissSharedProgram = async function(docId, btn) {
   }
   window.getTargetsForDate = getTargetsForDate;
 
-  // ── Daily targets history: per-day immutable snapshots ───────────────
-  // Whenever the user saves new macro/calorie targets, we append an entry to
-  // State.targetHistory so that each past day retains the goals that were
-  // active when those calories were actually logged.
+  // ── Daily targets history: APPEND-ONLY immutable snapshots ─────────────
+  // Each snapshot has an effectiveFrom date and is NEVER modified after creation.
+  // Old snapshots are forever frozen. getTargetsForDay() will find the right one.
   function recordTargetChange(newTargets) {
     if (!State.targetHistory) State.targetHistory = [];
     const today = todayKey ? todayKey() : new Date().toISOString().split('T')[0];
-    // Replace any existing entry for today (only keep one per day)
-    State.targetHistory = State.targetHistory.filter(e => e.date !== today);
+
+    // Check if the latest snapshot (on or before today) already has identical values.
+    // If yes, skip creating a duplicate.
+    const existing = State.targetHistory.filter(e => (e.effectiveFrom || e.date) <= today);
+    if (existing.length > 0) {
+      const latest = existing[existing.length - 1];
+      const same = latest.calories === (newTargets.calories || 2000) &&
+                   latest.protein  === (newTargets.protein  || 150)  &&
+                   latest.carbs    === (newTargets.carbs    || 225)   &&
+                   latest.fat      === (newTargets.fat      || 67);
+      if (same) return; // No change — don't create an unnecessary snapshot
+    }
+
+    // APPEND a new immutable snapshot. Never overwrite or remove previous ones.
     State.targetHistory.push({
-      date:     today,
-      calories: newTargets.calories || 2000,
-      protein:  newTargets.protein  || 150,
-      carbs:    newTargets.carbs    || 225,
-      fat:      newTargets.fat      || 67,
-      goal:     (State.profile && State.profile.goal) || 'maintain'
+      effectiveFrom: today,           // canonical field name (replaces old "date")
+      date:          today,           // keep for backwards-compat with old snapshots
+      calories:  newTargets.calories || 2000,
+      protein:   newTargets.protein  || 150,
+      carbs:     newTargets.carbs    || 225,
+      fat:       newTargets.fat      || 67,
+      goal:      (State.profile && State.profile.goal) || 'maintain',
+      createdAt: Date.now()
     });
-    // Keep sorted oldest → newest
-    State.targetHistory.sort((a, b) => a.date.localeCompare(b.date));
+
+    // Keep sorted oldest → newest by effectiveFrom
+    State.targetHistory.sort((a, b) =>
+      (a.effectiveFrom || a.date || '').localeCompare(b.effectiveFrom || b.date || '')
+    );
+
+    console.log('[TargetHistory] New snapshot appended for', today, newTargets);
   }
   window.recordTargetChange = recordTargetChange;
 
-  // ── Look up the goals that were active on a given date ───────────────
-  // Returns the most recent target entry whose date is ≤ dateKey.
+  // ── Look up the goals that were active on a given date ───────────────────
+  // Returns the most recent snapshot whose effectiveFrom is ≤ dateKey.
+  // NEVER returns State.targets for historical dates — only for brand-new users
+  // who have no history at all yet.
   function getTargetsForDay(dateKey) {
     if (!dateKey) dateKey = todayKey ? todayKey() : new Date().toISOString().split('T')[0];
     const history = State.targetHistory || [];
-    // Walk backwards to find the most recent entry on or before dateKey
-    const applicable = history.filter(e => e.date <= dateKey);
-    if (applicable.length > 0) return applicable[applicable.length - 1];
-    // No history yet — fall back to current targets (new user)
+
+    // Normalise: support both effectiveFrom (new) and date (legacy) field
+    const applicable = history.filter(e => {
+      const from = e.effectiveFrom || e.date || '';
+      return from <= dateKey;
+    });
+
+    if (applicable.length > 0) {
+      // Return the most-recent snapshot on or before dateKey
+      const sorted = applicable.slice().sort((a, b) => {
+        const aFrom = a.effectiveFrom || a.date || '';
+        const bFrom = b.effectiveFrom || b.date || '';
+        return aFrom.localeCompare(bFrom);
+      });
+      return sorted[sorted.length - 1];
+    }
+
+    // No applicable snapshot: return the EARLIEST snapshot ever (safest for old dates)
+    if (history.length > 0) {
+      const sorted = history.slice().sort((a, b) => {
+        const aFrom = a.effectiveFrom || a.date || '';
+        const bFrom = b.effectiveFrom || b.date || '';
+        return aFrom.localeCompare(bFrom);
+      });
+      return sorted[0];
+    }
+
+    // Absolute last resort: only for brand-new users with zero history
     return State.targets || { calories:2000, protein:150, carbs:225, fat:67 };
   }
   window.getTargetsForDay = getTargetsForDay;
 
-  // ── Migrate: seed history from State.targets if no history exists ─────
+  // ── Migrate: seed history from State.targets if no history exists ────────
+  // Runs once after Firestore load for existing users who predate the snapshot system.
   function migrateTargetHistory() {
-    if (State.targetHistory && State.targetHistory.length > 0) return; // already done
     if (!State.targetHistory) State.targetHistory = [];
-    // Find the earliest log date to anchor the history
+
+    // Already migrated if we have any snapshot with effectiveFrom set
+    const hasModernSnapshot = State.targetHistory.some(e => e.effectiveFrom);
+    if (hasModernSnapshot) return;
+
+    // Legacy snapshots exist (date field only) — upgrade them to effectiveFrom
+    if (State.targetHistory.length > 0) {
+      State.targetHistory = State.targetHistory.map(e => ({
+        ...e,
+        effectiveFrom: e.effectiveFrom || e.date || ''
+      }));
+      console.log('[TargetHistory] Upgraded', State.targetHistory.length, 'legacy snapshots to effectiveFrom format');
+      return;
+    }
+
+    // No history at all — seed from earliest log date so ALL past days are covered
     const logDates = Object.keys(State.logs || {}).sort();
     const anchorDate = logDates.length > 0 ? logDates[0]
       : (todayKey ? todayKey() : new Date().toISOString().split('T')[0]);
     const t = State.targets || { calories:2000, protein:150, carbs:225, fat:67 };
     State.targetHistory.push({
-      date:     anchorDate,
-      calories: t.calories || 2000,
-      protein:  t.protein  || 150,
-      carbs:    t.carbs    || 225,
-      fat:      t.fat      || 67,
-      goal:     (State.profile && State.profile.goal) || 'maintain'
+      effectiveFrom: anchorDate,
+      date:          anchorDate,  // backwards-compat
+      calories:  t.calories || 2000,
+      protein:   t.protein  || 150,
+      carbs:     t.carbs    || 225,
+      fat:       t.fat      || 67,
+      goal:      (State.profile && State.profile.goal) || 'maintain',
+      createdAt: Date.now()
     });
     console.log('[TargetHistory] Migrated legacy targets anchored to', anchorDate);
   }
@@ -20812,32 +20896,13 @@ window.dismissSharedProgram = async function(docId, btn) {
     };
   }
 
-  // ── PATCH: refreshNutritionPage — use snapshot targets ────────
-  const _origRefreshNutritionPage = window.refreshNutritionPage;
-  if (typeof _origRefreshNutritionPage === 'function') {
-    window.refreshNutritionPage = function() {
-      const dateKey = window.nutritionDate || (todayKey ? todayKey() : '');
-      const T = getTargetsForDay(dateKey);
-      // Temporarily set State.targets to the snapshot for the current nutrition date
-      const _backup = State.targets;
-      State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
-      _origRefreshNutritionPage.apply(this, arguments);
-      State.targets = _backup;
-    };
-  }
+  // ── PATCH: refreshNutritionPage — no longer needed (function is now snapshot-aware) ──
+  // The underlying refreshNutritionPage already calls getTargetsForDay(nutritionDate) directly.
+  // No State.targets mutation patch required.
 
-  // ── PATCH: refreshDashboard — use TODAY's snapshot ────────────
-  const _origRefreshDashboard = window.refreshDashboard;
-  if (typeof _origRefreshDashboard === 'function') {
-    window.refreshDashboard = function() {
-      const today = todayKey ? todayKey() : '';
-      const T = getTargetsForDay(today);
-      const _backup = State.targets;
-      State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
-      _origRefreshDashboard.apply(this, arguments);
-      State.targets = _backup;
-    };
-  }
+  // ── PATCH: refreshDashboard — no longer needed (function is now snapshot-aware) ──
+  // The underlying refreshDashboard already calls getTargetsForDay(today) directly.
+  // No State.targets mutation patch required.
 
   // ── PATCH: saveTargets — now creates immutable weekly snapshot ─
   const _origSaveTargets = window.saveTargets;
@@ -20905,76 +20970,38 @@ window.dismissSharedProgram = async function(docId, btn) {
     };
   }
 
-  // ── PATCH: getMultiDayMacroAlerts — use per-day snapshots ─────
-  const _origGetMultiDayMacroAlerts = window.getMultiDayMacroAlerts;
-  if (typeof _origGetMultiDayMacroAlerts === 'function') {
-    window.getMultiDayMacroAlerts = function() {
-      // For each day in the alert check, getTodayTotals already returns correct values
-      // The alerts use State.targets directly — we patch that here temporarily
-      const today = todayKey ? todayKey() : '';
-      const T = getTargetsForDay(today);
-      const _backup = State.targets;
-      State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
-      const result = _origGetMultiDayMacroAlerts.apply(this, arguments);
-      State.targets = _backup;
-      return result;
-    };
-  }
+  // ── PATCH: getMultiDayMacroAlerts — no longer needed (function is now per-day-snapshot-aware) ──
+  // The underlying getMultiDayMacroAlerts now stores dayT per-day and uses that in streaks.
+  // No State.targets mutation patch required.
 
-  // ── PATCH: calcChallengeScore — use per-day snapshots ─────────
-  const _origCalcChallengeScore = window.calcChallengeScore;
-  if (typeof _origCalcChallengeScore === 'function') {
-    window.calcChallengeScore = function(ch) {
-      if (ch && ch.type === 'calorie_streak') {
-        // Use per-day snapshot targets for accuracy
-        const start = ch.start, end = ch.end;
-        let count = 0;
-        const startD = new Date(start + 'T00:00:00');
-        const endD   = new Date(end   + 'T00:00:00');
-        for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
-          const k = d.toISOString().split('T')[0];
-          const log = (State.logs || {})[k];
-          if (!log) continue;
-          const cal = Object.values(log.meals || {}).flat().reduce((s, f) => s + (f.cal || 0), 0);
-          const T = getTargetsForDay(k);
-          const targetCal = T.calories || 2000;
-          if (cal >= targetCal * 0.9) count++;
-        }
-        return count;
-      }
-      return _origCalcChallengeScore.apply(this, arguments);
-    };
-  }
+  // ── PATCH: calcChallengeScore — no longer needed (function is now per-day-snapshot-aware) ──
+  // Both calorie_streak and protein_goal now call getTargetsForDay(k) for each day.
+  // No State.targets mutation patch required.
 
-  // ── PATCH: sgpGetTitle — use current week snapshot ────────────
-  const _origSgpGetTitle = window.sgpGetTitle;
-  if (typeof _origSgpGetTitle === 'function') {
-    window.sgpGetTitle = function() {
-      // Temporarily sync State.targets to current week snapshot
-      const T = getCurrentWeekTargets();
-      const _backup = State.targets;
-      State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
-      const result = _origSgpGetTitle.apply(this, arguments);
-      State.targets = _backup;
-      return result;
-    };
-  }
+  // ── PATCH: sgpGetTitle — ensure it uses current week snapshot ────────
+  // sgpGetTitle reads State.targets for its display — since commitNewTargets keeps
+  // State.targets in sync with the current week snapshot, this is already correct.
+  // No mutation patch required.
 
   // ── Hook _loadFirestore to run migration after data loads ──────
   const _origLoadFSWeekly = window._loadFirestore;
   if (typeof _origLoadFSWeekly === 'function') {
     window._loadFirestore = async function() {
       await _origLoadFSWeekly.apply(this, arguments);
-      // Run migration after all other load hooks have run
+      // Run migrations after all other load hooks have run
       setTimeout(() => {
+        // 1. Upgrade legacy targetHistory entries to use effectiveFrom
+        migrateTargetHistory();
+        // 2. Ensure weeklyTargets snapshot exists for the current week
         migrateTargetsToWeekly();
         ensureCurrentWeekSnapshot();
-        // Sync State.targets to current week snapshot
+        // 3. Sync State.targets to the CURRENT snapshot so UI editing defaults are correct
+        //    (State.targets is only for UI defaults — historical rendering always uses getTargetsForDay)
         const T = getCurrentWeekTargets();
         if (T && T.calories) {
           State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
         }
-        console.log('[WeeklyTargets] Post-load migration complete.');
+        console.log('[SnapshotSystem] Post-load migration complete. targetHistory:', State.targetHistory?.length, 'entries.');
       }, 500);
     };
   }
