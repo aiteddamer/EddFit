@@ -21719,4 +21719,814 @@ window.dismissSharedProgram = async function(docId, btn) {
 
 })();
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PROGRAM SNAPSHOT SYSTEM — IMMUTABLE HISTORICAL WORKOUT RECORDS
+     Every program edit creates a NEW snapshot. Completed workouts store
+     a full exerciseSnapshot so history NEVER changes when you edit programs.
+     Schema:
+       State.programHistory = [{
+         id, version, effectiveFrom, name, goal, schedule, days,
+         dayExercises, weeks, start, createdAt
+       }]
+       State.workouts[i] now additionally stores:
+         { ..., programSnapshotId, exerciseSnapshot: {...} }
+═══════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+  'use strict';
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 1 — SNAPSHOT STORE HELPERS
+  // ─────────────────────────────────────────────────────────────────
+
+  function ensureProgramHistory() {
+    if (!State.programHistory) State.programHistory = [];
+    return State.programHistory;
+  }
+
+  /** Deep-clone a program object and strip live-only fields */
+  function _cloneProgram(prog) {
+    return JSON.parse(JSON.stringify(prog));
+  }
+
+  /** Build a snapshot id like "program_2026_05_14_v3" */
+  function _makeSnapshotId(prog, version) {
+    const d = new Date();
+    const dateStr = [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0')
+    ].join('_');
+    return `program_${dateStr}_v${version}`;
+  }
+
+  /**
+   * Commit a program into programHistory as an immutable snapshot.
+   * Returns the new snapshot object.
+   */
+  function commitProgramSnapshot(prog, effectiveFrom) {
+    const history = ensureProgramHistory();
+
+    // Find the highest existing version for this program lineage
+    const lineage = history.filter(
+      s => s.sourceId === (prog.sourceId || prog.id)
+    );
+    const version = lineage.length
+      ? Math.max(...lineage.map(s => s.version || 1)) + 1
+      : 1;
+
+    const snapshot = {
+      ..._cloneProgram(prog),
+      // Snapshot identity
+      id:           _makeSnapshotId(prog, version),
+      sourceId:     prog.sourceId || prog.id,        // lineage key
+      version,
+      effectiveFrom: effectiveFrom || _todayKey(),
+      createdAt:     Date.now(),
+      // Mark as frozen — UI must never mutate this object
+      _frozen: true
+    };
+
+    // Append-only — never modify existing snapshots
+    history.push(snapshot);
+    console.log('[ProgramSnapshot] Committed snapshot', snapshot.id, 'v' + version);
+    return snapshot;
+  }
+  window.commitProgramSnapshot = commitProgramSnapshot;
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 2 — LOOKUP: getProgramForDay(dateKey)
+  //  Returns the latest snapshot whose effectiveFrom <= dateKey
+  // ─────────────────────────────────────────────────────────────────
+  function getProgramForDay(dateKey) {
+    const history = ensureProgramHistory();
+    if (!history.length) return null;
+
+    // All snapshots whose effectiveFrom is on or before dateKey
+    const candidates = history.filter(
+      s => s.effectiveFrom && s.effectiveFrom <= dateKey
+    );
+    if (!candidates.length) return null;
+
+    // Return the most recently effective one
+    return candidates.reduce((best, cur) =>
+      cur.effectiveFrom > best.effectiveFrom ? cur : best
+    );
+  }
+  window.getProgramForDay = getProgramForDay;
+
+  /** Same but restricted to a specific program lineage (sourceId) */
+  function getProgramSnapshotForDay(dateKey, sourceId) {
+    const history = ensureProgramHistory();
+    const candidates = history.filter(
+      s => s.effectiveFrom <= dateKey &&
+           (sourceId ? s.sourceId === sourceId : true)
+    );
+    if (!candidates.length) return null;
+    return candidates.reduce((best, cur) =>
+      cur.effectiveFrom > best.effectiveFrom ? cur : best
+    );
+  }
+  window.getProgramSnapshotForDay = getProgramSnapshotForDay;
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 3 — EXERCISE SNAPSHOT BUILDER
+  //  Produces the exerciseSnapshot stored in each completed workout
+  // ─────────────────────────────────────────────────────────────────
+  function buildExerciseSnapshot(exercises) {
+    if (!exercises || !exercises.length) return {};
+    const snap = {};
+    exercises.forEach((ex, i) => {
+      snap[i] = {
+        name:         ex.name || '',
+        muscle:       ex.muscle || '',
+        sets:         (ex.sets || []).map(s => ({
+          reps:   s.reps   ?? 0,
+          weight: s.weight ?? 0,
+          done:   s.done   ?? false,
+          rpe:    s.rpe    ?? null,
+          note:   s.note   ?? ''
+        })),
+        restSeconds:  ex.restSeconds  ?? null,
+        notes:        ex.notes        ?? '',
+        order:        i,
+        superset:     ex.superset     ?? null,
+        intensityTechnique: ex.intensityTechnique ?? null
+      };
+    });
+    return snap;
+  }
+  window.buildExerciseSnapshot = buildExerciseSnapshot;
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 4 — LOCAL DATE HELPER (avoids re-declaring if exists)
+  // ─────────────────────────────────────────────────────────────────
+  function _todayKey() {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 5 — MIGRATION
+  //  Runs once on load: converts the current active program into the
+  //  first snapshot, and attaches historical workout logs to it.
+  // ─────────────────────────────────────────────────────────────────
+  function migrateProgramsToSnapshots() {
+    const history = ensureProgramHistory();
+    if (history.length > 0) return; // already migrated
+
+    const programs = State.programs || [];
+    if (!programs.length) {
+      console.log('[ProgramSnapshot] No programs to migrate.');
+      return;
+    }
+
+    // Create a snapshot for each existing program, treating start date as effectiveFrom
+    programs.forEach(prog => {
+      const effectiveFrom = prog.start || prog.startDate || prog.created || _todayKey();
+      const snapshot = {
+        ..._cloneProgram(prog),
+        id:           `program_migrated_${prog.id}`,
+        sourceId:     prog.id,
+        version:      1,
+        effectiveFrom,
+        createdAt:     Date.now(),
+        _frozen:       true,
+        _migrated:     true
+      };
+      history.push(snapshot);
+      console.log('[ProgramSnapshot] Migrated program', prog.name, '→ snapshot', snapshot.id);
+    });
+
+    // Attach existing workout logs to the closest matching snapshot
+    (State.workouts || []).forEach(workout => {
+      if (workout.programSnapshotId) return; // already stamped
+      const snap = getProgramForDay(workout.date);
+      if (snap) {
+        workout.programSnapshotId = snap.id;
+        // Build exerciseSnapshot from logged exercises (backfill)
+        if (!workout.exerciseSnapshot && workout.exercises && workout.exercises.length) {
+          workout.exerciseSnapshot = buildExerciseSnapshot(workout.exercises);
+        }
+      }
+    });
+
+    console.log('[ProgramSnapshot] Migration complete —', history.length, 'snapshots created.');
+  }
+  window.migrateProgramsToSnapshots = migrateProgramsToSnapshots;
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 6 — PATCH saveProgram
+  //  Edit = create NEW snapshot; never mutate old program objects
+  // ─────────────────────────────────────────────────────────────────
+  const _origSaveProgram = window.saveProgram;
+  if (typeof _origSaveProgram === 'function') {
+    window.saveProgram = function() {
+      // Run original first (it updates State.programs)
+      _origSaveProgram.apply(this, arguments);
+
+      setTimeout(() => {
+        const programs = State.programs || [];
+        const active = programs.find(p => p.active);
+        if (!active) return;
+
+        // Check if we already have a snapshot for this program state today
+        const history = ensureProgramHistory();
+        const todayStr = _todayKey();
+
+        // Find latest snapshot for this program lineage
+        const sourceId = active.sourceId || active.id;
+        const existing = history
+          .filter(s => s.sourceId === sourceId)
+          .sort((a, b) => b.version - a.version)[0];
+
+        // Only commit a new snapshot if the program content has changed
+        const currentHash = JSON.stringify({
+          name:         active.name,
+          days:         active.days,
+          dayExercises: active.dayExercises,
+          goal:         active.goal,
+          weeks:        active.weeks
+        });
+        const existingHash = existing ? JSON.stringify({
+          name:         existing.name,
+          days:         existing.days,
+          dayExercises: existing.dayExercises,
+          goal:         existing.goal,
+          weeks:        existing.weeks
+        }) : null;
+
+        if (!existing || currentHash !== existingHash) {
+          // Ensure sourceId is set on the live program object for lineage tracking
+          if (!active.sourceId) active.sourceId = active.id;
+          commitProgramSnapshot(active, todayStr);
+          save();
+          console.log('[ProgramSnapshot] New snapshot committed after saveProgram');
+        }
+      }, 150);
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 7 — PATCH activateBuiltinProgram
+  // ─────────────────────────────────────────────────────────────────
+  const _origActivateBuiltin = window.activateBuiltinProgram;
+  if (typeof _origActivateBuiltin === 'function') {
+    window.activateBuiltinProgram = function(pid) {
+      _origActivateBuiltin.apply(this, arguments);
+      setTimeout(() => {
+        const active = (State.programs || []).find(p => p.active);
+        if (!active) return;
+        if (!active.sourceId) active.sourceId = active.id;
+        const history = ensureProgramHistory();
+        const alreadySnapped = history.some(
+          s => s.sourceId === active.sourceId && s.effectiveFrom === _todayKey()
+        );
+        if (!alreadySnapped) {
+          commitProgramSnapshot(active, _todayKey());
+          save();
+        }
+      }, 200);
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 8 — PATCH activateCustomProgram / activateProgram
+  // ─────────────────────────────────────────────────────────────────
+  const _origActivateCustom = window.activateCustomProgram;
+  if (typeof _origActivateCustom === 'function') {
+    window.activateCustomProgram = function(i) {
+      _origActivateCustom.apply(this, arguments);
+      setTimeout(() => {
+        const active = (State.programs || []).find(p => p.active);
+        if (!active) return;
+        if (!active.sourceId) active.sourceId = active.id;
+        const history = ensureProgramHistory();
+        const alreadySnapped = history.some(
+          s => s.sourceId === active.sourceId && s.effectiveFrom === _todayKey()
+        );
+        if (!alreadySnapped) {
+          commitProgramSnapshot(active, _todayKey());
+          save();
+        }
+      }, 200);
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 9 — PATCH saveWorkoutForDate
+  //  Stamp every completed workout with programSnapshotId + exerciseSnapshot
+  // ─────────────────────────────────────────────────────────────────
+  const _origSaveWorkoutForDate = window.saveWorkoutForDate;
+  if (typeof _origSaveWorkoutForDate === 'function') {
+    window.saveWorkoutForDate = function() {
+      const dateKey = (typeof wdGetDate === 'function') ? wdGetDate() : _todayKey();
+      const isToday = (typeof wdIsToday === 'function') ? wdIsToday() : true;
+
+      // Capture exercises BEFORE the original save so we snapshot the in-progress state
+      const exercisesToSnap = isToday
+        ? JSON.parse(JSON.stringify(State.currentWorkout || []))
+        : JSON.parse(JSON.stringify((typeof wdGetActiveExercises === 'function' ? wdGetActiveExercises() : [])));
+
+      // Run original save
+      _origSaveWorkoutForDate.apply(this, arguments);
+
+      // Stamp the newly saved workout with snapshot data
+      setTimeout(() => {
+        const wi = State.workouts.findIndex(w => w.date === dateKey);
+        if (wi < 0) return;
+        const workout = State.workouts[wi];
+
+        // Only stamp if not already stamped
+        if (!workout.programSnapshotId) {
+          const snap = getProgramForDay(dateKey);
+          if (snap) {
+            workout.programSnapshotId = snap.id;
+            workout.programVersion    = snap.version;
+            workout.programName       = snap.name;
+          }
+        }
+
+        // Always (re)build exerciseSnapshot from the actual logged exercises
+        if (!workout.exerciseSnapshot || Object.keys(workout.exerciseSnapshot).length === 0) {
+          const exs = exercisesToSnap.length ? exercisesToSnap : (workout.exercises || []);
+          workout.exerciseSnapshot = buildExerciseSnapshot(exs);
+        }
+
+        save();
+      }, 100);
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 10 — PATCH pullScheduledWorkout
+  //  Also stamp workouts pulled from program schedule
+  // ─────────────────────────────────────────────────────────────────
+  const _origPullScheduled = window.pullScheduledWorkout;
+  if (typeof _origPullScheduled === 'function') {
+    window.pullScheduledWorkout = function() {
+      const dateKey = window._pendingScheduledDate || _todayKey();
+      const exercisesToSnap = JSON.parse(JSON.stringify(window._pendingScheduledExercises || []));
+
+      _origPullScheduled.apply(this, arguments);
+
+      setTimeout(() => {
+        const wi = State.workouts.findIndex(w => w.date === dateKey);
+        if (wi < 0) return;
+        const workout = State.workouts[wi];
+
+        if (!workout.programSnapshotId) {
+          const snap = getProgramForDay(dateKey);
+          if (snap) {
+            workout.programSnapshotId = snap.id;
+            workout.programVersion    = snap.version;
+            workout.programName       = snap.name;
+          }
+        }
+        if (!workout.exerciseSnapshot) {
+          workout.exerciseSnapshot = buildExerciseSnapshot(
+            exercisesToSnap.length ? exercisesToSnap : (workout.exercises || [])
+          );
+        }
+        save();
+      }, 150);
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 11 — ANALYTICS GUARD
+  //  getExercisesForWorkout: always returns frozen historical snapshot
+  //  for completed workouts; returns live data for today's in-progress session
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Safe accessor — use this everywhere analytics code needs exercises.
+   * For completed workouts (date < today or already saved), uses the frozen
+   * exerciseSnapshot so edits to the current program never affect history.
+   * For today's live session, returns State.currentWorkout.
+   */
+  function getExercisesForWorkout(workout) {
+    if (!workout) return [];
+
+    // Today's live, unsaved session — return current workout directly
+    if (workout.date === _todayKey() && !workout.exerciseSnapshot) {
+      return State.currentWorkout || [];
+    }
+
+    // Completed workout WITH a snapshot — use the snapshot (immutable)
+    if (workout.exerciseSnapshot && Object.keys(workout.exerciseSnapshot).length > 0) {
+      return Object.values(workout.exerciseSnapshot).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }
+
+    // Fallback: no snapshot yet (pre-migration data) — return live exercises
+    // but log a warning so we know backfill is needed
+    if (workout.exercises && workout.exercises.length) {
+      console.warn('[ProgramSnapshot] Workout on', workout.date, 'has no exerciseSnapshot — using live exercises (legacy data)');
+      return workout.exercises;
+    }
+
+    return [];
+  }
+  window.getExercisesForWorkout = getExercisesForWorkout;
+
+  /**
+   * Get program metadata for a completed workout without looking up
+   * the current (possibly mutated) State.programs array.
+   * Returns { id, name, goal, version } or null.
+   */
+  function getProgramMetaForWorkout(workout) {
+    if (!workout) return null;
+    if (workout.programSnapshotId) {
+      const history = ensureProgramHistory();
+      const snap = history.find(s => s.id === workout.programSnapshotId);
+      if (snap) return { id: snap.id, name: snap.name, goal: snap.goal, version: snap.version };
+      // Snapshot not found (e.g. corrupted) — fall back to stored meta
+      return {
+        id:      workout.programSnapshotId,
+        name:    workout.programName || 'Unknown Program',
+        goal:    null,
+        version: workout.programVersion || 1
+      };
+    }
+    return null;
+  }
+  window.getProgramMetaForWorkout = getProgramMetaForWorkout;
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 12 — CALENDAR PATCH
+  //  Render historical program version badge on each day
+  // ─────────────────────────────────────────────────────────────────
+  const _origRenderCalDayDetail = window.renderCalDayDetail;
+  if (typeof _origRenderCalDayDetail === 'function') {
+    window.renderCalDayDetail = function(key) {
+      _origRenderCalDayDetail.apply(this, arguments);
+
+      // After the original renders, inject the program version badge
+      // into the workout section if there's a logged workout for this day
+      const workout = (State.workouts || []).find(w => w.date === key);
+      if (!workout) return;
+
+      const meta = getProgramMetaForWorkout(workout);
+      if (!meta || !meta.name) return;
+
+      // Find the workout section in the day detail panel
+      const detail = document.getElementById('cal-day-detail');
+      if (!detail) return;
+
+      // Check if badge already injected
+      if (detail.querySelector('.pss-version-badge')) return;
+
+      // Find the workout heading row
+      const workoutHeading = Array.from(detail.querySelectorAll('[style*="text-transform: uppercase"], [style*="text-transform:uppercase"]'))
+        .find(el => el.textContent.includes('💪') || el.textContent.includes('Workout'));
+
+      const badge = document.createElement('span');
+      badge.className = 'pss-version-badge';
+      badge.style.cssText = `
+        display:inline-flex;align-items:center;gap:4px;
+        font-size:0.62rem;font-weight:700;
+        background:var(--accent-dim);color:var(--accent);
+        border:1px solid var(--accent);border-radius:20px;
+        padding:2px 8px;margin-left:8px;white-space:nowrap;
+        vertical-align:middle;
+      `;
+      badge.title = `Logged under program snapshot: ${meta.name} v${meta.version}`;
+      badge.textContent = `${meta.name} v${meta.version}`;
+
+      if (workoutHeading) {
+        workoutHeading.appendChild(badge);
+      } else {
+        // Fallback: insert at top of detail panel
+        const firstChild = detail.firstChild;
+        if (firstChild) {
+          const wrap = document.createElement('div');
+          wrap.style.cssText = 'margin-bottom:8px;font-size:0.72rem;color:var(--text-secondary)';
+          wrap.innerHTML = `📋 Logged under <strong>${meta.name}</strong> v${meta.version}`;
+          wrap.classList.add('pss-version-badge');
+          detail.insertBefore(wrap, firstChild);
+        }
+      }
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 13 — WORKOUT HISTORY RENDERER PATCH
+  //  Show program version next to each history entry
+  // ─────────────────────────────────────────────────────────────────
+  const _origRenderWorkoutHistory = window.renderWorkoutHistory;
+  if (typeof _origRenderWorkoutHistory === 'function') {
+    window.renderWorkoutHistory = function() {
+      _origRenderWorkoutHistory.apply(this, arguments);
+
+      // After original renders, inject version pills into each history row
+      setTimeout(() => {
+        const histList = document.getElementById('workout-history-list');
+        if (!histList) return;
+
+        const rows = histList.querySelectorAll('[data-workout-date]');
+        rows.forEach(row => {
+          if (row.querySelector('.pss-hist-badge')) return;
+          const dateKey = row.dataset.workoutDate;
+          const workout = (State.workouts || []).find(w => w.date === dateKey);
+          if (!workout) return;
+          const meta = getProgramMetaForWorkout(workout);
+          if (!meta) return;
+
+          const badge = document.createElement('span');
+          badge.className = 'pss-hist-badge';
+          badge.style.cssText = `
+            font-size:0.6rem;font-weight:700;
+            background:var(--accent-dim);color:var(--accent);
+            border:1px solid var(--accent);border-radius:10px;
+            padding:1px 6px;margin-left:6px;
+            vertical-align:middle;white-space:nowrap;
+          `;
+          badge.textContent = `${meta.name} v${meta.version}`;
+
+          const titleEl = row.querySelector('.workout-hist-title, [class*="hist-title"]');
+          if (titleEl) titleEl.appendChild(badge);
+        });
+      }, 80);
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 14 — HOOK INTO FIRESTORE LOAD
+  //  Run migration once after data is loaded
+  // ─────────────────────────────────────────────────────────────────
+  const _origLoadFirestore = window._loadFirestore;
+  if (typeof _origLoadFirestore === 'function') {
+    window._loadFirestore = async function() {
+      await _origLoadFirestore.apply(this, arguments);
+      // Run migration after data is in State
+      setTimeout(() => {
+        migrateProgramsToSnapshots();
+        save();
+        console.log('[ProgramSnapshot] Post-load migration complete.');
+      }, 600);
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 15 — INTEGRITY GUARD (DEV)
+  //  Warn if someone directly mutates a snapshot in programHistory
+  // ─────────────────────────────────────────────────────────────────
+  function auditProgramHistory() {
+    const history = ensureProgramHistory();
+    const mutable = history.filter(s => !s._frozen);
+    if (mutable.length) {
+      console.warn('[ProgramSnapshot] ⚠️ Found', mutable.length, 'unfrozen snapshots — these may be corrupted:', mutable);
+    }
+    const noEffective = history.filter(s => !s.effectiveFrom);
+    if (noEffective.length) {
+      console.warn('[ProgramSnapshot] ⚠️ Found', noEffective.length, 'snapshots with no effectiveFrom:', noEffective);
+    }
+    return { total: history.length, mutable: mutable.length, noEffective: noEffective.length };
+  }
+  window.auditProgramHistory = auditProgramHistory;
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 16 — PUBLIC DEBUG API (window.PSS)
+  // ─────────────────────────────────────────────────────────────────
+  window.PSS = {
+    // Core
+    commitProgramSnapshot,
+    getProgramForDay,
+    getProgramSnapshotForDay,
+    getExercisesForWorkout,
+    getProgramMetaForWorkout,
+    buildExerciseSnapshot,
+    migrateProgramsToSnapshots,
+    auditProgramHistory,
+
+    // Quick inspection helpers
+    history: () => ensureProgramHistory(),
+
+    inspect: () => {
+      const h = ensureProgramHistory();
+      console.table(h.map(s => ({
+        id:            s.id,
+        name:          s.name,
+        version:       s.version,
+        effectiveFrom: s.effectiveFrom,
+        days:          Object.keys(s.days || {}).length,
+        frozen:        s._frozen ? '✅' : '❌',
+        migrated:      s._migrated ? 'yes' : 'no'
+      })));
+    },
+
+    workoutAudit: () => {
+      const snapped = (State.workouts || []).filter(w => w.programSnapshotId).length;
+      const total   = (State.workouts || []).length;
+      const missing = total - snapped;
+      console.log(`[ProgramSnapshot] Workouts: ${snapped}/${total} have snapshots. Missing: ${missing}`);
+      if (missing > 0) {
+        console.warn('[ProgramSnapshot] Run PSS.backfillWorkouts() to backfill missing snapshots.');
+      }
+    },
+
+    // Manually backfill any workouts still missing exerciseSnapshot
+    backfillWorkouts: () => {
+      let count = 0;
+      (State.workouts || []).forEach(workout => {
+        if (!workout.exerciseSnapshot && workout.exercises && workout.exercises.length) {
+          workout.exerciseSnapshot = buildExerciseSnapshot(workout.exercises);
+          count++;
+        }
+        if (!workout.programSnapshotId) {
+          const snap = getProgramForDay(workout.date);
+          if (snap) {
+            workout.programSnapshotId = snap.id;
+            workout.programVersion    = snap.version;
+            workout.programName       = snap.name;
+          }
+        }
+      });
+      save();
+      console.log('[ProgramSnapshot] Backfilled', count, 'workouts with exerciseSnapshot.');
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────
+  //  SECTION 17 — PATCH PULL-FROM-PROGRAM (the original bug)
+  //
+  //  Three sites all read from the live activeProgram when building
+  //  the exercise list to pull/display. They must use the snapshot
+  //  for the target date instead.
+  //
+  //  1. _enhancedRenderWorkoutPage — sets _pendingScheduledExercises
+  //  2. renderCalDayDetail         — builds programDayInfo for calendar
+  //  3. calLoadProgramWorkout      — loads exercises into the edit modal
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Resolve the correct exercises for a given dateKey from the
+   * historical program snapshot (not the live active program).
+   * Falls back to the live active program only for TODAY (where no
+   * historical snapshot yet exists for the in-progress session).
+   *
+   * Returns { program, exercises, label, dayIdx } or null.
+   */
+  function resolveScheduledExercisesForDate(dateKey) {
+    const d   = new Date(dateKey + 'T12:00:00');
+    const dow = d.getDay();
+    const mondayIdx = dow === 0 ? 6 : dow - 1; // Mon=0…Sun=6
+
+    // ── For past dates: use the snapshot that was active on that day ──
+    const isToday = dateKey === _todayKey();
+    let program = null;
+
+    if (!isToday) {
+      program = getProgramForDay(dateKey); // snapshot lookup
+    }
+
+    // ── For today (or if no snapshot found): fall back to live program ──
+    if (!program) {
+      program = (State.programs || []).find(p => p.active) || null;
+    }
+
+    if (!program) return null;
+
+    const progStart = program.start || program.startDate;
+    if (progStart && dateKey < progStart) return null;
+
+    const dayEntry = program.days && program.days[mondayIdx];
+    if (!dayEntry) return null;
+
+    const label = typeof dayEntry === 'string'
+      ? dayEntry
+      : (dayEntry.label || dayEntry.key || 'Workout');
+
+    let exercises = [];
+    if (dayEntry && typeof dayEntry === 'object' && Array.isArray(dayEntry.exercises)) {
+      exercises = dayEntry.exercises.map(ex => ({
+        ...ex, sets: (ex.sets||[]).map(s => ({...s, done: false}))
+      }));
+    } else if (program.dayExercises && program.dayExercises[mondayIdx]) {
+      exercises = program.dayExercises[mondayIdx].map(ex => ({
+        ...ex, sets: (ex.sets||[]).map(s => ({...s, done: false}))
+      }));
+    } else {
+      const tKey = typeof dayEntry === 'string'
+        ? dayEntry
+        : (dayEntry && dayEntry.key) || 'fullbody';
+      const tmpl = (typeof EXTENDED_TEMPLATES !== 'undefined' && EXTENDED_TEMPLATES[tKey]) ||
+                   (typeof TEMPLATES !== 'undefined' && TEMPLATES[tKey]) || [];
+      exercises = tmpl.map(ex => ({
+        ...ex, sets: (ex.sets||[]).map(s => ({...s, done: false}))
+      }));
+    }
+
+    if (!exercises.length) return null;
+    return { program, exercises, label, dayIdx: mondayIdx };
+  }
+  window.resolveScheduledExercisesForDate = resolveScheduledExercisesForDate;
+
+  // ── Patch 1: _enhancedRenderWorkoutPage ──────────────────────────
+  // Override the pending-scheduled-exercises block to use snapshot lookup
+  const _origEnhancedRender = window._enhancedRenderWorkoutPage;
+  if (typeof _origEnhancedRender === 'function') {
+    window._enhancedRenderWorkoutPage = function() {
+      // Before calling original, pre-set _pendingScheduledExercises from
+      // the snapshot — the original will see it already set and skip its
+      // own (live-program) resolution because of the guard:
+      //   (!window._pendingScheduledExercises || window._pendingScheduledDate !== currentDateKey)
+      const currentDateKey = (typeof wdGetDate === 'function') ? wdGetDate() : _todayKey();
+      const suppressedForDate = window._pullSuppressedForDate;
+
+      // Reset suppression on date change (mirrors original logic)
+      if (suppressedForDate && suppressedForDate !== currentDateKey) {
+        window._pullSuppressedForDate = null;
+      }
+
+      const alreadyLogged = (typeof wdIsToday === 'function' && wdIsToday())
+        ? (State.currentWorkout || []).length > 0
+        : (State.workouts || []).some(w => w.date === currentDateKey);
+
+      const pendingAlreadySet =
+        window._pendingScheduledExercises &&
+        window._pendingScheduledDate === currentDateKey;
+
+      if (!alreadyLogged &&
+          !pendingAlreadySet &&
+          window._pullSuppressedForDate !== currentDateKey) {
+        const resolved = resolveScheduledExercisesForDate(currentDateKey);
+        if (resolved && resolved.exercises.length) {
+          // Stamp with snapshot data so the pull banner shows correct program name/version
+          window._pendingScheduledExercises = resolved.exercises;
+          window._pendingScheduledDate      = currentDateKey;
+          window._pendingScheduledProgram   = resolved.program;
+          window._pendingScheduledLabel     = resolved.label;
+        }
+      }
+
+      _origEnhancedRender.apply(this, arguments);
+    };
+  }
+
+  // ── Patch 2: renderCalDayDetail ──────────────────────────────────
+  // Override so the calendar "Load Session" button uses the snapshot
+  const _origRenderCalDayDetail2 = window.renderCalDayDetail;
+  if (typeof _origRenderCalDayDetail2 === 'function') {
+    window.renderCalDayDetail = function(key) {
+      // Temporarily override programDayInfo resolution by monkey-patching
+      // the ACTIVE program reference used inside renderCalDayDetail.
+      // Strategy: swap State.programs so the "active" program is the snapshot
+      // for this date, run original, then restore.
+      const snapshot = getProgramForDay(key);
+      const isToday  = key === _todayKey();
+
+      let _backupPrograms = null;
+      if (snapshot && !isToday) {
+        // Build a temporary programs array where the snapshot is the "active" one
+        _backupPrograms = State.programs;
+        // Mark the snapshot as active-looking for the duration of the call
+        const tempProg = { ...snapshot, active: true };
+        State.programs = [tempProg];
+      }
+
+      try {
+        _origRenderCalDayDetail2.apply(this, arguments);
+      } finally {
+        if (_backupPrograms !== null) {
+          State.programs = _backupPrograms;
+        }
+      }
+    };
+  }
+
+  // ── Patch 3: calLoadProgramWorkout ──────────────────────────────
+  // Override so "⚡ Load Session" from calendar uses snapshot exercises
+  const _origCalLoadProgramWorkout = window.calLoadProgramWorkout;
+  if (typeof _origCalLoadProgramWorkout === 'function') {
+    window.calLoadProgramWorkout = function(dateKey, dayIdx) {
+      const isToday = dateKey === _todayKey();
+
+      // For past dates, use snapshot; for today use live (no snapshot yet)
+      if (!isToday) {
+        const snapshot = getProgramForDay(dateKey);
+        if (snapshot) {
+          // Temporarily swap so original function reads from snapshot
+          const _backup = State.programs;
+          const tempProg = { ...snapshot, active: true };
+          State.programs = [tempProg];
+          try {
+            _origCalLoadProgramWorkout.apply(this, arguments);
+          } finally {
+            State.programs = _backup;
+          }
+          return;
+        }
+      }
+
+      // Today or no snapshot found — use original (live program)
+      _origCalLoadProgramWorkout.apply(this, arguments);
+    };
+  }
+
+  console.log('[ProgramSnapshot] Immutable program snapshot system loaded. Access via window.PSS');
+
+})();
+</script>
 </body>
