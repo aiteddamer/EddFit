@@ -8889,7 +8889,6 @@ function saveWorkout() {
   } else {
     State.workouts.unshift({ date: todayK, exercises: savedExs });
   }
-  State.currentWorkout = [];
   save();
   calcStreak();
   renderWorkoutPage();
@@ -14857,7 +14856,6 @@ function saveWorkoutForDate() {
     } else {
       State.workouts.unshift({ date: todayK, exercises: savedExs });
     }
-    State.currentWorkout = [];
     save(); calcStreak(); renderWorkoutPage(); refreshDashboard();
     showToast('Workout saved! 💪', 'success');
   } else {
