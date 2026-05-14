@@ -14112,12 +14112,8 @@ function amUpdate(changed) {
 
 // ── Smart Presets — fully profile + logged-weight driven ──────────────
 function _amGetTDEE() {
-  // Use the most recent logged weight if available, otherwise profile weight
-  const loggedWeights = (State.metrics || [])
-    .filter(m => m.weight && m.weight > 0)
-    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  const wKg    = (loggedWeights.length ? loggedWeights[0].weight : null)
-               || State.profile?.weight || 70;
+  // Use starting weight — same basis as Est. TDEE label
+  const wKg    = State.profile?.startWeight || State.profile?.weight || 70;
   const age    = State.profile?.age    || 25;
   const isMale = (State.profile?.gender || 'male') === 'male';
   const hCm    = State.profile?.height || 170;
@@ -14127,21 +14123,11 @@ function _amGetTDEE() {
     ? 10 * wKg + 6.25 * hCm - 5 * age + 5
     : 10 * wKg + 6.25 * hCm - 5 * age - 161;
 
-  // Activity multiplier based on logged workout frequency in the last 4 weeks
-  const fourWeeksAgo = new Date();
-  fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-  const fwKey = fourWeeksAgo.toISOString().split('T')[0];
-  const recentWorkouts = (State.workouts || []).filter(w => w.date >= fwKey).length;
-  const workoutsPerWeek = recentWorkouts / 4;
+  // Fixed moderate activity multiplier — matches Est. TDEE label (accounts for all daily activity, not just logged workouts)
+  const activityMultiplier = 1.55;
+  const workoutsPerWeek = 0; // not used for multiplier anymore
 
-  let activityMultiplier;
-  if (workoutsPerWeek < 1)      activityMultiplier = 1.2;   // sedentary
-  else if (workoutsPerWeek < 3) activityMultiplier = 1.375; // lightly active
-  else if (workoutsPerWeek < 5) activityMultiplier = 1.55;  // moderately active
-  else if (workoutsPerWeek < 6) activityMultiplier = 1.725; // very active
-  else                          activityMultiplier = 1.9;   // extra active
-
-  return { tdee: Math.round(bmr * activityMultiplier), wKg, activityMultiplier, workoutsPerWeek: Math.round(workoutsPerWeek * 10) / 10 };
+  return { tdee: Math.round(bmr * activityMultiplier), wKg, activityMultiplier, workoutsPerWeek };
 }
 
 function _amBuildPreset(preset) {
@@ -14262,8 +14248,17 @@ function saveAdjustedMacros() {
 
 // ── Accept current weight as new TDEE base ────────────────────────────
 function amApplyCurrentWeight() {
-  const currWkg = State.profile?.weight || 70;
-  State.profile.startWeight     = currWkg;
+  // Use average of last 7 days of logged weights if available
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const fwKey = sevenDaysAgo.toISOString().split('T')[0];
+  const recentWeights = (State.metrics || [])
+    .filter(m => m.weight && m.weight > 0 && m.date >= fwKey)
+    .map(m => m.weight);
+  const currWkg = recentWeights.length
+    ? Math.round((recentWeights.reduce((a, b) => a + b, 0) / recentWeights.length) * 10) / 10
+    : State.profile?.weight || 70;
+  State.profile.startWeight = currWkg;
   State.profile.lastReassessDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
   window._amWeightBannerDismissed = false; // banner hides because weights now match
   // Recalculate with new weight — re-populate labels then apply recommended preset
