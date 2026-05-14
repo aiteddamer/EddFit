@@ -8902,8 +8902,10 @@ function renderWorkoutHistory() {
     el.innerHTML = '<div class="empty-state"><div class="es-icon">📋</div><div class="es-text">No workouts logged yet</div></div>';
     return;
   }
-  el.innerHTML = State.workouts.slice(0,8).map((w,idx) => {
-    const d = new Date(w.date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  // Use real indices from State.workouts so delete/repeat/view work correctly
+  el.innerHTML = State.workouts.slice(0,8).map((w, sliceIdx) => {
+    const realIdx = State.workouts.indexOf(w);
+    const d = new Date(w.date + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
     const exNames = w.exercises.map(e=>e.name).slice(0,3).join(' · ');
     const totalSets = w.exercises.reduce((s,e)=>s+e.sets.length,0);
     const totalVol = calcVolumeKg(w.exercises || []);
@@ -8925,12 +8927,28 @@ function renderWorkoutHistory() {
           </div>
         </div>
         <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;gap:8px">
-          <button class="btn btn-outline btn-sm" style="flex:1" onclick="reloadWorkout(${idx})">↺ Repeat</button>
-          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="viewWorkoutDetail(${idx})">👁 View</button>
+          <button class="btn btn-outline btn-sm" style="flex:1" onclick="reloadWorkout(${realIdx})">↺ Repeat</button>
+          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="viewWorkoutDetail(${realIdx})">👁 View</button>
+          <button onclick="deleteWorkoutFromHistory('${w.date}')" title="Delete"
+            style="padding:6px 10px;border-radius:var(--radius-sm);background:none;border:1px solid var(--border);color:var(--text-muted);cursor:pointer;font-size:0.9rem;transition:all var(--transition);line-height:1"
+            onmouseover="this.style.background='var(--red-dim)';this.style.color='var(--red)';this.style.borderColor='var(--red)'"
+            onmouseout="this.style.background='none';this.style.color='var(--text-muted)';this.style.borderColor='var(--border)'">🗑</button>
         </div>
       </div>
     `;
   }).join('');
+}
+
+function deleteWorkoutFromHistory(dateKey) {
+  if (!confirm('Remove this workout from history?')) return;
+  const idx = State.workouts.findIndex(w => w.date === dateKey);
+  if (idx < 0) return;
+  State.workouts.splice(idx, 1);
+  save();
+  calcStreak();
+  renderWorkoutHistory();
+  refreshDashboard();
+  showToast('Workout removed', 'info');
 }
 
 // ═══════════════════════════════════════════════════════════════════
