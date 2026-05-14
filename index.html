@@ -16156,7 +16156,17 @@ function bmToggleVideo(key, i) {
     window._bmOpenCard = cardId;
     // Get exercise name from BM_DB
     const exName = BM_DB[key] && BM_DB[key].exercises[i] ? BM_DB[key].exercises[i].name : '';
-    iframe.src = 'https://www.youtube.com/embed?listType=search&list=' + encodeURIComponent(exName + ' DEMIC') + '&rel=0&modestbranding=1&playsinline=1';
+    const _demicIds = {
+      'Plank':         'N31wPfeQbNs',
+      'Cable crunch':  'mlJarNnAXi0',
+      'Pull-up':       'bxguzp1DCFw',
+    };
+    const _vid = _demicIds[exName];
+    if (_vid) {
+      iframe.src = 'https://www.youtube-nocookie.com/embed/' + _vid + '?autoplay=1&rel=0&modestbranding=1&playsinline=1';
+    } else {
+      iframe.src = 'https://www.youtube.com/embed?listType=search&list=' + encodeURIComponent(exName + ' DEMIC') + '&rel=0&modestbranding=1&playsinline=1';
+    }
     // Scroll card into view
     setTimeout(() => document.getElementById('bm-card-' + key + '-' + i)?.scrollIntoView({behavior:'smooth', block:'nearest'}), 100);
   }
