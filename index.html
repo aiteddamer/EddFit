@@ -3076,18 +3076,6 @@ function dismissSplash() {
             <button class="btn btn-sm" onclick="loadScheduledWorkout()" style="background:var(--blue-dim);border:1px solid var(--blue);color:var(--blue);font-size:0.8rem;padding:8px 14px;flex-shrink:0">Load Today's Plan →</button>
           </div>
 
-          <!-- Deload reminder (session tab) -->
-          <div id="deload-session-banner" style="display:none;background:var(--orange-dim);border:1.5px solid var(--orange);border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;display:none">
-            <div style="display:flex;align-items:center;gap:10px">
-              <span style="font-size:1.2rem;flex-shrink:0">🔋</span>
-              <div style="flex:1;min-width:0">
-                <div style="font-size:0.83rem;font-weight:700;color:var(--orange)" id="deload-session-title">Deload week recommended</div>
-                <div style="font-size:0.73rem;color:var(--text-secondary);margin-top:2px" id="deload-session-body">You've trained hard recently. Consider a lighter session today.</div>
-              </div>
-              <button class="btn btn-sm" onclick="loadDeloadTemplate();navigate('workouts',document.querySelector('[data-tab=session]'))" style="background:var(--orange);color:#fff;border:none;font-size:0.75rem;flex-shrink:0">Load Light 💡</button>
-            </div>
-          </div>
-
           <div style="margin-bottom:14px">
             <!-- Date Navigator -->
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -3235,23 +3223,6 @@ function dismissSplash() {
             <div id="week-comp-labels" style="display:flex;gap:10px"></div>
             <!-- Insight -->
             <div id="week-comp-insight" style="margin-top:12px;font-size:0.78rem;color:var(--text-secondary);padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);border-left:3px solid var(--accent)"></div>
-          </div>
-
-          <!-- ── Deload Week Detector Banner ── -->
-          <div id="deload-banner" style="display:none;margin-bottom:20px;border-radius:var(--radius);padding:18px 20px;border:2px solid var(--orange);background:var(--orange-dim);position:relative;overflow:hidden">
-            <div style="position:absolute;top:-18px;right:-10px;font-size:5rem;opacity:0.08;pointer-events:none;line-height:1">🔋</div>
-            <div style="display:flex;align-items:flex-start;gap:14px">
-              <div style="width:40px;height:40px;border-radius:12px;background:var(--orange-dim);border:1.5px solid var(--orange);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">🔋</div>
-              <div style="flex:1;min-width:0">
-                <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:800;color:var(--orange);margin-bottom:4px" id="deload-title">Time to deload?</div>
-                <div style="font-size:0.78rem;color:var(--text-secondary);line-height:1.5" id="deload-body">You've been pushing hard. A lighter week helps your body recover and come back stronger.</div>
-                <div id="deload-stats-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"></div>
-                <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap" id="deload-actions">
-                  <button class="btn btn-sm" onclick="loadDeloadTemplate()" style="background:var(--orange);color:#fff;border:none;font-size:0.8rem">⚡ Load Deload Workout</button>
-                  <button class="btn btn-ghost btn-sm" style="font-size:0.78rem;color:var(--text-muted)" onclick="dismissDeloadBanner()">Dismiss</button>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div id="workout-history">
@@ -3643,7 +3614,19 @@ function dismissSplash() {
           <div class="section-title">🏆 Global Leaderboard</div>
           <button class="btn btn-ghost btn-sm" onclick="loadGlobalLeaderboard()" id="glb-refresh-btn" style="font-size:0.78rem">↻ Refresh</button>
         </div>
-        <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:16px">All EddFit users ranked globally</div>
+
+        <!-- Season header -->
+        <div id="glb-season-header" style="background:linear-gradient(135deg,var(--accent-dim),var(--bg-elevated));border:1px solid var(--accent);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-size:1.5rem">🗓️</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:0.95rem;color:var(--text-primary)" id="glb-season-label">Loading season…</div>
+            <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px">Scores reset at the end of each month · Winner gets a permanent trophy</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:0.65rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Resets in</div>
+            <div style="font-family:var(--font-display);font-weight:800;font-size:1.1rem;color:var(--accent)" id="glb-season-countdown">—</div>
+          </div>
+        </div>
 
         <!-- Metric tabs -->
         <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
@@ -3673,8 +3656,18 @@ function dismissSplash() {
           <div style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:0.85rem">Loading leaderboard…</div>
         </div>
 
+        <!-- Trophy case for past season winners -->
+        <div id="glb-trophy-case" style="display:none;margin-top:24px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <span style="font-size:1.1rem">🏅</span>
+            <div style="font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:var(--text-primary)">Hall of Champions</div>
+            <div style="flex:1;height:1px;background:var(--border);margin-left:4px"></div>
+          </div>
+          <div id="glb-trophy-list" style="display:flex;flex-direction:column;gap:8px"></div>
+        </div>
+
         <div style="font-size:0.7rem;color:var(--text-muted);text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-          Scores update each time users open the leaderboard · Top 50 shown
+          Scores update each time users open the leaderboard · Top 50 shown · Resets monthly
         </div>
       </div>
 
@@ -9026,201 +9019,6 @@ function reloadWorkout(idx) {
     .map(ex => ({...ex, sets: ex.sets.map(s=>({...s,done:false}))}));
   renderWorkoutPage();
 }
-
-// ═══════════════════════════════════════════════════════════════════
-//  DELOAD WEEK DETECTOR
-// ═══════════════════════════════════════════════════════════════════
-window._deloadDismissed = false;
-
-/**
- * Analyse recent training load and decide whether a deload is recommended.
- * Looks at the last 4 full weeks (excluding current week).
- * Triggers if: 3+ heavy weeks, or 3-week ascending volume trend, or 2 consecutive spike weeks.
- */
-function detectDeload() {
-  const workouts = State.workouts || [];
-  if (workouts.length < 3) return null;
-
-  const weekData = [];
-  for (let i = 1; i <= 5; i++) {
-    const bounds = _weekBounds(i);
-    const s = _calcWeekStats(workouts, bounds);
-    weekData.push({ offset: i, ...s, weekKey: _weekDateKey(bounds.start) });
-  }
-
-  const activeWeeks = weekData.filter(w => w.sessions > 0);
-  if (activeWeeks.length < 3) return null;
-
-  const currentWeek = _calcWeekStats(workouts, _weekBounds(0));
-  const recent = activeWeeks.slice(0, 4);
-  const avgVolume   = recent.reduce((s, w) => s + w.volume, 0)   / recent.length;
-  const avgSessions = recent.reduce((s, w) => s + w.sessions, 0) / recent.length;
-  const peakVolume  = Math.max(...recent.map(w => w.volume));
-  const peakSessions = Math.max(...recent.map(w => w.sessions));
-
-  if (avgVolume === 0 && avgSessions === 0) return null;
-
-  const heavyThresh = 0.9;
-  const heavyWeeks = recent.filter(w =>
-    (peakVolume   > 0 && w.volume   >= peakVolume   * heavyThresh) ||
-    (peakSessions > 0 && w.sessions >= peakSessions * heavyThresh)
-  ).length;
-
-  const last3 = activeWeeks.slice(0, 3);
-  const ascending = last3.length === 3 &&
-    last3[2].volume <= last3[1].volume && last3[1].volume <= last3[0].volume &&
-    last3[0].volume > last3[2].volume * 1.15;
-
-  const last2 = activeWeeks.slice(0, 2);
-  const recentSpike = last2.length === 2 &&
-    avgVolume > 0 &&
-    last2[0].volume >= avgVolume * 1.20 &&
-    last2[1].volume >= avgVolume * 1.20;
-
-  const shouldDeload = heavyWeeks >= 3 || ascending || recentSpike;
-  if (!shouldDeload) return null;
-
-  let reason = '';
-  if (ascending) {
-    reason = 'Your training volume has been climbing for 3 straight weeks — a classic signal to back off and let your body absorb the work.';
-  } else if (recentSpike) {
-    reason = 'The last 2 weeks were significantly above your normal training load. A lighter week now prevents accumulated fatigue from derailing your progress.';
-  } else {
-    reason = `${heavyWeeks} of your last ${recent.length} weeks were near your peak load. That\'s a lot of consistent hard work — reward it with a recovery week.`;
-  }
-
-  const isImp = typeof isImperial === 'function' && isImperial();
-  const unit = isImp ? 'lbs' : 'kg';
-  const dispVol = v => Math.round(isImp ? v * 2.20462 : v).toLocaleString();
-
-  return {
-    reason,
-    heavyWeeks,
-    recentSessions: recent[0] ? recent[0].sessions : 0,
-    recentVolume: recent[0] ? recent[0].volume : 0,
-    avgSessions: Math.round(avgSessions * 10) / 10,
-    avgVolume,
-    unit,
-    dispVol,
-    currentWeekSessions: currentWeek.sessions,
-  };
-}
-
-function renderDeloadBanner() {
-  const banner        = document.getElementById('deload-banner');
-  const sessionBanner = document.getElementById('deload-session-banner');
-  if (!banner) return;
-
-  if (window._deloadDismissed) {
-    banner.style.display = 'none';
-    if (sessionBanner) sessionBanner.style.display = 'none';
-    return;
-  }
-
-  const result = detectDeload();
-
-  if (!result) {
-    banner.style.display = 'none';
-    if (sessionBanner) sessionBanner.style.display = 'none';
-    return;
-  }
-
-  const titleEl = document.getElementById('deload-title');
-  const bodyEl  = document.getElementById('deload-body');
-  if (titleEl) titleEl.textContent = result.currentWeekSessions === 0
-    ? '🔋 Time for a deload week?'
-    : '🔋 Consider a deload this week';
-  if (bodyEl) bodyEl.textContent = result.reason;
-
-  const statsRow = document.getElementById('deload-stats-row');
-  if (statsRow) {
-    statsRow.innerHTML = [
-      { label: 'Avg sessions/wk', val: result.avgSessions },
-      { label: 'Last week sessions', val: result.recentSessions },
-      { label: 'Last week vol (' + result.unit + ')', val: result.dispVol(result.recentVolume) },
-    ].map(s => `
-      <div style="background:var(--bg-card);border-radius:var(--radius-sm);padding:8px 12px;min-width:80px">
-        <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:800;color:var(--orange)">${s.val}</div>
-        <div style="font-size:0.62rem;color:var(--text-muted);margin-top:1px">${s.label}</div>
-      </div>`).join('');
-  }
-
-  banner.style.display = '';
-
-  if (sessionBanner) {
-    const stEl = document.getElementById('deload-session-title');
-    const sbEl = document.getElementById('deload-session-body');
-    if (stEl) stEl.textContent = 'Deload week recommended 🔋';
-    if (sbEl) sbEl.textContent = 'You\'ve been pushing hard (avg ' + result.avgSessions + ' sessions/wk). A lighter session today = better long-term gains.';
-    sessionBanner.style.display = '';
-  }
-}
-
-function dismissDeloadBanner() {
-  window._deloadDismissed = true;
-  const banner = document.getElementById('deload-banner');
-  const sessionBanner = document.getElementById('deload-session-banner');
-  if (banner) {
-    banner.style.transition = 'opacity 0.3s';
-    banner.style.opacity = '0';
-    setTimeout(() => { banner.style.display = 'none'; banner.style.opacity = ''; }, 320);
-  }
-  if (sessionBanner) sessionBanner.style.display = 'none';
-  State.deloadDismissedAt = Date.now();
-  save();
-}
-
-/**
- * Load a deload template — compound movements, 2 sets each, low volume.
- * User should aim for ~50–60 % of their normal working weight.
- */
-function loadDeloadTemplate() {
-  const deloadExercises = [
-    { name: 'Squat',             muscle: 'Legs',      sets: [{reps:8,weight:0,done:false},{reps:8,weight:0,done:false}] },
-    { name: 'Bench Press',       muscle: 'Chest',     sets: [{reps:8,weight:0,done:false},{reps:8,weight:0,done:false}] },
-    { name: 'Barbell Row',       muscle: 'Back',      sets: [{reps:8,weight:0,done:false},{reps:8,weight:0,done:false}] },
-    { name: 'Overhead Press',    muscle: 'Shoulders', sets: [{reps:8,weight:0,done:false},{reps:8,weight:0,done:false}] },
-    { name: 'Romanian Deadlift', muscle: 'Legs',      sets: [{reps:10,weight:0,done:false},{reps:10,weight:0,done:false}] },
-  ];
-
-  if (State.currentWorkout && State.currentWorkout.length) {
-    if (!confirm('Replace current session with the Deload workout?')) return;
-  }
-  State.currentWorkout = deloadExercises;
-
-  // Switch to session tab
-  const sessionTabBtn = document.querySelector('.workout-tab[data-tab="session"]');
-  if (sessionTabBtn) switchWorkoutTab('session', sessionTabBtn);
-
-  renderWorkoutPage();
-  showToast('💡 Deload loaded! Use ~50–60 % of your usual weight for each exercise.', 'info');
-}
-
-// Patch renderWorkoutHistory to also refresh deload banner
-(function() {
-  const _origRWH = window.renderWorkoutHistory;
-  window.renderWorkoutHistory = function() {
-    if (typeof _origRWH === 'function') _origRWH.apply(this, arguments);
-    renderDeloadBanner();
-  };
-})();
-
-// Restore dismissal state after Firestore load
-(function() {
-  const _origLoad = window._loadFirestore;
-  if (typeof _origLoad !== 'function') return;
-  window._loadFirestore = async function() {
-    await _origLoad.apply(this, arguments);
-    if (State.deloadDismissedAt) {
-      const age = Date.now() - State.deloadDismissedAt;
-      window._deloadDismissed = age <= 7 * 24 * 60 * 60 * 1000;
-      if (!window._deloadDismissed) delete State.deloadDismissedAt;
-    } else {
-      window._deloadDismissed = false;
-    }
-    renderDeloadBanner();
-  };
-})();
 
 // ═══════════════════════════════════════════════════════════════════
 //  CALENDAR
@@ -20048,16 +19846,44 @@ window.shareMealTemplate = function(idx) {
 };
 
 // ═══════════════════════════════════════════════════════════════
-//  GLOBAL LEADERBOARD
+//  GLOBAL LEADERBOARD  —  SEASONAL (monthly reset + trophy)
 // ═══════════════════════════════════════════════════════════════
 window._glbMetric = 'workouts';
+
+// Returns "YYYY-MM" for the current month
+function _currentSeasonKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+}
+
+// Returns a human-readable month name, e.g. "May 2026"
+function _seasonLabel(key) {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleString('default', { month:'long', year:'numeric' });
+}
+
+// Returns days remaining until end of month
+function _daysUntilReset() {
+  const now  = new Date();
+  const last = new Date(now.getFullYear(), now.getMonth()+1, 0); // last day of month
+  const diff = last - now;
+  const days = Math.ceil(diff / (1000*60*60*24));
+  return days;
+}
+
+// Update season header UI
+function _updateSeasonUI() {
+  const labelEl     = document.getElementById('glb-season-label');
+  const countdownEl = document.getElementById('glb-season-countdown');
+  if (labelEl)     labelEl.textContent     = '🗓️ ' + _seasonLabel(_currentSeasonKey()) + ' Season';
+  if (countdownEl) countdownEl.textContent = _daysUntilReset() + 'd left';
+}
 
 window.setGlbMetric = function(metric, btn) {
   window._glbMetric = metric;
   document.querySelectorAll('.glb-metric-btn').forEach(b => {
     b.className = b === btn ? 'btn btn-primary btn-sm glb-metric-btn' : 'btn btn-ghost btn-sm glb-metric-btn';
   });
-  // Re-render from cache if available, else reload
   if (window._glbCache) {
     _renderGlobalLeaderboard(window._glbCache);
   } else {
@@ -20067,10 +19893,133 @@ window.setGlbMetric = function(metric, btn) {
 
 const GLB_UNITS = { workouts: 'workouts', streak: 'day streak', calGoalDays: 'cal goal days' };
 
+// ── Season reset: archive winner, clear leaderboard ─────────────────────────
+async function _checkAndHandleSeasonReset() {
+  const db  = window._fbDb;
+  const me  = window._currentUser;
+  if (!db || !me) return;
+
+  const seasonKey = _currentSeasonKey();
+  const metaRef   = window._fbDoc(db, 'leaderboard_meta', 'season');
+
+  try {
+    const metaSnap = await window._fbGetDoc(metaRef);
+    const meta     = metaSnap.exists() ? metaSnap.data() : {};
+    const lastSeason = meta.currentSeason || '';
+
+    // Same month → nothing to do
+    if (lastSeason === seasonKey) return;
+
+    // New month detected — archive the winner of the previous season
+    if (lastSeason) {
+      try {
+        const snap = await window._fbGetDocs(window._fbCollection(db, 'leaderboard'));
+        if (!snap.empty) {
+          const entries = snap.docs.map(d => ({ ...d.data(), docId: d.id }));
+          const best = entries.reduce((a, b) => ((a.workouts||0) >= (b.workouts||0) ? a : b));
+          if (best && best.uid) {
+            // Save to Hall of Champions
+            await window._fbSetDoc(
+              window._fbDoc(db, 'leaderboard_seasons', lastSeason),
+              {
+                season:      lastSeason,
+                seasonLabel: _seasonLabel(lastSeason),
+                winnerUid:   best.uid,
+                winnerName:  best.name || 'Anonymous',
+                winnerPhoto: best.photoURL || '',
+                workouts:    best.workouts    || 0,
+                streak:      best.streak      || 0,
+                calGoalDays: best.calGoalDays || 0,
+                archivedAt:  window._fbServerTs(),
+              }
+            );
+          }
+          // Clear all leaderboard entries for the new season
+          const deletions = snap.docs.map(d =>
+            window._fbDeleteDoc(window._fbDoc(db, 'leaderboard', d.id))
+          );
+          await Promise.allSettled(deletions);
+          window._glbCache = null;
+        }
+      } catch(e) { console.warn('season archive error', e); }
+    }
+
+    // Mark current season
+    await window._fbSetDoc(metaRef, { currentSeason: seasonKey }, { merge: true });
+
+  } catch(e) { console.warn('season reset check error', e); }
+}
+
+// ── Load trophy case (Hall of Champions) ────────────────────────────────────
+async function _loadTrophyCase() {
+  const container  = document.getElementById('glb-trophy-case');
+  const listEl     = document.getElementById('glb-trophy-list');
+  if (!container || !listEl) return;
+
+  try {
+    const snap = await window._fbGetDocs(window._fbCollection(window._fbDb, 'leaderboard_seasons'));
+    if (snap.empty) { container.style.display = 'none'; return; }
+
+    const seasons = snap.docs
+      .map(d => d.data())
+      .sort((a, b) => b.season.localeCompare(a.season))
+      .slice(0, 12);
+
+    container.style.display = '';
+    const meUid = window._currentUser?.uid;
+
+    listEl.innerHTML = seasons.map((s, i) => {
+      const initials = (s.winnerName || '?').charAt(0).toUpperCase();
+      const isMe     = s.winnerUid === meUid;
+      const trophyColor = i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--accent)';
+      return `
+        <div style="
+          display:flex;align-items:center;gap:10px;
+          padding:10px 12px;
+          border-radius:var(--radius-sm);
+          background:${isMe ? 'var(--accent-dim)' : 'var(--bg-elevated)'};
+          border:1px solid ${isMe ? 'var(--accent)' : 'var(--border)'};
+        ">
+          <span style="font-size:1.4rem;flex-shrink:0">🏆</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:0.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">${s.seasonLabel || s.season}</div>
+            <div style="
+              font-family:var(--font-display);font-weight:800;font-size:0.9rem;
+              color:${isMe ? 'var(--accent)' : 'var(--text-primary)'};
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+            ">
+              <div style="
+                display:inline-block;width:22px;height:22px;border-radius:50%;
+                background:linear-gradient(135deg,${trophyColor},var(--accent));
+                vertical-align:middle;text-align:center;line-height:22px;
+                font-size:0.7rem;font-weight:800;color:#fff;margin-right:6px;position:relative;overflow:hidden;
+              ">
+                ${s.winnerPhoto ? `<img src="${s.winnerPhoto}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.style.display='none'">` : ''}
+                ${initials}
+              </div>
+              ${s.winnerName}${isMe ? ' (you) 👑' : ''}
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:1rem;color:${trophyColor}">${s.workouts || 0}</div>
+            <div style="font-size:0.62rem;color:var(--text-muted)">workouts</div>
+          </div>
+        </div>`;
+    }).join('');
+
+  } catch(e) {
+    container.style.display = 'none';
+    console.warn('trophy case load error', e);
+  }
+}
+
+// ── Main load function ───────────────────────────────────────────────────────
 window.loadGlobalLeaderboard = async function() {
   const list = document.getElementById('glb-leaderboard-list');
   const myRankCard = document.getElementById('glb-my-rank');
   if (!list) return;
+
+  _updateSeasonUI();
 
   const me = window._currentUser;
   if (!me) {
@@ -20081,7 +20030,10 @@ window.loadGlobalLeaderboard = async function() {
   list.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:0.85rem">⏳ Loading…</div>';
   if (myRankCard) myRankCard.style.display = 'none';
 
-  // Push own score first
+  // Check & handle monthly reset (only first user to open in a new month triggers archive)
+  await _checkAndHandleSeasonReset();
+
+  // Push own score for this season
   try {
     const myScores = (typeof calcAllLbScores === 'function') ? calcAllLbScores() : { workouts:0, streak:0, calGoalDays:0 };
     await window._fbSetDoc(
@@ -20093,20 +20045,20 @@ window.loadGlobalLeaderboard = async function() {
         workouts:    myScores.workouts,
         streak:      myScores.streak,
         calGoalDays: myScores.calGoalDays,
+        season:      _currentSeasonKey(),
         updatedAt:   window._fbServerTs()
       },
       { merge: true }
     );
   } catch(e) { console.warn('glb score push error', e); }
 
-  // Fetch top 50 from leaderboard collection (sorted client-side to avoid index)
+  // Fetch current season scores
   try {
-    const snap = await window._fbGetDocs(
-      window._fbCollection(window._fbDb, 'leaderboard')
-    );
+    const snap = await window._fbGetDocs(window._fbCollection(window._fbDb, 'leaderboard'));
 
     if (snap.empty) {
       list.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No users on the leaderboard yet — be the first!</div></div>';
+      await _loadTrophyCase();
       return;
     }
 
@@ -20125,6 +20077,7 @@ window.loadGlobalLeaderboard = async function() {
 
     window._glbCache = allEntries;
     _renderGlobalLeaderboard(allEntries);
+    await _loadTrophyCase();
 
   } catch(e) {
     const msg = e?.code === 'permission-denied'
@@ -20145,7 +20098,6 @@ function _renderGlobalLeaderboard(allEntries) {
 
   // Sort by selected metric, take top 50
   const sorted = allEntries.slice().sort((a, b) => (b[metric]||0) - (a[metric]||0)).slice(0, 50);
-  const myGlobalRank = sorted.findIndex(e => e.isMe);
 
   // My rank card
   if (myRankCard) {
@@ -20157,7 +20109,7 @@ function _renderGlobalLeaderboard(allEntries) {
       document.getElementById('glb-my-rank-medal').textContent =
         rankNum === 1 ? '🥇' : rankNum === 2 ? '🥈' : rankNum === 3 ? '🥉' : `#${rankNum}`;
       document.getElementById('glb-my-rank-name').textContent = myEntry.name + ' (you)';
-      document.getElementById('glb-my-rank-sub').textContent  = `Ranked ${rankNum} of ${allEntries.length} users`;
+      document.getElementById('glb-my-rank-sub').textContent  = `Ranked ${rankNum} of ${allEntries.length} · ${_seasonLabel(_currentSeasonKey())} season`;
       document.getElementById('glb-my-rank-score').textContent = myEntry[metric] || 0;
       document.getElementById('glb-my-rank-unit').textContent  = unit;
     }
@@ -20169,9 +20121,16 @@ function _renderGlobalLeaderboard(allEntries) {
   }
 
   list.innerHTML = sorted.map((e, i) => {
-    const medal    = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span style="font-size:0.85rem;font-weight:700;color:var(--text-muted)">#${i+1}</span>`;
-    const initials = (e.name || '?').charAt(0).toUpperCase();
     const isTop3   = i < 3;
+    // Trophy crown for #1
+    const medalIcon = i === 0
+      ? `<span style="font-size:1.4rem">🏆</span>`
+      : i === 1 ? `<span style="font-size:1.3rem">🥈</span>`
+      : i === 2 ? `<span style="font-size:1.3rem">🥉</span>`
+      : `<span style="font-size:0.85rem;font-weight:700;color:var(--text-muted)">#${i+1}</span>`;
+    const initials = (e.name || '?').charAt(0).toUpperCase();
+    // Gold shimmer ring for #1
+    const avatarBorder = i === 0 ? 'box-shadow:0 0 0 2px #FFD700,0 0 8px 2px rgba(255,215,0,0.4)' : '';
     return `
       <div style="
         display:flex;align-items:center;gap:12px;
@@ -20182,7 +20141,7 @@ function _renderGlobalLeaderboard(allEntries) {
         margin-bottom:${isTop3 ? '8px' : '0'};
         ${!isTop3 && i < sorted.length - 1 ? 'border-bottom:1px solid var(--border)' : ''}
       ">
-        <span style="font-size:${isTop3?'1.3rem':'1rem'};min-width:30px;text-align:center">${medal}</span>
+        <span style="min-width:30px;text-align:center">${medalIcon}</span>
         <div style="
           width:${isTop3?'40px':'34px'};height:${isTop3?'40px':'34px'};
           border-radius:50%;
@@ -20190,7 +20149,8 @@ function _renderGlobalLeaderboard(allEntries) {
           display:flex;align-items:center;justify-content:center;
           font-family:var(--font-display);font-weight:800;
           font-size:${isTop3?'0.9rem':'0.78rem'};
-          color:var(--bg-base);flex-shrink:0;position:relative;overflow:hidden
+          color:var(--bg-base);flex-shrink:0;position:relative;overflow:hidden;
+          ${avatarBorder}
         ">
           ${e.photoURL ? `<img src="${e.photoURL}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.style.display='none'">` : ''}
           ${initials}
@@ -20201,14 +20161,14 @@ function _renderGlobalLeaderboard(allEntries) {
             font-weight:${e.isMe||isTop3?'700':'600'};
             color:${e.isMe?'var(--accent)':'var(--text-primary)'};
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis
-          ">${e.name}${e.isMe?' (you)':''}</div>
+          ">${e.name}${e.isMe?' (you)':''}${i===0?' 👑':''}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="
             font-family:var(--font-display);
             font-size:${isTop3?'1.2rem':'1rem'};
             font-weight:800;
-            color:${e.isMe?'var(--accent)':isTop3?'var(--text-primary)':'var(--text-secondary)'}
+            color:${i===0?'#FFD700':e.isMe?'var(--accent)':isTop3?'var(--text-primary)':'var(--text-secondary)'}
           ">${e[metric]||0}</div>
           <div style="font-size:0.63rem;color:var(--text-muted)">${unit}</div>
         </div>
@@ -20365,5 +20325,1132 @@ window.dismissSharedProgram = async function(docId, btn) {
     if (btn) { btn.disabled = false; }
   }
 };
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     WEEKLY VERSIONED TARGETS SYSTEM — IMMUTABLE HISTORICAL SNAPSHOTS
+     Every week gets its own frozen snapshot of macros, program & meal plan.
+     Old weeks are NEVER recalculated. New weeks use new targets only.
+═══════════════════════════════════════════════════════════════ -->
+<script>
+// ───────────────────────────────────────────────────────────────────
+//  WEEK SNAPSHOT ENGINE
+//  Schema: State.weeklyTargets = {
+//    "2026-W20": {
+//      weekId: "2026-W20",
+//      startDate: "2026-05-12",
+//      endDate:   "2026-05-18",
+//      createdAt: "2026-05-12",
+//      calories: 2200, protein: 180, carbs: 240, fat: 70,
+//      goal: "cut", phase: "cutting",
+//      programId: 12345,       // snapshot of active program ID
+//      programName: "PPL 6-Day",
+//      programGoal: "hypertrophy",
+//      mealPlanSnapshot: {},   // frozen copy of meal plan for the week
+//      shoppingSnapshot: null, // frozen shopping list
+//      notes: ""
+//    }, ...
+//  }
+// ───────────────────────────────────────────────────────────────────
+
+(function() {
+  'use strict';
+
+  // ── ISO week ID helper (Mon-based) ─────────────────────────────
+  function getWeekId(date) {
+    const d = date ? new Date(date) : new Date();
+    d.setHours(0, 0, 0, 0);
+    const dow = d.getDay();
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - ((dow + 6) % 7));
+    const year = monday.getFullYear();
+    const jan4 = new Date(year, 0, 4);
+    const startW1 = new Date(jan4);
+    startW1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+    const weekNum = Math.round((monday - startW1) / 604800000) + 1;
+    return `${year}-W${String(weekNum).padStart(2, '0')}`;
+  }
+  window.getWeekId = getWeekId;
+
+  // ── Week bounds (Mon–Sun) ──────────────────────────────────────
+  function getWeekBounds(weekId) {
+    const [yearStr, wStr] = weekId.split('-W');
+    const year = +yearStr, week = +wStr;
+    const jan4 = new Date(year, 0, 4);
+    const startW1 = new Date(jan4);
+    startW1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+    const monday = new Date(startW1);
+    monday.setDate(startW1.getDate() + (week - 1) * 7);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return { startDate: fmt(monday), endDate: fmt(sunday) };
+  }
+  window.getWeekBounds = getWeekBounds;
+
+  // ── Week number display helper ─────────────────────────────────
+  function weekNumFromId(weekId) {
+    return weekId ? weekId.split('-W')[1] : '??';
+  }
+  window.weekNumFromId = weekNumFromId;
+
+  // ── Ensure State.weeklyTargets exists ─────────────────────────
+  function ensureWeeklyTargets() {
+    if (!State.weeklyTargets) State.weeklyTargets = {};
+    return State.weeklyTargets;
+  }
+
+  // ── MIGRATION: Convert old State.targets → current week snapshot ──
+  // Called once after Firestore load if no weeklyTargets exist yet
+  function migrateTargetsToWeekly() {
+    const wt = ensureWeeklyTargets();
+    const currentWeekId = getWeekId();
+    if (Object.keys(wt).length > 0) return; // already migrated
+
+    const existingTargets = State.targets || { calories:2000, protein:150, carbs:225, fat:67 };
+    const bounds = getWeekBounds(currentWeekId);
+    const activeProgram = (State.programs || []).find(p => p.active);
+
+    wt[currentWeekId] = {
+      weekId:      currentWeekId,
+      startDate:   bounds.startDate,
+      endDate:     bounds.endDate,
+      createdAt:   bounds.startDate,
+      calories:    existingTargets.calories || 2000,
+      protein:     existingTargets.protein  || 150,
+      carbs:       existingTargets.carbs    || 225,
+      fat:         existingTargets.fat      || 67,
+      goal:        (State.profile && State.profile.goal) || 'maintain',
+      phase:       _inferPhase(existingTargets.calories || 2000),
+      programId:   activeProgram ? activeProgram.id   : null,
+      programName: activeProgram ? activeProgram.name : null,
+      programGoal: activeProgram ? activeProgram.goal : null,
+      mealPlanSnapshot: _snapshotMealPlanForWeek(bounds.startDate, bounds.endDate),
+      shoppingSnapshot: null,
+      notes: 'Migrated from legacy targets',
+      _migrated: true
+    };
+
+    console.log('[WeeklyTargets] Migrated legacy targets to', currentWeekId, wt[currentWeekId]);
+  }
+  window.migrateTargetsToWeekly = migrateTargetsToWeekly;
+
+  // ── Infer phase label from calorie level ──────────────────────
+  function _inferPhase(calories) {
+    const goal = State.profile && State.profile.goal;
+    if (goal === 'cut'  || calories < 1700) return 'Cut';
+    if (goal === 'bulk' || calories > 2800) return 'Bulk / Lean Bulk';
+    return 'Maintenance';
+  }
+
+  // ── Snapshot current meal plan data for a date range ──────────
+  function _snapshotMealPlanForWeek(startDate, endDate) {
+    const snapshot = {};
+    const mp = State.mealPlan || {};
+    Object.keys(mp).forEach(dateKey => {
+      if (dateKey >= startDate && dateKey <= endDate) {
+        snapshot[dateKey] = JSON.parse(JSON.stringify(mp[dateKey]));
+      }
+    });
+    return snapshot;
+  }
+
+  // ── Ensure current week has a snapshot; create one if needed ──
+  function ensureCurrentWeekSnapshot() {
+    const wt = ensureWeeklyTargets();
+    const weekId = getWeekId();
+
+    if (!wt[weekId]) {
+      // Create new week snapshot from current State.targets
+      const bounds = getWeekBounds(weekId);
+      const t = State.targets || { calories:2000, protein:150, carbs:225, fat:67 };
+      const activeProgram = (State.programs || []).find(p => p.active);
+
+      wt[weekId] = {
+        weekId,
+        startDate:   bounds.startDate,
+        endDate:     bounds.endDate,
+        createdAt:   todayKey ? todayKey() : new Date().toISOString().split('T')[0],
+        calories:    t.calories || 2000,
+        protein:     t.protein  || 150,
+        carbs:       t.carbs    || 225,
+        fat:         t.fat      || 67,
+        goal:        (State.profile && State.profile.goal) || 'maintain',
+        phase:       _inferPhase(t.calories || 2000),
+        programId:   activeProgram ? activeProgram.id   : null,
+        programName: activeProgram ? activeProgram.name : null,
+        programGoal: activeProgram ? activeProgram.goal : null,
+        mealPlanSnapshot: _snapshotMealPlanForWeek(bounds.startDate, bounds.endDate),
+        shoppingSnapshot: null,
+        notes: ''
+      };
+      console.log('[WeeklyTargets] Created new snapshot for', weekId);
+    }
+    return wt[weekId];
+  }
+  window.ensureCurrentWeekSnapshot = ensureCurrentWeekSnapshot;
+
+  // ── Get targets for a specific date (immutable lookup) ────────
+  // This is THE critical function that prevents retroactive recalculation.
+  // Always returns the snapshot that was active during that date.
+  function getTargetsForDate(dateKey) {
+    const wt = State.weeklyTargets || {};
+    if (!dateKey) dateKey = todayKey ? todayKey() : new Date().toISOString().split('T')[0];
+
+    // Find the snapshot whose date range includes dateKey
+    const match = Object.values(wt).find(snap =>
+      snap.startDate && snap.endDate &&
+      dateKey >= snap.startDate && dateKey <= snap.endDate
+    );
+
+    if (match) return match;
+
+    // Fallback: find the most recent snapshot before this date
+    const before = Object.values(wt)
+      .filter(s => s.startDate && s.startDate <= dateKey)
+      .sort((a, b) => b.startDate.localeCompare(a.startDate));
+
+    if (before.length > 0) return before[0];
+
+    // Final fallback: current State.targets (for brand-new users with no history)
+    return State.targets || { calories:2000, protein:150, carbs:225, fat:67 };
+  }
+  window.getTargetsForDate = getTargetsForDate;
+
+  // ── Get targets for current week (today) ──────────────────────
+  function getCurrentWeekTargets() {
+    return getTargetsForDate(todayKey ? todayKey() : new Date().toISOString().split('T')[0]);
+  }
+  window.getCurrentWeekTargets = getCurrentWeekTargets;
+
+  // ── Commit new targets: creates a NEW snapshot for NEXT week ──
+  // OLD weeks remain COMPLETELY UNTOUCHED.
+  // New targets only apply from the start of the NEXT week onwards,
+  // unless "applyNow" is true (applies from current week start).
+  function commitNewTargets(newTargets, applyNow = false) {
+    const wt = ensureWeeklyTargets();
+    const today = todayKey ? todayKey() : new Date().toISOString().split('T')[0];
+
+    let targetWeekId;
+    if (applyNow) {
+      // Apply to current week (user explicitly chose "apply now")
+      targetWeekId = getWeekId();
+    } else {
+      // Apply to next week by default (safest — doesn't touch historical data)
+      const nextMonday = new Date();
+      nextMonday.setDate(nextMonday.getDate() + (7 - ((nextMonday.getDay() + 6) % 7)));
+      targetWeekId = getWeekId(nextMonday);
+    }
+
+    const bounds = getWeekBounds(targetWeekId);
+    const activeProgram = (State.programs || []).find(p => p.active);
+
+    // Detect changes vs previous week for calendar indicators
+    const prevWeekTargets = getTargetsForDate(today);
+    const changes = _detectTargetChanges(prevWeekTargets, newTargets, activeProgram);
+
+    wt[targetWeekId] = {
+      weekId:      targetWeekId,
+      startDate:   bounds.startDate,
+      endDate:     bounds.endDate,
+      createdAt:   today,
+      calories:    newTargets.calories,
+      protein:     newTargets.protein,
+      carbs:       newTargets.carbs,
+      fat:         newTargets.fat,
+      goal:        (State.profile && State.profile.goal) || 'maintain',
+      phase:       _inferPhase(newTargets.calories),
+      programId:   activeProgram ? activeProgram.id   : null,
+      programName: activeProgram ? activeProgram.name : null,
+      programGoal: activeProgram ? activeProgram.goal : null,
+      mealPlanSnapshot: {},
+      shoppingSnapshot: null,
+      notes: '',
+      changes,      // emoji indicators for calendar
+      _applyNow:    applyNow
+    };
+
+    // CRITICALLY: also update State.targets so legacy code keeps working
+    // BUT we do NOT retroactively change old week snapshots
+    State.targets = {
+      calories: newTargets.calories,
+      protein:  newTargets.protein,
+      carbs:    newTargets.carbs,
+      fat:      newTargets.fat
+    };
+
+    console.log('[WeeklyTargets] New targets committed for', targetWeekId, wt[targetWeekId]);
+    return { weekId: targetWeekId, changes, bounds };
+  }
+  window.commitNewTargets = commitNewTargets;
+
+  // ── Detect changes between old and new targets (for calendar UI) ─
+  function _detectTargetChanges(oldTargets, newTargets, newProgram) {
+    const changes = [];
+    if (!oldTargets) return changes;
+
+    const calDiff = newTargets.calories - (oldTargets.calories || 2000);
+    if (Math.abs(calDiff) >= 50) {
+      changes.push(calDiff > 0 ? '🔺 Calories Increased' : '🔻 Calories Reduced');
+    }
+    const proDiff = newTargets.protein - (oldTargets.protein || 150);
+    if (Math.abs(proDiff) >= 10) {
+      changes.push('🥩 Protein Changed');
+    }
+    const oldProgId = oldTargets.programId || null;
+    const newProgId = newProgram ? newProgram.id : null;
+    if (newProgId && oldProgId !== newProgId) {
+      changes.push('🏋️ Program Updated');
+    }
+    return changes;
+  }
+
+  // ── Freeze shopping snapshot for a week (called when list is generated) ─
+  function freezeShoppingSnapshot(weekId, shoppingData) {
+    const wt = ensureWeeklyTargets();
+    if (!wt[weekId]) return;
+    // Only freeze if not already frozen (immutability guarantee)
+    if (!wt[weekId].shoppingSnapshot) {
+      wt[weekId].shoppingSnapshot = JSON.parse(JSON.stringify(shoppingData));
+      console.log('[WeeklyTargets] Shopping snapshot frozen for', weekId);
+    }
+  }
+  window.freezeShoppingSnapshot = freezeShoppingSnapshot;
+
+  // ── Freeze meal plan into current week snapshot ────────────────
+  function freezeMealPlanSnapshot(weekId) {
+    const wt = ensureWeeklyTargets();
+    if (!wt[weekId]) return;
+    const bounds = getWeekBounds(weekId);
+    wt[weekId].mealPlanSnapshot = _snapshotMealPlanForWeek(bounds.startDate, bounds.endDate);
+  }
+  window.freezeMealPlanSnapshot = freezeMealPlanSnapshot;
+
+  // ── Get program snapshot for a given date ─────────────────────
+  function getProgramForDate(dateKey) {
+    const snapshot = getTargetsForDate(dateKey);
+    if (!snapshot || !snapshot.programId) return null;
+    // Find the program in State by its snapshot ID
+    const prog = (State.programs || []).find(p => p.id === snapshot.programId);
+    return prog || { id: snapshot.programId, name: snapshot.programName, goal: snapshot.programGoal };
+  }
+  window.getProgramForDate = getProgramForDate;
+
+  // ── Get all weeks sorted (newest first) ───────────────────────
+  function getAllWeeksSorted() {
+    return Object.values(State.weeklyTargets || {})
+      .sort((a, b) => b.weekId.localeCompare(a.weekId));
+  }
+  window.getAllWeeksSorted = getAllWeeksSorted;
+
+  // ════════════════════════════════════════════════════════════════
+  //  PATCHED CORE FUNCTIONS — IMMUTABLE-SAFE VERSIONS
+  // ════════════════════════════════════════════════════════════════
+
+  // ── PATCH: getTodayTotals — use snapshot for the given date ───
+  const _origGetTodayTotals = window.getTodayTotals;
+  if (typeof _origGetTodayTotals === 'function') {
+    window.getTodayTotals = function(dateKey) {
+      // Totals calculation itself doesn't need patching (it reads logs)
+      // but callers that compare against targets need snapshot-aware targets
+      return _origGetTodayTotals.apply(this, arguments);
+    };
+  }
+
+  // ── PATCH: refreshNutritionPage — use snapshot targets ────────
+  const _origRefreshNutritionPage = window.refreshNutritionPage;
+  if (typeof _origRefreshNutritionPage === 'function') {
+    window.refreshNutritionPage = function() {
+      const dateKey = window.nutritionDate || (todayKey ? todayKey() : '');
+      const T = getTargetsForDate(dateKey);
+      // Temporarily set State.targets to the snapshot for the current nutrition date
+      const _backup = State.targets;
+      State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
+      _origRefreshNutritionPage.apply(this, arguments);
+      State.targets = _backup;
+    };
+  }
+
+  // ── PATCH: refreshDashboard — use TODAY's snapshot ────────────
+  const _origRefreshDashboard = window.refreshDashboard;
+  if (typeof _origRefreshDashboard === 'function') {
+    window.refreshDashboard = function() {
+      const today = todayKey ? todayKey() : '';
+      const T = getTargetsForDate(today);
+      const _backup = State.targets;
+      State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
+      _origRefreshDashboard.apply(this, arguments);
+      State.targets = _backup;
+    };
+  }
+
+  // ── PATCH: saveTargets — now creates immutable weekly snapshot ─
+  const _origSaveTargets = window.saveTargets;
+  window.saveTargets = function() {
+    const cal = +document.getElementById('s-cal')?.value      || State.targets.calories;
+    const pro = +document.getElementById('s-protein')?.value  || State.targets.protein;
+    const carb = +document.getElementById('s-carbs')?.value   || State.targets.carbs;
+    const fat = +document.getElementById('s-fat')?.value      || State.targets.fat;
+
+    const newTargets = { calories: cal, protein: pro, carbs: carb, fat: fat };
+    const result = commitNewTargets(newTargets, true); // apply to current week
+
+    save();
+    if (typeof initUI === 'function') initUI();
+    if (typeof refreshDashboard === 'function') refreshDashboard();
+
+    const changeText = result.changes.length > 0
+      ? '\n' + result.changes.join(' · ')
+      : '';
+    if (typeof showToast === 'function') {
+      showToast(`Targets updated for Week ${weekNumFromId(result.weekId)}! ✅${changeText}`, 'success');
+    }
+
+    // Render the week history UI if visible
+    _renderWeekHistoryIfVisible();
+  };
+
+  // ── PATCH: saveAdjustedMacros — immutable weekly snapshot ─────
+  const _origSaveAdjustedMacros = window.saveAdjustedMacros;
+  window.saveAdjustedMacros = function() {
+    const cal  = +document.getElementById('am-cal-slider')?.value  || State.targets.calories;
+    const pro  = +document.getElementById('am-pro-slider')?.value  || State.targets.protein;
+    const carb = +document.getElementById('am-carb-slider')?.value || State.targets.carbs;
+    const fat  = +document.getElementById('am-fat-slider')?.value  || State.targets.fat;
+
+    const newTargets = { calories: cal, protein: pro, carbs: carb, fat: fat };
+    const result = commitNewTargets(newTargets, true);
+
+    save();
+    if (typeof closeModal === 'function') closeModal('modal-adjust-macros');
+    if (typeof initUI === 'function') initUI();
+    if (typeof refreshDashboard === 'function') refreshDashboard();
+    if (typeof refreshNutritionPage === 'function') refreshNutritionPage();
+    if (typeof updateGoalDisplays === 'function') updateGoalDisplays();
+
+    const changeText = result.changes.length > 0
+      ? ' ' + result.changes.join(' · ')
+      : '';
+    if (typeof showToast === 'function') {
+      showToast(`Targets locked for Wk ${weekNumFromId(result.weekId)}!${changeText} 🔒`, 'success');
+    }
+    _renderWeekHistoryIfVisible();
+  };
+
+  // ── PATCH: launchApp (onboarding) — seed first week snapshot ──
+  const _origLaunchApp = window.launchApp;
+  if (typeof _origLaunchApp === 'function') {
+    window.launchApp = function() {
+      _origLaunchApp.apply(this, arguments);
+      // After launchApp sets State.targets, create the first week snapshot
+      setTimeout(() => {
+        migrateTargetsToWeekly();
+        save();
+      }, 200);
+    };
+  }
+
+  // ── PATCH: getMultiDayMacroAlerts — use per-day snapshots ─────
+  const _origGetMultiDayMacroAlerts = window.getMultiDayMacroAlerts;
+  if (typeof _origGetMultiDayMacroAlerts === 'function') {
+    window.getMultiDayMacroAlerts = function() {
+      // For each day in the alert check, getTodayTotals already returns correct values
+      // The alerts use State.targets directly — we patch that here temporarily
+      const today = todayKey ? todayKey() : '';
+      const T = getTargetsForDate(today);
+      const _backup = State.targets;
+      State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
+      const result = _origGetMultiDayMacroAlerts.apply(this, arguments);
+      State.targets = _backup;
+      return result;
+    };
+  }
+
+  // ── PATCH: calcChallengeScore — use per-day snapshots ─────────
+  const _origCalcChallengeScore = window.calcChallengeScore;
+  if (typeof _origCalcChallengeScore === 'function') {
+    window.calcChallengeScore = function(ch) {
+      if (ch && ch.type === 'calorie_streak') {
+        // Use per-day snapshot targets for accuracy
+        const start = ch.start, end = ch.end;
+        let count = 0;
+        const startD = new Date(start + 'T00:00:00');
+        const endD   = new Date(end   + 'T00:00:00');
+        for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+          const k = d.toISOString().split('T')[0];
+          const log = (State.logs || {})[k];
+          if (!log) continue;
+          const cal = Object.values(log.meals || {}).flat().reduce((s, f) => s + (f.cal || 0), 0);
+          const T = getTargetsForDate(k);
+          const targetCal = T.calories || 2000;
+          if (cal >= targetCal * 0.9) count++;
+        }
+        return count;
+      }
+      return _origCalcChallengeScore.apply(this, arguments);
+    };
+  }
+
+  // ── PATCH: sgpGetTitle — use current week snapshot ────────────
+  const _origSgpGetTitle = window.sgpGetTitle;
+  if (typeof _origSgpGetTitle === 'function') {
+    window.sgpGetTitle = function() {
+      // Temporarily sync State.targets to current week snapshot
+      const T = getCurrentWeekTargets();
+      const _backup = State.targets;
+      State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
+      const result = _origSgpGetTitle.apply(this, arguments);
+      State.targets = _backup;
+      return result;
+    };
+  }
+
+  // ── Hook _loadFirestore to run migration after data loads ──────
+  const _origLoadFSWeekly = window._loadFirestore;
+  if (typeof _origLoadFSWeekly === 'function') {
+    window._loadFirestore = async function() {
+      await _origLoadFSWeekly.apply(this, arguments);
+      // Run migration after all other load hooks have run
+      setTimeout(() => {
+        migrateTargetsToWeekly();
+        ensureCurrentWeekSnapshot();
+        // Sync State.targets to current week snapshot
+        const T = getCurrentWeekTargets();
+        if (T && T.calories) {
+          State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
+        }
+        console.log('[WeeklyTargets] Post-load migration complete.');
+      }, 500);
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  CALENDAR INTEGRATION — Visual target-change indicators
+  // ════════════════════════════════════════════════════════════════
+
+  // Patch renderCalDayDetail to show target snapshot for that day
+  const _origRenderCalDayDetail = window.renderCalDayDetail;
+  if (typeof _origRenderCalDayDetail === 'function') {
+    window.renderCalDayDetail = function(dateKey) {
+      // Call original first
+      _origRenderCalDayDetail.apply(this, arguments);
+
+      // Inject snapshot info into the calendar detail panel
+      const detail = document.getElementById('cal-day-detail');
+      if (!detail) return;
+
+      const snapshot = getTargetsForDate(dateKey);
+      if (!snapshot || !snapshot.weekId) return;
+
+      const bounds = getWeekBounds(snapshot.weekId);
+      const phase = snapshot.phase || 'Maintenance';
+      const programText = snapshot.programName ? `📋 ${snapshot.programName}` : '—';
+      const changes = (snapshot.changes || []).join('  ');
+
+      // Only show if we have meaningful data
+      const snippetId = 'wvs-cal-snippet-' + dateKey;
+      if (document.getElementById(snippetId)) return; // already injected
+
+      const snippet = document.createElement('div');
+      snippet.id = snippetId;
+      snippet.style.cssText = `
+        background:var(--bg-elevated);
+        border:1px solid var(--border);
+        border-left:3px solid var(--accent);
+        border-radius:var(--radius-sm);
+        padding:10px 12px;
+        margin-bottom:10px;
+        font-size:0.73rem;
+      `;
+      snippet.innerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-family:var(--font-display);font-weight:800;font-size:0.8rem;color:var(--accent)">📅 Week ${weekNumFromId(snapshot.weekId)}</span>
+          <span style="color:var(--text-muted)">·</span>
+          <span style="color:var(--text-secondary)">${bounds.startDate} — ${bounds.endDate}</span>
+          ${changes ? `<span style="color:var(--blue);font-size:0.68rem;font-weight:700">${changes}</span>` : ''}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px">
+          <div style="text-align:center;background:var(--bg-card);border-radius:6px;padding:5px">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:var(--accent)">${snapshot.calories||'—'}</div>
+            <div style="font-size:0.58rem;color:var(--text-muted);text-transform:uppercase">kcal</div>
+          </div>
+          <div style="text-align:center;background:var(--bg-card);border-radius:6px;padding:5px">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:var(--blue)">${snapshot.protein||'—'}g</div>
+            <div style="font-size:0.58rem;color:var(--text-muted);text-transform:uppercase">protein</div>
+          </div>
+          <div style="text-align:center;background:var(--bg-card);border-radius:6px;padding:5px">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:var(--orange)">${snapshot.carbs||'—'}g</div>
+            <div style="font-size:0.58rem;color:var(--text-muted);text-transform:uppercase">carbs</div>
+          </div>
+          <div style="text-align:center;background:var(--bg-card);border-radius:6px;padding:5px">
+            <div style="font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:var(--red)">${snapshot.fat||'—'}g</div>
+            <div style="font-size:0.58rem;color:var(--text-muted);text-transform:uppercase">fat</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;font-size:0.7rem;color:var(--text-secondary);flex-wrap:wrap">
+          <span>🎯 Phase: <strong style="color:var(--text-primary)">${phase}</strong></span>
+          <span>${programText}</span>
+        </div>
+      `;
+
+      // Prepend to detail panel
+      const firstChild = detail.firstElementChild;
+      if (firstChild) detail.insertBefore(snippet, firstChild);
+      else detail.appendChild(snippet);
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  ANALYTICS / REPORTS — Historically accurate per-week stats
+  // ════════════════════════════════════════════════════════════════
+
+  // Returns adherence % for a given date using THAT DAY'S snapshot targets
+  window.getAdherenceForDate = function(dateKey) {
+    const log = (State.logs || {})[dateKey];
+    if (!log) return null;
+    const T = getTargetsForDate(dateKey);
+    if (!T || !T.calories) return null;
+    const cal = Object.values(log.meals || {}).flat().reduce((s, f) => s + (f.cal || 0), 0);
+    if (cal === 0) return null;
+    return Math.min(100, Math.round((cal / T.calories) * 100));
+  };
+
+  // Returns macro compliance for a date using that date's snapshot
+  window.getMacroComplianceForDate = function(dateKey) {
+    const log = (State.logs || {})[dateKey];
+    if (!log) return null;
+    const T = getTargetsForDate(dateKey);
+    if (!T) return null;
+    const items = Object.values(log.meals || {}).flat();
+    const totals = {
+      cal:     items.reduce((s, f) => s + (f.cal     || 0), 0),
+      protein: items.reduce((s, f) => s + (f.protein || 0), 0),
+      carbs:   items.reduce((s, f) => s + (f.carbs   || 0), 0),
+      fat:     items.reduce((s, f) => s + (f.fat     || 0), 0),
+    };
+    return {
+      calPct:     T.calories > 0 ? Math.round((totals.cal     / T.calories) * 100) : 0,
+      proteinPct: T.protein  > 0 ? Math.round((totals.protein / T.protein)  * 100) : 0,
+      carbsPct:   T.carbs    > 0 ? Math.round((totals.carbs   / T.carbs)    * 100) : 0,
+      fatPct:     T.fat      > 0 ? Math.round((totals.fat     / T.fat)      * 100) : 0,
+      totals,
+      targets: T
+    };
+  };
+
+  // Weekly summary using per-week snapshot targets
+  window.getWeeklySummary = function(weekId) {
+    weekId = weekId || getWeekId();
+    const snapshot = (State.weeklyTargets || {})[weekId];
+    if (!snapshot) return null;
+
+    const { startDate, endDate } = getWeekBounds(weekId);
+    let totalCal = 0, totalPro = 0, totalCarb = 0, totalFat = 0, daysLogged = 0;
+    const T = snapshot;
+
+    for (let d = new Date(startDate + 'T12:00:00'); ; d.setDate(d.getDate() + 1)) {
+      const k = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      const log = (State.logs || {})[k];
+      if (log) {
+        const items = Object.values(log.meals || {}).flat();
+        if (items.length) {
+          totalCal  += items.reduce((s, f) => s + (f.cal     || 0), 0);
+          totalPro  += items.reduce((s, f) => s + (f.protein || 0), 0);
+          totalCarb += items.reduce((s, f) => s + (f.carbs   || 0), 0);
+          totalFat  += items.reduce((s, f) => s + (f.fat     || 0), 0);
+          daysLogged++;
+        }
+      }
+      if (k >= endDate) break;
+    }
+
+    const avgCal  = daysLogged > 0 ? Math.round(totalCal  / daysLogged) : 0;
+    const avgPro  = daysLogged > 0 ? Math.round(totalPro  / daysLogged) : 0;
+    const avgCarb = daysLogged > 0 ? Math.round(totalCarb / daysLogged) : 0;
+    const avgFat  = daysLogged > 0 ? Math.round(totalFat  / daysLogged) : 0;
+
+    const workoutsThisWeek = (State.workouts || []).filter(w =>
+      w.date >= startDate && w.date <= endDate
+    ).length;
+
+    const adherencePct = T.calories > 0 && avgCal > 0
+      ? Math.min(100, Math.round((avgCal / T.calories) * 100))
+      : 0;
+
+    const deficitSurplus = avgCal - (T.calories || 2000);
+
+    return {
+      weekId, startDate, endDate, daysLogged,
+      targets: T,
+      averages: { cal: avgCal, protein: avgPro, carbs: avgCarb, fat: avgFat },
+      totals:   { cal: totalCal, protein: totalPro, carbs: totalCarb, fat: totalFat },
+      adherencePct,
+      deficitSurplus,
+      workouts: workoutsThisWeek,
+      programName: snapshot.programName || '—',
+      phase: snapshot.phase || 'Maintenance',
+      changes: snapshot.changes || []
+    };
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  //  WEEK HISTORY PANEL — Rich UI for all historical weeks
+  // ════════════════════════════════════════════════════════════════
+
+  function _renderWeekHistoryIfVisible() {
+    const panel = document.getElementById('week-history-panel');
+    if (panel && panel.style.display !== 'none') {
+      renderWeekHistoryPanel();
+    }
+  }
+
+  window.renderWeekHistoryPanel = function() {
+    const panel = document.getElementById('week-history-panel');
+    if (!panel) return;
+
+    const weeks = getAllWeeksSorted();
+    if (!weeks.length) {
+      panel.innerHTML = `
+        <div style="text-align:center;padding:40px 20px;color:var(--text-muted)">
+          <div style="font-size:2rem;margin-bottom:8px">📅</div>
+          <div style="font-size:0.85rem">No weekly history yet.</div>
+          <div style="font-size:0.75rem;margin-top:4px">Save targets to create your first snapshot.</div>
+        </div>`;
+      return;
+    }
+
+    panel.innerHTML = weeks.map((snap, idx) => {
+      const isCurrentWeek = snap.weekId === getWeekId();
+      const bounds = getWeekBounds(snap.weekId);
+      const summary = window.getWeeklySummary ? window.getWeeklySummary(snap.weekId) : null;
+      const changes = (snap.changes || []).join('  ·  ');
+      const adherence = summary ? summary.adherencePct : null;
+      const adherenceColor = !adherence ? 'var(--text-muted)'
+        : adherence >= 90 ? 'var(--green)'
+        : adherence >= 70 ? 'var(--orange)'
+        : 'var(--red)';
+
+      const deficit = summary ? summary.deficitSurplus : null;
+      const deficitText = deficit !== null
+        ? (deficit > 0 ? `+${deficit} kcal/day surplus` : `${deficit} kcal/day deficit`)
+        : '—';
+      const deficitColor = deficit === null ? 'var(--text-muted)'
+        : deficit > 100 ? 'var(--green)'
+        : deficit < -100 ? 'var(--red)'
+        : 'var(--text-secondary)';
+
+      return `
+        <div style="
+          background:var(--bg-card);
+          border:1px solid ${isCurrentWeek ? 'var(--accent)' : 'var(--border)'};
+          border-left:4px solid ${isCurrentWeek ? 'var(--accent)' : snap.changes && snap.changes.length ? 'var(--blue)' : 'var(--border)'};
+          border-radius:var(--radius);
+          padding:16px;
+          margin-bottom:10px;
+          transition:all 0.15s;
+          position:relative;
+        ">
+          ${isCurrentWeek ? `<div style="position:absolute;top:10px;right:10px;font-size:0.62rem;font-weight:800;padding:2px 8px;border-radius:10px;background:var(--accent-dim);color:var(--accent)">CURRENT</div>` : ''}
+
+          <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">
+                <span style="font-family:var(--font-display);font-weight:800;font-size:0.95rem">Week ${weekNumFromId(snap.weekId)}</span>
+                <span style="font-size:0.7rem;color:var(--text-muted)">${bounds.startDate} – ${bounds.endDate}</span>
+              </div>
+              <div style="font-size:0.75rem;color:var(--text-secondary)">
+                🎯 <strong>${snap.phase || 'Maintenance'}</strong>
+                ${snap.programName ? `&nbsp;·&nbsp; 📋 ${snap.programName}` : ''}
+              </div>
+              ${changes ? `<div style="font-size:0.68rem;color:var(--blue);margin-top:4px;font-weight:600">${changes}</div>` : ''}
+            </div>
+          </div>
+
+          <!-- Macro targets row -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px">
+            <div style="background:var(--bg-elevated);border-radius:6px;padding:8px;text-align:center">
+              <div style="font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--accent)">${snap.calories}</div>
+              <div style="font-size:0.58rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px">kcal</div>
+            </div>
+            <div style="background:var(--bg-elevated);border-radius:6px;padding:8px;text-align:center">
+              <div style="font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--blue)">${snap.protein}g</div>
+              <div style="font-size:0.58rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px">protein</div>
+            </div>
+            <div style="background:var(--bg-elevated);border-radius:6px;padding:8px;text-align:center">
+              <div style="font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--orange)">${snap.carbs}g</div>
+              <div style="font-size:0.58rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px">carbs</div>
+            </div>
+            <div style="background:var(--bg-elevated);border-radius:6px;padding:8px;text-align:center">
+              <div style="font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--red)">${snap.fat}g</div>
+              <div style="font-size:0.58rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px">fat</div>
+            </div>
+          </div>
+
+          <!-- Analytics row -->
+          ${summary ? `
+          <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:0.73rem;border-top:1px solid var(--border);padding-top:8px;margin-top:2px">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;min-width:60px">
+              <span style="font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:${adherenceColor}">${adherence !== null ? adherence + '%' : '—'}</span>
+              <span style="color:var(--text-muted);font-size:0.6rem;text-transform:uppercase">Adherence</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;min-width:60px">
+              <span style="font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:${deficitColor}">${deficitText}</span>
+              <span style="color:var(--text-muted);font-size:0.6rem;text-transform:uppercase">Avg Deficit/Surplus</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;min-width:40px">
+              <span style="font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:var(--text-primary)">${summary.workouts}</span>
+              <span style="color:var(--text-muted);font-size:0.6rem;text-transform:uppercase">Workouts</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;min-width:40px">
+              <span style="font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:var(--text-primary)">${summary.daysLogged}/7</span>
+              <span style="color:var(--text-muted);font-size:0.6rem;text-transform:uppercase">Days Logged</span>
+            </div>
+            ${summary.averages.cal > 0 ? `
+            <div style="display:flex;flex-direction:column;align-items:center;gap:1px;min-width:60px">
+              <span style="font-family:var(--font-display);font-weight:800;font-size:0.9rem;color:var(--text-primary)">${summary.averages.cal} kcal</span>
+              <span style="color:var(--text-muted);font-size:0.6rem;text-transform:uppercase">Avg Daily Cal</span>
+            </div>` : ''}
+          </div>` : `<div style="font-size:0.72rem;color:var(--text-muted);padding-top:6px;border-top:1px solid var(--border)">No food logged this week yet.</div>`}
+        </div>`;
+    }).join('');
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  //  SETTINGS UI — New Target Entry with Week Awareness
+  // ════════════════════════════════════════════════════════════════
+
+  // Inject "Set Targets for Next Week" button into Settings page targets section
+  function _injectWeeklyTargetUI() {
+    const settingsPage = document.getElementById('page-settings');
+    if (!settingsPage) return;
+
+    // Find the targets section by looking for the s-cal input
+    const calInput = document.getElementById('s-cal');
+    if (!calInput) return;
+    // Already injected?
+    if (document.getElementById('wvs-settings-banner')) return;
+
+    const container = calInput.closest('.card') || calInput.parentElement;
+    if (!container) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'wvs-settings-banner';
+    banner.style.cssText = `
+      background:var(--bg-elevated);
+      border:1px solid var(--accent-glow);
+      border-radius:var(--radius-sm);
+      padding:12px 14px;
+      margin-bottom:14px;
+      font-size:0.78rem;
+      color:var(--text-secondary);
+      line-height:1.5;
+    `;
+    banner.innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span style="font-size:1.1rem;flex-shrink:0">🔒</span>
+        <div>
+          <div style="font-weight:700;color:var(--text-primary);margin-bottom:3px;font-size:0.82rem">Immutable Weekly Snapshots Active</div>
+          <div>Changes here create a new frozen snapshot for this week. <strong>All previous weeks remain unchanged forever.</strong></div>
+          <button onclick="openWeekHistoryPanel()" style="margin-top:8px;padding:5px 12px;border-radius:6px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);cursor:pointer;font-size:0.73rem;font-weight:700;font-family:var(--font-body)">
+            📅 View Week History
+          </button>
+        </div>
+      </div>
+    `;
+    container.insertBefore(banner, container.firstChild);
+  }
+
+  // ── Week History Modal ─────────────────────────────────────────
+  window.openWeekHistoryPanel = function() {
+    let overlay = document.getElementById('wvs-week-history-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'wvs-week-history-overlay';
+      overlay.style.cssText = `
+        position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:2000;
+        display:flex;align-items:flex-start;justify-content:center;padding:20px;
+        overflow-y:auto;
+      `;
+      overlay.onclick = function(e) {
+        if (e.target === overlay) overlay.style.display = 'none';
+      };
+
+      const modal = document.createElement('div');
+      modal.style.cssText = `
+        background:var(--bg-card);
+        border:1px solid var(--border);
+        border-radius:var(--radius-lg);
+        width:100%;max-width:640px;
+        box-shadow:var(--shadow-lg);
+        margin-top:20px;
+        overflow:hidden;
+      `;
+      modal.innerHTML = `
+        <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:800">📅 Weekly Target History</div>
+            <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px">Immutable snapshots — old weeks never change</div>
+          </div>
+          <button onclick="document.getElementById('wvs-week-history-overlay').style.display='none'"
+            style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-secondary);padding:6px">✕</button>
+        </div>
+        <div id="week-history-panel" style="padding:20px;max-height:70vh;overflow-y:auto"></div>
+      `;
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+    }
+
+    overlay.style.display = 'flex';
+    renderWeekHistoryPanel();
+  };
+
+  // ── Dashboard Week Card ────────────────────────────────────────
+  window.renderCurrentWeekCard = function(containerId) {
+    const container = document.getElementById(containerId || 'current-week-card');
+    if (!container) return;
+    const weekId = getWeekId();
+    const snap = (State.weeklyTargets || {})[weekId] || getCurrentWeekTargets();
+    const summary = window.getWeeklySummary ? window.getWeeklySummary(weekId) : null;
+    const bounds = getWeekBounds(weekId);
+
+    const adherence = summary ? summary.adherencePct : null;
+    const adherenceColor = !adherence ? 'var(--text-muted)'
+      : adherence >= 90 ? 'var(--green)'
+      : adherence >= 70 ? 'var(--orange)'
+      : 'var(--red)';
+
+    container.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+          <div style="font-family:var(--font-display);font-weight:800;font-size:0.95rem">Week ${weekNumFromId(weekId)}</div>
+          <div style="font-size:0.7rem;color:var(--text-muted)">${bounds.startDate} – ${bounds.endDate}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:0.7rem;font-weight:700;color:var(--accent)">${snap.phase || 'Maintenance'}</div>
+          ${snap.programName ? `<div style="font-size:0.65rem;color:var(--text-secondary)">📋 ${snap.programName}</div>` : ''}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px">
+        <div style="background:var(--bg-elevated);border-radius:6px;padding:7px;text-align:center">
+          <div style="font-family:var(--font-display);font-weight:800;color:var(--accent)">${snap.calories||'—'}</div>
+          <div style="font-size:0.58rem;color:var(--text-muted)">kcal</div>
+        </div>
+        <div style="background:var(--bg-elevated);border-radius:6px;padding:7px;text-align:center">
+          <div style="font-family:var(--font-display);font-weight:800;color:var(--blue)">${snap.protein||'—'}g</div>
+          <div style="font-size:0.58rem;color:var(--text-muted)">protein</div>
+        </div>
+        <div style="background:var(--bg-elevated);border-radius:6px;padding:7px;text-align:center">
+          <div style="font-family:var(--font-display);font-weight:800;color:var(--orange)">${snap.carbs||'—'}g</div>
+          <div style="font-size:0.58rem;color:var(--text-muted)">carbs</div>
+        </div>
+        <div style="background:var(--bg-elevated);border-radius:6px;padding:7px;text-align:center">
+          <div style="font-family:var(--font-display);font-weight:800;color:var(--red)">${snap.fat||'—'}g</div>
+          <div style="font-size:0.58rem;color:var(--text-muted)">fat</div>
+        </div>
+      </div>
+      ${summary ? `
+      <div style="display:flex;gap:10px;font-size:0.72rem;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="color:${adherenceColor};font-weight:800">${adherence !== null ? adherence + '%' : '—'}</span>
+          <span style="color:var(--text-muted)">adherence</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-weight:700">${summary.workouts}</span>
+          <span style="color:var(--text-muted)">workouts</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-weight:700">${summary.daysLogged}/7</span>
+          <span style="color:var(--text-muted)">days logged</span>
+        </div>
+        <button onclick="openWeekHistoryPanel()" style="margin-left:auto;padding:3px 10px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:0.68rem;font-weight:600;font-family:var(--font-body)">All weeks →</button>
+      </div>` : ''}
+    `;
+  };
+
+  // ── Inject Week Card onto Dashboard after it renders ──────────
+  const _origInitUI = window.initUI;
+  if (typeof _origInitUI === 'function') {
+    window.initUI = function() {
+      _origInitUI.apply(this, arguments);
+      // Inject week history banner in settings
+      setTimeout(_injectWeeklyTargetUI, 100);
+      // Inject current week card in dashboard if container exists
+      setTimeout(() => {
+        renderCurrentWeekCard('current-week-card');
+        _injectDashboardWeekCard();
+      }, 200);
+    };
+  }
+
+  // ── Inject a current-week-card into the dashboard ─────────────
+  function _injectDashboardWeekCard() {
+    // Try to find the dashboard grid area to inject our card
+    const dashPage = document.getElementById('page-dashboard');
+    if (!dashPage) return;
+    if (document.getElementById('wvs-dash-week-card')) return; // already injected
+
+    const weekCard = document.createElement('div');
+    weekCard.id = 'wvs-dash-week-card';
+    weekCard.className = 'card';
+    weekCard.style.cssText = 'margin-bottom:16px;grid-column:1/-1;';
+    weekCard.innerHTML = `
+      <div class="card-header" style="margin-bottom:14px">
+        <div>
+          <div class="card-title">📅 This Week's Targets</div>
+          <div class="card-sub">Frozen weekly snapshot — never retroactively changed</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openWeekHistoryPanel()">All Weeks</button>
+      </div>
+      <div id="current-week-card"></div>
+    `;
+
+    // Insert at the top of the dashboard content area
+    const firstCard = dashPage.querySelector('.card, .stat-card, .grid-3, .grid-4');
+    if (firstCard) {
+      dashPage.insertBefore(weekCard, firstCard);
+    } else {
+      dashPage.prepend(weekCard);
+    }
+
+    renderCurrentWeekCard('current-week-card');
+  }
+
+  // ── Expose safe version of getTargets (always snapshot-aware) ─
+  // This is the single source of truth for all UI components
+  window.getActiveTargets = function(dateKey) {
+    return getTargetsForDate(dateKey || (todayKey ? todayKey() : ''));
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  //  PROGRAM VERSIONING — Freeze program into weekly snapshot
+  // ════════════════════════════════════════════════════════════════
+
+  // When a program is activated, freeze it into the current week snapshot
+  const _origActivateBuiltinProgram = window.activateBuiltinProgram;
+  if (typeof _origActivateBuiltinProgram === 'function') {
+    window.activateBuiltinProgram = function(pid) {
+      _origActivateBuiltinProgram.apply(this, arguments);
+      // After activation, update the current week's program snapshot
+      setTimeout(() => {
+        const snap = ensureCurrentWeekSnapshot();
+        const activeProgram = (State.programs || []).find(p => p.active);
+        if (snap && activeProgram) {
+          snap.programId   = activeProgram.id;
+          snap.programName = activeProgram.name;
+          snap.programGoal = activeProgram.goal;
+          if (!snap.changes) snap.changes = [];
+          if (!snap.changes.includes('🏋️ Program Updated')) {
+            snap.changes.push('🏋️ Program Updated');
+          }
+          save();
+        }
+        renderCurrentWeekCard('current-week-card');
+      }, 300);
+    };
+  }
+
+  const _origSaveProgram = window.saveProgram;
+  if (typeof _origSaveProgram === 'function') {
+    window.saveProgram = function() {
+      _origSaveProgram.apply(this, arguments);
+      setTimeout(() => {
+        const snap = ensureCurrentWeekSnapshot();
+        const activeProgram = (State.programs || []).find(p => p.active);
+        if (snap && activeProgram) {
+          snap.programId   = activeProgram.id;
+          snap.programName = activeProgram.name;
+          snap.programGoal = activeProgram.goal;
+          save();
+        }
+      }, 300);
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  SHOPPING LIST — Only uses current week snapshot
+  // ════════════════════════════════════════════════════════════════
+
+  // Patch sgpBuildItems (if present) to use current week snapshot targets
+  const _origSgpBuildItems = window.sgpBuildItems;
+  if (typeof _origSgpBuildItems === 'function') {
+    window.sgpBuildItems = function() {
+      // Ensure State.targets is synced to current week snapshot
+      const T = getCurrentWeekTargets();
+      const _backup = State.targets;
+      State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
+      const result = _origSgpBuildItems.apply(this, arguments);
+      State.targets = _backup;
+      return result;
+    };
+  }
+
+  // After shopping list is generated, freeze it to the week snapshot
+  const _origSgpRenderList = window.sgpRenderList;
+  if (typeof _origSgpRenderList === 'function') {
+    window.sgpRenderList = function() {
+      // Use current week snapshot targets
+      const T = getCurrentWeekTargets();
+      const _backup = State.targets;
+      State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
+      _origSgpRenderList.apply(this, arguments);
+      State.targets = _backup;
+
+      // After render, freeze the shopping snapshot for this week
+      const weekId = getWeekId();
+      const snap = (State.weeklyTargets || {})[weekId];
+      if (snap && !snap.shoppingSnapshot && window._sgpWeekSnapshot) {
+        snap.shoppingSnapshot = JSON.parse(JSON.stringify(window._sgpWeekSnapshot));
+        save();
+      }
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  INTEGRITY GUARD — Prevent direct State.targets mutation
+  //  (Development safety — logs warnings in console)
+  // ════════════════════════════════════════════════════════════════
+  // Note: We don't freeze State.targets via Object.freeze() because
+  // the patched functions above temporarily swap it for calculations.
+  // Instead, we sync State.targets from the current week snapshot
+  // on every initUI/refreshDashboard call.
+
+  // ── Final init: run after DOM is ready ────────────────────────
+  document.addEventListener('DOMContentLoaded', function() {
+    // No-op here — init happens via _loadFirestore hook
+    console.log('[WeeklyTargets] Immutable weekly versioning system loaded.');
+  });
+
+  // Expose for debugging / console use
+  window.WVS = {
+    getWeekId,
+    getWeekBounds,
+    getTargetsForDate,
+    getCurrentWeekTargets,
+    commitNewTargets,
+    getAllWeeksSorted,
+    ensureCurrentWeekSnapshot,
+    migrateTargetsToWeekly,
+    getAdherenceForDate:      window.getAdherenceForDate,
+    getMacroComplianceForDate: window.getMacroComplianceForDate,
+    getWeeklySummary:         window.getWeeklySummary,
+    freezeShoppingSnapshot,
+    freezeMealPlanSnapshot,
+    openWeekHistoryPanel:     window.openWeekHistoryPanel,
+    renderCurrentWeekCard:    window.renderCurrentWeekCard,
+
+    // Debug helpers
+    inspect: () => console.table(getAllWeeksSorted().map(s => ({
+      weekId: s.weekId,
+      startDate: s.startDate,
+      endDate: s.endDate,
+      calories: s.calories,
+      protein: s.protein,
+      phase: s.phase,
+      program: s.programName || '—',
+      changes: (s.changes || []).join(', ') || '—'
+    }))),
+    showHistory: () => window.openWeekHistoryPanel(),
+  };
+
+})();
 </script>
 </body>
