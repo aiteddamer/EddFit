@@ -7364,6 +7364,8 @@ function startApp() {
   app.classList.add('visible');
   applyTheme();
   initUI();
+  // Seed the target history for existing users who have never had it before
+  if (typeof migrateTargetHistory === 'function') migrateTargetHistory();
   navigate('dashboard', document.querySelector('.nav-item'));
   calcStreak();
   // Force reflow so the browser commits display:block before we paint values.
@@ -7764,7 +7766,15 @@ function changeNutritionDate(dir) {
 
 function refreshNutritionPage() {
   const totals = getTodayTotals(nutritionDate);
-  const T = State.targets;
+  // Use the targets that were active on the date being viewed, not the current live targets.
+  // This means changing goals today won't rewrite how past days looked.
+  const T = (typeof getTargetsForDay === 'function')
+    ? getTargetsForDay(nutritionDate)
+    : State.targets;
+  document.getElementById('n-cal-goal').textContent  = T.calories;
+  document.getElementById('n-pro-goal').textContent  = T.protein;
+  document.getElementById('n-carb-goal').textContent = T.carbs;
+  document.getElementById('n-fat-goal').textContent  = T.fat;
   document.getElementById('n-cal-val').textContent = totals.cal;
   document.getElementById('n-pro-val').textContent = totals.protein + 'g';
   document.getElementById('n-carb-val').textContent = totals.carbs + 'g';
@@ -7935,7 +7945,7 @@ function _calcStreak(days, testFn) {
 
 function getMultiDayMacroAlerts() {
   const alerts = [];
-  const T = State.targets;
+  const T = State.targets; // current targets used as baseline for live alerts
   if (!T) return alerts;
 
   // Collect last 7 days that have food logged (most recent first)
@@ -9056,7 +9066,8 @@ function renderCalendar() {
     let proteinMet = false;
     if (hasLog) {
       const totals = getTodayTotals(key);
-      proteinMet = totals.protein >= (State.targets.protein || 150);
+      const _tgt = (typeof getTargetsForDay === 'function') ? getTargetsForDay(key) : State.targets;
+      proteinMet = totals.protein >= (_tgt.protein || 150);
     }
     let cls = 'cal-day';
     if (isToday) cls += ' today';
@@ -9109,8 +9120,9 @@ function renderCalDayDetail(key) {
   const workoutIdx = State.workouts.findIndex(w=>w.date===key);
   const workout = workoutIdx >= 0 ? State.workouts[workoutIdx] : null;
   const totals = getTodayTotals(key);
-  const proteinPct = State.targets.protein > 0 ? Math.round(totals.protein / State.targets.protein * 100) : 0;
-  const proteinMet = totals.protein >= (State.targets.protein || 150);
+  const _dayT = (typeof getTargetsForDay === 'function') ? getTargetsForDay(key) : State.targets;
+  const proteinPct = _dayT.protein > 0 ? Math.round(totals.protein / _dayT.protein * 100) : 0;
+  const proteinMet = totals.protein >= (_dayT.protein || 150);
 
   // ── Resolve program scheduled exercises for this date ──
   const activeProgram = State.programs && State.programs.find(p => p.active);
@@ -9928,6 +9940,8 @@ function saveTargets() {
   State.targets.protein = +document.getElementById('s-protein').value || State.targets.protein;
   State.targets.carbs = +document.getElementById('s-carbs').value || State.targets.carbs;
   State.targets.fat = +document.getElementById('s-fat').value || State.targets.fat;
+  // Record a dated snapshot so past days retain their original goals
+  if (typeof recordTargetChange === 'function') recordTargetChange(State.targets);
   save();
   initUI();
   showToast('Targets updated! ✅', 'success');
@@ -11821,7 +11835,7 @@ function generateWeeklyReports() {
     const firstLoggedDay = loggedDays[0];
     const weekGoal   = (State.logs[firstLoggedDay]?.goalSnapshot)   || State.profile?.goal   || 'maintain';
     const weekCalTgt = (State.logs[firstLoggedDay]?.calorieTargetSnapshot) || State.targets?.calories || 2000;
-    const weekProTgt = State.targets.protein; // protein target doesn't change per-phase in current model
+    const weekProTgt = (typeof getTargetsForDay === 'function' ? getTargetsForDay(firstLoggedDay) : State.targets).protein || State.targets.protein;
 
     const highlights = [];
     if (weekWorkouts >= 4) highlights.push('Crushed it — 4+ workouts this week!');
@@ -14071,6 +14085,8 @@ function saveAdjustedMacros() {
   State.targets.protein  = +document.getElementById('am-pro-slider').value;
   State.targets.carbs    = +document.getElementById('am-carb-slider').value;
   State.targets.fat      = +document.getElementById('am-fat-slider').value;
+  // Record a dated snapshot so past days retain their original goals
+  if (typeof recordTargetChange === 'function') recordTargetChange(State.targets);
   save();
   closeModal('modal-adjust-macros');
   initUI();
@@ -16346,6 +16362,8 @@ function saveFitProfile() {
   if (pro)  State.targets.protein  = pro;
   if (carb) State.targets.carbs    = carb;
   if (fat)  State.targets.fat      = fat;
+  // Record a dated snapshot so past days retain their original goals
+  if (typeof recordTargetChange === 'function') recordTargetChange(State.targets);
 
   if (typeof saveData === 'function') saveData();
   if (typeof updateGoalDisplays === 'function') updateGoalDisplays();
@@ -20573,6 +20591,62 @@ window.dismissSharedProgram = async function(docId, btn) {
     return State.targets || { calories:2000, protein:150, carbs:225, fat:67 };
   }
   window.getTargetsForDate = getTargetsForDate;
+
+  // ── Daily targets history: per-day immutable snapshots ───────────────
+  // Whenever the user saves new macro/calorie targets, we append an entry to
+  // State.targetHistory so that each past day retains the goals that were
+  // active when those calories were actually logged.
+  function recordTargetChange(newTargets) {
+    if (!State.targetHistory) State.targetHistory = [];
+    const today = todayKey ? todayKey() : new Date().toISOString().split('T')[0];
+    // Replace any existing entry for today (only keep one per day)
+    State.targetHistory = State.targetHistory.filter(e => e.date !== today);
+    State.targetHistory.push({
+      date:     today,
+      calories: newTargets.calories || 2000,
+      protein:  newTargets.protein  || 150,
+      carbs:    newTargets.carbs    || 225,
+      fat:      newTargets.fat      || 67,
+      goal:     (State.profile && State.profile.goal) || 'maintain'
+    });
+    // Keep sorted oldest → newest
+    State.targetHistory.sort((a, b) => a.date.localeCompare(b.date));
+  }
+  window.recordTargetChange = recordTargetChange;
+
+  // ── Look up the goals that were active on a given date ───────────────
+  // Returns the most recent target entry whose date is ≤ dateKey.
+  function getTargetsForDay(dateKey) {
+    if (!dateKey) dateKey = todayKey ? todayKey() : new Date().toISOString().split('T')[0];
+    const history = State.targetHistory || [];
+    // Walk backwards to find the most recent entry on or before dateKey
+    const applicable = history.filter(e => e.date <= dateKey);
+    if (applicable.length > 0) return applicable[applicable.length - 1];
+    // No history yet — fall back to current targets (new user)
+    return State.targets || { calories:2000, protein:150, carbs:225, fat:67 };
+  }
+  window.getTargetsForDay = getTargetsForDay;
+
+  // ── Migrate: seed history from State.targets if no history exists ─────
+  function migrateTargetHistory() {
+    if (State.targetHistory && State.targetHistory.length > 0) return; // already done
+    if (!State.targetHistory) State.targetHistory = [];
+    // Find the earliest log date to anchor the history
+    const logDates = Object.keys(State.logs || {}).sort();
+    const anchorDate = logDates.length > 0 ? logDates[0]
+      : (todayKey ? todayKey() : new Date().toISOString().split('T')[0]);
+    const t = State.targets || { calories:2000, protein:150, carbs:225, fat:67 };
+    State.targetHistory.push({
+      date:     anchorDate,
+      calories: t.calories || 2000,
+      protein:  t.protein  || 150,
+      carbs:    t.carbs    || 225,
+      fat:      t.fat      || 67,
+      goal:     (State.profile && State.profile.goal) || 'maintain'
+    });
+    console.log('[TargetHistory] Migrated legacy targets anchored to', anchorDate);
+  }
+  window.migrateTargetHistory = migrateTargetHistory;
 
   // ── Get targets for current week (today) ──────────────────────
   function getCurrentWeekTargets() {
