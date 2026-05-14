@@ -1782,7 +1782,7 @@ html.dark .sgp-item.sgp-checked .sgp-checkbox::after { color:#111; }
 }
 .report-week { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
 .report-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; margin-bottom: 20px; }
-.report-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px; }
+.report-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 20px; }
 .report-stat { text-align: center; background: var(--bg-elevated); border-radius: var(--radius-sm); padding: 14px 8px; }
 .report-stat-val { font-family: var(--font-display); font-size: 1.4rem; font-weight: 800; }
 .report-stat-label { font-size: 0.68rem; color: var(--text-secondary); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.4px; }
@@ -11766,6 +11766,14 @@ function renderReports() {
           </div>
           <div class="report-stat-label">Weight Δ</div>
         </div>
+        <div class="report-stat">
+          <div class="report-stat-val" style="color:var(--green)">${r.calGoalDays ?? '—'}/${r.loggedDays ?? '—'}</div>
+          <div class="report-stat-label">Cal Goal Days</div>
+        </div>
+        <div class="report-stat">
+          <div class="report-stat-val" style="color:var(--purple)">${r.proteinGoalDays ?? '—'}/${r.loggedDays ?? '—'}</div>
+          <div class="report-stat-label">Protein Goal Days</div>
+        </div>
       </div>
       ${r.highlight ? `<div class="report-highlight">💡 ${r.highlight}</div>` : ''}
     </div>`).join('');
@@ -11775,38 +11783,32 @@ function generateWeeklyReports() {
   const reports = [];
   const today = new Date();
 
-  // ── Anchor to the first meaningful activity date ──────────────────
-  // Week 1 starts on the day the user first logged a workout OR first
-  // logged a nutrition entry with ≥1 food item — whichever is earlier.
-  const workoutDates = (State.workouts || []).map(w => w.date).filter(Boolean).sort();
+  // ── Anchor: first workout OR first nutrition log day ──────────────
+  const workoutDates   = (State.workouts || []).map(w => w.date).filter(Boolean).sort();
   const nutritionDates = Object.entries(State.logs || {})
     .filter(([, log]) => Object.values(log.meals || {}).some(m => m.length > 0))
     .map(([k]) => k)
     .sort();
   const allFirstDates = [...workoutDates, ...nutritionDates].sort();
-  if (!allFirstDates.length) return reports; // nothing logged yet
+  if (!allFirstDates.length) return reports;
 
   const anchorDate = new Date(allFirstDates[0] + 'T12:00:00');
-
-  // Build week buckets from anchor forward, up to today
-  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  const msPerWeek  = 7 * 24 * 60 * 60 * 1000;
   const totalWeeksSinceAnchor = Math.floor((today - anchorDate) / msPerWeek);
-  // Show up to last 4 completed weeks (or however many exist)
-  const maxWeeks = Math.min(4, totalWeeksSinceAnchor + 1);
 
   const titles = ['Week in Review','Your Weekly Snapshot','Progress Report','Training Summary'];
 
-  for (let w = 0; w < maxWeeks; w++) {
-    // w=0 → most-recent week, w=1 → one week before, etc.
-    const weekOffset = totalWeeksSinceAnchor - w; // weeks from anchor (0-based)
+  // Show ALL weeks from first day to now, most-recent first
+  for (let w = 0; w <= totalWeeksSinceAnchor; w++) {
+    const weekOffset = totalWeeksSinceAnchor - w; // 0 = most recent
+    const weekNumber = weekOffset + 1;             // 1-based for display
+
     const startDate = new Date(anchorDate);
     startDate.setDate(anchorDate.getDate() + weekOffset * 7);
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 6);
 
-    // Don't show future weeks
     if (startDate > today) continue;
-    // Cap end to today for the current in-progress week
     const cappedEnd = endDate > today ? today : endDate;
 
     const days = [];
@@ -11816,42 +11818,64 @@ function generateWeeklyReports() {
       days.push(localDateKey(d.getFullYear(), d.getMonth(), d.getDate()));
     }
 
-    const loggedDays = days.filter(k => State.logs[k] && Object.values(State.logs[k].meals || {}).some(m => m.length));
+    const loggedDays = days.filter(k =>
+      State.logs[k] && Object.values(State.logs[k].meals || {}).some(m => m.length)
+    );
     if (!loggedDays.length) continue;
 
-    const cals     = loggedDays.map(k => { const t = getTodayTotals(k); return t.cal; });
-    const proteins = loggedDays.map(k => { const t = getTodayTotals(k); return t.protein; });
-    const weekWorkouts = State.workouts.filter(w => days.includes(w.date)).length;
+    // ── Per-day totals compared against that day's own targets ────
+    let totalCal = 0, totalProtein = 0;
+    let calGoalDays = 0, proteinGoalDays = 0;
+    const phasesThisWeek = new Set();
+
+    loggedDays.forEach(k => {
+      const totals = getTodayTotals(k);
+      const dayTgt = (typeof getTargetsForDay === 'function')
+        ? getTargetsForDay(k)
+        : State.targets;
+      totalCal     += totals.cal;
+      totalProtein += totals.protein;
+      if (totals.cal     >= dayTgt.calories * 0.9) calGoalDays++;
+      if (totals.protein >= dayTgt.protein  * 0.9) proteinGoalDays++;
+      phasesThisWeek.add(dayTgt.goal || State.profile?.goal || 'maintain');
+    });
+
+    const avgCal     = Math.round(totalCal     / loggedDays.length);
+    const avgProtein = Math.round(totalProtein / loggedDays.length);
+
+    const weekWorkouts = State.workouts.filter(wo => days.includes(wo.date)).length;
 
     const startMetric = State.metrics.find(m => days.includes(m.date) && m.weight);
     const endMetric   = [...State.metrics].reverse().find(m => days.includes(m.date) && m.weight);
     const weightChange = (startMetric && endMetric && startMetric.date !== endMetric.date)
       ? +((endMetric.weight - startMetric.weight).toFixed(1)) : 0;
 
-    const avgCal     = cals.length     ? Math.round(cals.reduce((a, b) => a + b, 0) / cals.length) : 0;
-    const avgProtein = proteins.length ? Math.round(proteins.reduce((a, b) => a + b, 0) / proteins.length) : 0;
-
-    // Use the goal/calorie-target that was active during this week (from snapshot), not the current one
-    const firstLoggedDay = loggedDays[0];
-    const weekGoal   = (State.logs[firstLoggedDay]?.goalSnapshot)   || State.profile?.goal   || 'maintain';
-    const weekCalTgt = (State.logs[firstLoggedDay]?.calorieTargetSnapshot) || State.targets?.calories || 2000;
-    const weekProTgt = (typeof getTargetsForDay === 'function' ? getTargetsForDay(firstLoggedDay) : State.targets).protein || State.targets.protein;
+    // Phase label — if goal changed mid-week, show both (e.g. "Cut → Bulk")
+    const phaseOrder = ['cut','bulk','maintain'];
+    const sortedPhases = [...phasesThisWeek].sort((a,b) => phaseOrder.indexOf(a) - phaseOrder.indexOf(b));
+    const phaseEmoji  = { cut:'🔥', bulk:'📈', maintain:'⚖️' };
+    const phaseTag    = sortedPhases.map(p => `${phaseEmoji[p]||''} ${p.charAt(0).toUpperCase()+p.slice(1)}`).join(' → ');
 
     const highlights = [];
-    if (weekWorkouts >= 4) highlights.push('Crushed it — 4+ workouts this week!');
+    if (weekWorkouts >= 4)       highlights.push('Crushed it — 4+ workouts this week!');
     else if (weekWorkouts === 0) highlights.push('No workouts logged. Aim for at least 3 next week.');
-    if (avgProtein >= weekProTgt) highlights.push('Hit your protein goal every day!');
+    if (proteinGoalDays === loggedDays.length) highlights.push(`Protein goal hit all ${loggedDays.length} logged days! 💪`);
+    else if (proteinGoalDays > 0) highlights.push(`Protein goal hit ${proteinGoalDays}/${loggedDays.length} days.`);
+    if (calGoalDays === loggedDays.length) highlights.push('Calorie goal hit every logged day ✅');
     if (weightChange < -0.5) highlights.push(`Lost ${Math.abs(weightChange)}kg — great progress!`);
-    if (weekGoal === 'bulk'  && avgCal > weekCalTgt * 0.95) highlights.push(`Surplus on track — ${weekGoal === 'bulk' ? 'lean bulk 💪' : ''}`);
-    if (weekGoal === 'cut'   && avgCal <= weekCalTgt)       highlights.push('Stayed in deficit — fat loss on track 🔥');
 
-    const phaseTag = weekGoal === 'bulk' ? ' · Bulk 📈' : weekGoal === 'cut' ? ' · Cut 🔥' : '';
-    const weekLabel = `Week ${weekOffset + 1}${phaseTag} · ${startDate.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${cappedEnd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+    const weekLabel = `Week ${weekNumber} · ${phaseTag} · ${
+      startDate.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${
+      cappedEnd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
 
     reports.push({
       weekLabel,
       title: titles[w % titles.length],
-      avgCal, avgProtein, workouts: weekWorkouts, weightChange,
+      avgCal, avgProtein,
+      workouts: weekWorkouts,
+      weightChange,
+      calGoalDays, proteinGoalDays,
+      loggedDays: loggedDays.length,
       highlight: highlights[0] || null
     });
   }
@@ -20650,7 +20674,7 @@ window.dismissSharedProgram = async function(docId, btn) {
 
   // ── Get targets for current week (today) ──────────────────────
   function getCurrentWeekTargets() {
-    return getTargetsForDate(todayKey ? todayKey() : new Date().toISOString().split('T')[0]);
+    return getTargetsForDay(todayKey ? todayKey() : new Date().toISOString().split('T')[0]);
   }
   window.getCurrentWeekTargets = getCurrentWeekTargets;
 
@@ -20677,7 +20701,7 @@ window.dismissSharedProgram = async function(docId, btn) {
     const activeProgram = (State.programs || []).find(p => p.active);
 
     // Detect changes vs previous week for calendar indicators
-    const prevWeekTargets = getTargetsForDate(today);
+    const prevWeekTargets = getTargetsForDay(today);
     const changes = _detectTargetChanges(prevWeekTargets, newTargets, activeProgram);
 
     wt[targetWeekId] = {
@@ -20759,7 +20783,7 @@ window.dismissSharedProgram = async function(docId, btn) {
 
   // ── Get program snapshot for a given date ─────────────────────
   function getProgramForDate(dateKey) {
-    const snapshot = getTargetsForDate(dateKey);
+    const snapshot = getTargetsForDay(dateKey);
     if (!snapshot || !snapshot.programId) return null;
     // Find the program in State by its snapshot ID
     const prog = (State.programs || []).find(p => p.id === snapshot.programId);
@@ -20793,7 +20817,7 @@ window.dismissSharedProgram = async function(docId, btn) {
   if (typeof _origRefreshNutritionPage === 'function') {
     window.refreshNutritionPage = function() {
       const dateKey = window.nutritionDate || (todayKey ? todayKey() : '');
-      const T = getTargetsForDate(dateKey);
+      const T = getTargetsForDay(dateKey);
       // Temporarily set State.targets to the snapshot for the current nutrition date
       const _backup = State.targets;
       State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
@@ -20807,7 +20831,7 @@ window.dismissSharedProgram = async function(docId, btn) {
   if (typeof _origRefreshDashboard === 'function') {
     window.refreshDashboard = function() {
       const today = todayKey ? todayKey() : '';
-      const T = getTargetsForDate(today);
+      const T = getTargetsForDay(today);
       const _backup = State.targets;
       State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
       _origRefreshDashboard.apply(this, arguments);
@@ -20888,7 +20912,7 @@ window.dismissSharedProgram = async function(docId, btn) {
       // For each day in the alert check, getTodayTotals already returns correct values
       // The alerts use State.targets directly — we patch that here temporarily
       const today = todayKey ? todayKey() : '';
-      const T = getTargetsForDate(today);
+      const T = getTargetsForDay(today);
       const _backup = State.targets;
       State.targets = { calories: T.calories, protein: T.protein, carbs: T.carbs, fat: T.fat };
       const result = _origGetMultiDayMacroAlerts.apply(this, arguments);
@@ -20912,7 +20936,7 @@ window.dismissSharedProgram = async function(docId, btn) {
           const log = (State.logs || {})[k];
           if (!log) continue;
           const cal = Object.values(log.meals || {}).flat().reduce((s, f) => s + (f.cal || 0), 0);
-          const T = getTargetsForDate(k);
+          const T = getTargetsForDay(k);
           const targetCal = T.calories || 2000;
           if (cal >= targetCal * 0.9) count++;
         }
@@ -20970,7 +20994,7 @@ window.dismissSharedProgram = async function(docId, btn) {
       const detail = document.getElementById('cal-day-detail');
       if (!detail) return;
 
-      const snapshot = getTargetsForDate(dateKey);
+      const snapshot = getTargetsForDay(dateKey);
       if (!snapshot || !snapshot.weekId) return;
 
       const bounds = getWeekBounds(snapshot.weekId);
@@ -21039,7 +21063,7 @@ window.dismissSharedProgram = async function(docId, btn) {
   window.getAdherenceForDate = function(dateKey) {
     const log = (State.logs || {})[dateKey];
     if (!log) return null;
-    const T = getTargetsForDate(dateKey);
+    const T = getTargetsForDay(dateKey);
     if (!T || !T.calories) return null;
     const cal = Object.values(log.meals || {}).flat().reduce((s, f) => s + (f.cal || 0), 0);
     if (cal === 0) return null;
@@ -21050,7 +21074,7 @@ window.dismissSharedProgram = async function(docId, btn) {
   window.getMacroComplianceForDate = function(dateKey) {
     const log = (State.logs || {})[dateKey];
     if (!log) return null;
-    const T = getTargetsForDate(dateKey);
+    const T = getTargetsForDay(dateKey);
     if (!T) return null;
     const items = Object.values(log.meals || {}).flat();
     const totals = {
@@ -21449,7 +21473,7 @@ window.dismissSharedProgram = async function(docId, btn) {
   // ── Expose safe version of getTargets (always snapshot-aware) ─
   // This is the single source of truth for all UI components
   window.getActiveTargets = function(dateKey) {
-    return getTargetsForDate(dateKey || (todayKey ? todayKey() : ''));
+    return getTargetsForDay(dateKey || (todayKey ? todayKey() : ''));
   };
 
   // ════════════════════════════════════════════════════════════════
