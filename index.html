@@ -8534,6 +8534,11 @@ function logSelectedFood() {
   };
   const k = nutritionDate;
   if (!State.logs[k]) State.logs[k] = { meals:{breakfast:[],lunch:[],dinner:[],snacks:[]}, water:0 };
+  // Snapshot active goal/calorie-target so changing FitProfile later won't retroactively alter past logs
+  if (!State.logs[k].goalSnapshot) {
+    State.logs[k].goalSnapshot = State.profile?.goal || 'maintain';
+    State.logs[k].calorieTargetSnapshot = State.targets?.calories || 2000;
+  }
   State.logs[k].meals[meal].push(entry);
   save();
   closeModal('modal-food');
@@ -11755,44 +11760,83 @@ function renderReports() {
 function generateWeeklyReports() {
   const reports = [];
   const today = new Date();
-  // Generate up to 4 past weeks
-  for (let w=1; w<=4; w++) {
-    const endDate = new Date(today);
-    endDate.setDate(today.getDate() - (w-1)*7);
-    const startDate = new Date(endDate);
-    startDate.setDate(endDate.getDate() - 6);
+
+  // ── Anchor to the first meaningful activity date ──────────────────
+  // Week 1 starts on the day the user first logged a workout OR first
+  // logged a nutrition entry with ≥1 food item — whichever is earlier.
+  const workoutDates = (State.workouts || []).map(w => w.date).filter(Boolean).sort();
+  const nutritionDates = Object.entries(State.logs || {})
+    .filter(([, log]) => Object.values(log.meals || {}).some(m => m.length > 0))
+    .map(([k]) => k)
+    .sort();
+  const allFirstDates = [...workoutDates, ...nutritionDates].sort();
+  if (!allFirstDates.length) return reports; // nothing logged yet
+
+  const anchorDate = new Date(allFirstDates[0] + 'T12:00:00');
+
+  // Build week buckets from anchor forward, up to today
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  const totalWeeksSinceAnchor = Math.floor((today - anchorDate) / msPerWeek);
+  // Show up to last 4 completed weeks (or however many exist)
+  const maxWeeks = Math.min(4, totalWeeksSinceAnchor + 1);
+
+  const titles = ['Week in Review','Your Weekly Snapshot','Progress Report','Training Summary'];
+
+  for (let w = 0; w < maxWeeks; w++) {
+    // w=0 → most-recent week, w=1 → one week before, etc.
+    const weekOffset = totalWeeksSinceAnchor - w; // weeks from anchor (0-based)
+    const startDate = new Date(anchorDate);
+    startDate.setDate(anchorDate.getDate() + weekOffset * 7);
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 6);
+
+    // Don't show future weeks
+    if (startDate > today) continue;
+    // Cap end to today for the current in-progress week
+    const cappedEnd = endDate > today ? today : endDate;
 
     const days = [];
-    for (let i=0; i<7; i++) {
-      const d = new Date(startDate); d.setDate(startDate.getDate()+i);
-      days.push(localDateKey(d.getFullYear(),d.getMonth(),d.getDate()));
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startDate); d.setDate(startDate.getDate() + i);
+      if (d > today) break;
+      days.push(localDateKey(d.getFullYear(), d.getMonth(), d.getDate()));
     }
 
-    const loggedDays = days.filter(k=>State.logs[k] && Object.values(State.logs[k].meals||{}).some(m=>m.length));
+    const loggedDays = days.filter(k => State.logs[k] && Object.values(State.logs[k].meals || {}).some(m => m.length));
     if (!loggedDays.length) continue;
 
-    const cals = loggedDays.map(k=>{ const t=getTodayTotals(k); return t.cal; });
-    const proteins = loggedDays.map(k=>{ const t=getTodayTotals(k); return t.protein; });
-    const weekWorkouts = State.workouts.filter(w=>days.includes(w.date)).length;
+    const cals     = loggedDays.map(k => { const t = getTodayTotals(k); return t.cal; });
+    const proteins = loggedDays.map(k => { const t = getTodayTotals(k); return t.protein; });
+    const weekWorkouts = State.workouts.filter(w => days.includes(w.date)).length;
 
-    const startMetric = State.metrics.find(m=>days.includes(m.date) && m.weight);
-    const endMetric = [...State.metrics].reverse().find(m=>days.includes(m.date) && m.weight);
-    const weightChange = (startMetric && endMetric && startMetric.date!==endMetric.date)
+    const startMetric = State.metrics.find(m => days.includes(m.date) && m.weight);
+    const endMetric   = [...State.metrics].reverse().find(m => days.includes(m.date) && m.weight);
+    const weightChange = (startMetric && endMetric && startMetric.date !== endMetric.date)
       ? +((endMetric.weight - startMetric.weight).toFixed(1)) : 0;
 
-    const avgCal = cals.length ? Math.round(cals.reduce((a,b)=>a+b,0)/cals.length) : 0;
-    const avgProtein = proteins.length ? Math.round(proteins.reduce((a,b)=>a+b,0)/proteins.length) : 0;
+    const avgCal     = cals.length     ? Math.round(cals.reduce((a, b) => a + b, 0) / cals.length) : 0;
+    const avgProtein = proteins.length ? Math.round(proteins.reduce((a, b) => a + b, 0) / proteins.length) : 0;
+
+    // Use the goal/calorie-target that was active during this week (from snapshot), not the current one
+    const firstLoggedDay = loggedDays[0];
+    const weekGoal   = (State.logs[firstLoggedDay]?.goalSnapshot)   || State.profile?.goal   || 'maintain';
+    const weekCalTgt = (State.logs[firstLoggedDay]?.calorieTargetSnapshot) || State.targets?.calories || 2000;
+    const weekProTgt = State.targets.protein; // protein target doesn't change per-phase in current model
 
     const highlights = [];
     if (weekWorkouts >= 4) highlights.push('Crushed it — 4+ workouts this week!');
     else if (weekWorkouts === 0) highlights.push('No workouts logged. Aim for at least 3 next week.');
-    if (avgProtein >= State.targets.protein) highlights.push('Hit your protein goal every day!');
+    if (avgProtein >= weekProTgt) highlights.push('Hit your protein goal every day!');
     if (weightChange < -0.5) highlights.push(`Lost ${Math.abs(weightChange)}kg — great progress!`);
+    if (weekGoal === 'bulk'  && avgCal > weekCalTgt * 0.95) highlights.push(`Surplus on track — ${weekGoal === 'bulk' ? 'lean bulk 💪' : ''}`);
+    if (weekGoal === 'cut'   && avgCal <= weekCalTgt)       highlights.push('Stayed in deficit — fat loss on track 🔥');
 
-    const weekLabel = `${startDate.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${endDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
-    const titles = ['Week in Review','Your Weekly Snapshot','Progress Report','Training Summary'];
+    const phaseTag = weekGoal === 'bulk' ? ' · Bulk 📈' : weekGoal === 'cut' ? ' · Cut 🔥' : '';
+    const weekLabel = `Week ${weekOffset + 1}${phaseTag} · ${startDate.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${cappedEnd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+
     reports.push({
-      weekLabel, title: titles[(w-1)%titles.length],
+      weekLabel,
+      title: titles[w % titles.length],
       avgCal, avgProtein, workouts: weekWorkouts, weightChange,
       highlight: highlights[0] || null
     });
@@ -16278,6 +16322,20 @@ function saveFitProfile() {
   const age = parseInt(document.getElementById('fp-age').value);
   if (age) State.profile.age = age;
   State.profile.gender = document.getElementById('fp-gender').value;
+
+  // Before overwriting the goal, snapshot the CURRENT goal into any existing logs
+  // that were created before the snapshot system existed. This ensures that switching
+  // goal (e.g. cut → bulk) does not retroactively re-label past nutrition entries.
+  const previousGoal = State.profile?.goal || 'maintain';
+  const previousCalTarget = State.targets?.calories || 2000;
+  Object.keys(State.logs || {}).forEach(dateKey => {
+    const log = State.logs[dateKey];
+    if (log && !log.goalSnapshot) {
+      log.goalSnapshot = previousGoal;
+      log.calorieTargetSnapshot = previousCalTarget;
+    }
+  });
+
   State.profile.goal   = document.getElementById('fp-goal').value;
 
   const cal  = parseInt(document.getElementById('fp-cal').value);
