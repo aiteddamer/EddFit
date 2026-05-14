@@ -13496,7 +13496,7 @@ function renderPrograms() {
             const has = p.days[di];
             return `<div style="text-align:center;padding:5px 2px;border-radius:5px;background:${has?'var(--accent-dim)':'var(--bg-elevated)'};border:1px solid ${has?'rgba(232,255,71,0.25)':'var(--border)'}">
               <div style="font-size:0.6rem;font-weight:700;color:${has?'var(--accent)':'var(--text-muted)'}">${DAY_NAMES[di].slice(0,3)}</div>
-              ${has?`<div style="font-size:0.52rem;color:var(--text-secondary);margin-top:1px">${typeof has==='string'?has:''}</div>`:''}
+              ${has?`<div style="font-size:0.52rem;color:var(--text-secondary);margin-top:1px">${typeof has==='string'?has:''}</div>`:'<div style="font-size:0.6rem;color:var(--text-muted);margin-top:2px">😴</div>'}
             </div>`;
           }).join('')}
         </div>
@@ -13737,7 +13737,7 @@ function renderWeekSchedule() {
         <div style="font-size:0.7rem;color:var(--text-secondary);margin-top:2px">${d.getDate()}</div>
         ${hasWorkout?'<div style="width:6px;height:6px;border-radius:50%;background:var(--green);margin:4px auto 0"></div>':''}
         ${scheduledLabel&&!hasWorkout?`<div style="font-size:0.55rem;color:var(--accent);margin-top:4px;font-weight:600;line-height:1.2">${scheduledLabel}</div>`:''}
-        ${!scheduled&&!hasWorkout?'<div style="font-size:0.55rem;color:var(--text-muted);margin-top:4px">rest</div>':''}
+        ${activeProgram&&!scheduled&&!hasWorkout?'<div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px">😴 Rest</div>':''}
       </div>
     `;
   }).join('');
@@ -14985,9 +14985,17 @@ function _enhancedRenderWorkoutPage() {
       const grid = document.getElementById('exercise-list')?.closest('.grid-2');
       if (grid) grid.insertAdjacentElement('beforebegin', pullBanner);
     }
-    if (list) list.innerHTML = isToday
-      ? '<div class="empty-state"><div class="es-icon">🏋️</div><div class="es-text">Add exercises to build your workout</div></div>'
-      : '<div class="empty-state"><div class="es-icon">📅</div><div class="es-text">No workout logged for this day</div></div>';
+    const _activeProg = State.programs && State.programs.find(p => p.active);
+    const _todayDow = new Date().getDay();
+    const _todayMondayIdx = _todayDow === 0 ? 6 : _todayDow - 1;
+    const _viewedDow = new Date(currentDateKey + 'T12:00:00').getDay();
+    const _viewedMondayIdx = _viewedDow === 0 ? 6 : _viewedDow - 1;
+    const _isRestDay = _activeProg && !_activeProg.days[_viewedMondayIdx];
+    if (list) list.innerHTML = _isRestDay
+      ? '<div class="empty-state"><div class="es-icon">😴</div><div class="es-text">Rest Day — recover and recharge!<br><span style="font-size:0.75rem;color:var(--text-muted)">You can still add exercises manually if you want to train.</span></div></div>'
+      : isToday
+        ? '<div class="empty-state"><div class="es-icon">🏋️</div><div class="es-text">Add exercises to build your workout</div></div>'
+        : '<div class="empty-state"><div class="es-icon">📅</div><div class="es-text">No workout logged for this day</div></div>';
     document.getElementById('workout-summary-stats').textContent = '0 exercises';
     const statsCard = document.getElementById('session-stats-card');
     if (statsCard) statsCard.style.display = 'none';
