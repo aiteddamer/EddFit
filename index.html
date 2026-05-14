@@ -10129,11 +10129,8 @@ function handleImportFile(e) {
   e.target.value = '';
 }
 
-// ── Google Drive Sync ─────────────────────────────────────────────────
-// Uses Google Picker + Drive API to save/load a file called "eddfit-backup.json"
-// in the user's Google Drive App Data or root folder.
-const GDRIVE_CLIENT_ID = ''; // Leave blank — user will use the OAuth flow via a pop-up
-const GDRIVE_FILENAME  = 'eddfit-backup.json';
+// ── Google Drive Sync ────────────────────────────────────────────────────────────
+const GDRIVE_FILENAME = 'eddfit-backup.json';
 
 function gdriveStatus(msg, color) {
   const el = document.getElementById('gdrive-status');
@@ -10141,72 +10138,95 @@ function gdriveStatus(msg, color) {
 }
 
 function gdriveBackup() {
+  // Step 1: trigger the file download
   const json = JSON.stringify(State, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = GDRIVE_FILENAME;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 
-  // Step 1: ask user to sign in with Google using a popup
-  const w = window.open(
-    'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
-      client_id: '1063523637647-example.apps.googleusercontent.com', // placeholder
-      redirect_uri: 'urn:ietf:wg:oauth:2.0:oob',
-      response_type: 'token',
-      scope: 'https://www.googleapis.com/auth/drive.file',
-    }),
-    '_blank', 'width=500,height=600'
-  );
-
-  // Since we can't use a real OAuth client ID without registering an app,
-  // fall back to the manual export + instructions approach
-  w && w.close();
-  _gdriveManualInstructions('backup', json);
+  // Step 2: show modal with a direct "Open Google Drive" button
+  showGDriveModal(`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div style="font-size:1.8rem">☁️</div>
+      <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:800">Back Up to Google Drive</div>
+    </div>
+    <div style="padding:12px 14px;background:var(--green-dim);border:1px solid var(--green);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--green);font-weight:600;margin-bottom:18px">
+      ✅ <strong>eddfit-backup.json</strong> downloaded to your device
+    </div>
+    <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:14px">Now upload it to Google Drive in 2 clicks:</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);font-size:0.83rem">
+        <span style="font-size:1.1rem;flex-shrink:0">1️⃣</span>
+        <span>Click <strong>Open Google Drive</strong> below</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);font-size:0.83rem">
+        <span style="font-size:1.1rem;flex-shrink:0">2️⃣</span>
+        <span>Click <strong>+ New → File upload</strong> and select <strong>eddfit-backup.json</strong></span>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeGDriveModal()">Done</button>
+      <button class="btn btn-primary" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px"
+        onclick="window.open('https://drive.google.com/drive/my-drive','_blank')">
+        <svg width="16" height="16" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+          <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+          <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+          <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+          <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+        </svg>
+        Open Google Drive
+      </button>
+    </div>
+  `);
+  gdriveStatus('✓ File saved — upload it to Drive to complete backup', 'var(--green)');
 }
 
 function gdriveRestore() {
-  _gdriveManualInstructions('restore', null);
-}
-
-function _gdriveManualInstructions(mode, json) {
-  // Create a helpful modal with step-by-step instructions
-  const isBackup = mode === 'backup';
-
-  // For backup: auto-download + instructions to upload to Drive
-  if (isBackup) {
-    // Auto-download the file
-    const blob = new Blob([json], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = GDRIVE_FILENAME;
-    a.click();
-
-    // Show instructions overlay
-    showGDriveModal(`
-      <div style="font-size:1.1rem;font-weight:700;margin-bottom:12px">☁️ Back Up to Google Drive</div>
-      <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:18px">Your backup file <strong>eddfit-backup.json</strong> has been downloaded. Now upload it to Google Drive:</div>
-      <ol style="font-size:0.85rem;line-height:1.9;padding-left:20px;color:var(--text-primary)">
-        <li>Open <a href="https://drive.google.com" target="_blank" style="color:var(--accent)">drive.google.com</a> in a new tab</li>
-        <li>Click <strong>+ New → File upload</strong></li>
-        <li>Select the downloaded <strong>eddfit-backup.json</strong></li>
-        <li>Done! Your data is saved in Google Drive ✅</li>
-      </ol>
-      <div style="margin-top:16px;padding:12px;background:var(--accent-dim);border-radius:var(--radius-sm);font-size:0.78rem;color:var(--accent)">
-        💡 <strong>Tip:</strong> On your other device, go to Settings → Restore from Drive and follow the steps there.
+  showGDriveModal(`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div style="font-size:1.8rem">🔄</div>
+      <div style="font-family:var(--font-display);font-size:1.05rem;font-weight:800">Restore from Google Drive</div>
+    </div>
+    <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:14px">Get your backup file from Google Drive, then load it here:</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);font-size:0.83rem">
+        <span style="font-size:1.1rem;flex-shrink:0">1️⃣</span>
+        <span>Click <strong>Open Google Drive</strong> below</span>
       </div>
-    `);
-    gdriveStatus('✓ File downloaded — upload it to Drive', 'var(--green)');
-  } else {
-    // Restore: show instructions to download from Drive + import
-    showGDriveModal(`
-      <div style="font-size:1.1rem;font-weight:700;margin-bottom:12px">🔄 Restore from Google Drive</div>
-      <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:18px">Grab your backup file from Google Drive and load it here:</div>
-      <ol style="font-size:0.85rem;line-height:1.9;padding-left:20px;color:var(--text-primary)">
-        <li>Open <a href="https://drive.google.com" target="_blank" style="color:var(--accent)">drive.google.com</a></li>
-        <li>Find <strong>eddfit-backup.json</strong> → right-click → <strong>Download</strong></li>
-        <li>Come back here and click the button below 👇</li>
-      </ol>
-      <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="closeGDriveModal();importData()">📥 Load Downloaded File</button>
-    `);
-    gdriveStatus('Download from Drive, then click Restore', 'var(--text-muted)');
-  }
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);font-size:0.83rem">
+        <span style="font-size:1.1rem;flex-shrink:0">2️⃣</span>
+        <span>Find <strong>eddfit-backup.json</strong>, right-click → <strong>Download</strong></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);font-size:0.83rem">
+        <span style="font-size:1.1rem;flex-shrink:0">3️⃣</span>
+        <span>Come back here and click <strong>Load File</strong></span>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px"
+        onclick="window.open('https://drive.google.com/drive/search?q=eddfit-backup.json','_blank')">
+        <svg width="16" height="16" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+          <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+          <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+          <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+          <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+        </svg>
+        Open Google Drive
+      </button>
+      <button class="btn btn-outline" style="flex:1" onclick="closeGDriveModal();importData()">📥 Load File</button>
+    </div>
+  `);
+  gdriveStatus('Open Drive, download your backup, then load it here', 'var(--text-muted)');
 }
 
 function showGDriveModal(html) {
