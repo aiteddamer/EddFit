@@ -8622,10 +8622,29 @@ function renderWorkoutPage() {
   }
 }
 
+// Auto-save helper: for today, mirror currentWorkout into State.workouts so
+// edits persist on refresh without requiring a manual Save press.
+// For past dates, just call save() as before.
+function wdAutoSave() {
+  if (wdIsToday()) {
+    const todayK = todayKey();
+    if (State.currentWorkout.length) {
+      const savedExs = JSON.parse(JSON.stringify(State.currentWorkout));
+      const existingIdx = State.workouts.findIndex(w => w.date === todayK);
+      if (existingIdx >= 0) {
+        State.workouts[existingIdx].exercises = savedExs;
+      } else {
+        State.workouts.unshift({ date: todayK, exercises: savedExs });
+      }
+    }
+  }
+  save();
+}
+
 function updateSet(ei, si, field, val) {
   const exs = wdGetActiveExercises();
   exs[ei].sets[si][field] = +val;
-  if (!wdIsToday()) save();
+  wdAutoSave();
 }
 
 function toggleSetUnit(ei, si) {
@@ -8639,14 +8658,14 @@ function toggleSetUnit(ei, si) {
     s.weight = +(s.weight / 2.20462).toFixed(2);
     s.weightUnit = 'kg';
   }
-  if (!wdIsToday()) save();
+  wdAutoSave();
   renderWorkoutPage();
 }
 
 function toggleSet(ei, si) {
   const exs = wdGetActiveExercises();
   exs[ei].sets[si].done = !exs[ei].sets[si].done;
-  if (!wdIsToday()) save();
+  wdAutoSave();
   renderWorkoutPage();
   refreshDashboard();
 }
@@ -8654,7 +8673,7 @@ function toggleSet(ei, si) {
 function doneAllSets(ei) {
   const exs = wdGetActiveExercises();
   exs[ei].sets.forEach(s => s.done = true);
-  if (!wdIsToday()) save();
+  wdAutoSave();
   renderWorkoutPage();
   refreshDashboard();
 }
@@ -8662,7 +8681,7 @@ function doneAllSets(ei) {
 function undoAllSets(ei) {
   const exs = wdGetActiveExercises();
   exs[ei].sets.forEach(s => s.done = false);
-  if (!wdIsToday()) save();
+  wdAutoSave();
   renderWorkoutPage();
   refreshDashboard();
 }
@@ -8671,7 +8690,7 @@ function addSet(ei) {
   const exs = wdGetActiveExercises();
   const lastSet = exs[ei].sets.slice(-1)[0];
   exs[ei].sets.push({reps: lastSet?lastSet.reps:10, weight: lastSet?lastSet.weight:0, done: false, weightUnit: lastSet?lastSet.weightUnit:weightUnit()});
-  if (!wdIsToday()) save();
+  wdAutoSave();
   renderWorkoutPage();
 }
 
@@ -8679,7 +8698,7 @@ function removeSet(ei, si) {
   const exs = wdGetActiveExercises();
   exs[ei].sets.splice(si,1);
   if (!exs[ei].sets.length) removeExercise(ei);
-  else { if (!wdIsToday()) save(); renderWorkoutPage(); }
+  else { wdAutoSave(); renderWorkoutPage(); }
 }
 
 function removeExercise(ei) {
@@ -8692,7 +8711,7 @@ function removeExercise(ei) {
     window._pendingScheduledDate = null;
     window._pullSuppressedForDate = wdGetDate();
   }
-  if (!wdIsToday()) save();
+  wdAutoSave();
   renderWorkoutPage();
 }
 
@@ -8703,7 +8722,7 @@ function moveExercise(ei, direction) {
   const tmp = exs[ei];
   exs[ei] = exs[newIdx];
   exs[newIdx] = tmp;
-  if (!wdIsToday()) save();
+  wdAutoSave();
   renderWorkoutPage();
 }
 
@@ -8862,7 +8881,14 @@ function loadTemplate(key) {
 
 function saveWorkout() {
   if (!State.currentWorkout.length) { showToast('Add some exercises first.', 'error'); return; }
-  State.workouts.unshift({ date: todayKey(), exercises: JSON.parse(JSON.stringify(State.currentWorkout)) });
+  const todayK = todayKey();
+  const savedExs = JSON.parse(JSON.stringify(State.currentWorkout));
+  const existingIdx = State.workouts.findIndex(w => w.date === todayK);
+  if (existingIdx >= 0) {
+    State.workouts[existingIdx].exercises = savedExs;
+  } else {
+    State.workouts.unshift({ date: todayK, exercises: savedExs });
+  }
   State.currentWorkout = [];
   save();
   calcStreak();
@@ -14822,7 +14848,15 @@ function saveWorkoutForDate() {
   const exs = wdGetActiveExercises();
   if (!exs.length) { showToast('Add some exercises first.', 'error'); return; }
   if (wdIsToday()) {
-    State.workouts.unshift({ date: todayKey(), exercises: JSON.parse(JSON.stringify(State.currentWorkout)) });
+    const todayK = todayKey();
+    const existingIdx = State.workouts.findIndex(w => w.date === todayK);
+    const savedExs = JSON.parse(JSON.stringify(State.currentWorkout));
+    if (existingIdx >= 0) {
+      // Update existing entry instead of adding a duplicate
+      State.workouts[existingIdx].exercises = savedExs;
+    } else {
+      State.workouts.unshift({ date: todayK, exercises: savedExs });
+    }
     State.currentWorkout = [];
     save(); calcStreak(); renderWorkoutPage(); refreshDashboard();
     showToast('Workout saved! 💪', 'success');
@@ -15899,6 +15933,7 @@ function bmAddToWorkout(key, idx, name, muscle) {
   // Also push into the active workout session if it exists
   if (State.currentWorkout !== undefined) {
     State.currentWorkout.push({ name, muscle, sets: [{reps:10,weight:0,done:false},{reps:10,weight:0,done:false},{reps:10,weight:0,done:false}] });
+    if (typeof wdAutoSave === 'function') wdAutoSave();
     if (typeof renderWorkoutPage === 'function') renderWorkoutPage();
   }
 
@@ -16754,6 +16789,36 @@ async function sendFriendRequestByUsername() {
 }
 
 async function sendFriendRequest() { return sendFriendRequestByUsername(); }
+// ── Send a friend request directly by UID (from squad member list) ──
+async function sendFriendRequestToUid(targetUid, targetUsername, targetName, btnEl) {
+  const me = window._currentUser;
+  if (!me) return;
+  if (!Social.myProfile?.username) { showToast('Set your own username first (tap Edit Profile)', 'warn'); return; }
+  if (Social.friends.some(f => f.uid === targetUid)) { showToast('Already friends! ✅', 'info'); return; }
+  if (btnEl) { btnEl.textContent = 'Sending…'; btnEl.disabled = true; }
+  try {
+    const db = window._fbDb;
+    await window._fbAddDoc(window._fbCollection(db, 'users_public', targetUid, 'invites'), {
+      fromUid: me.uid,
+      fromUsername: Social.myProfile.username,
+      fromName: Social.myProfile.fullName || me.displayName || Social.myProfile.username,
+      fromPhotoURL: me.photoURL || '',
+      sentAt: window._fbServerTs(),
+      status: 'pending'
+    });
+    await window._fbSetDoc(window._fbDoc(db, 'users_public', me.uid),
+      { username: Social.myProfile.username, fullName: Social.myProfile.fullName || me.displayName || '', photoURL: me.photoURL || '', uid: me.uid },
+      { merge: true }
+    );
+    showToast(`Friend request sent to ${targetName || ('@' + targetUsername)}! 💪`, 'success');
+    if (btnEl) { btnEl.textContent = 'Sent ✅'; btnEl.style.background = 'var(--green-dim)'; btnEl.style.borderColor = 'var(--green)'; btnEl.style.color = 'var(--green)'; }
+  } catch(e) {
+    console.error('sendFriendRequestToUid', e);
+    showToast('Failed to send request — try again', 'error');
+    if (btnEl) { btnEl.textContent = '+ Add Friend'; btnEl.disabled = false; }
+  }
+}
+
 
 async function loadPendingInvites() {
   const me = window._currentUser;
@@ -16836,15 +16901,8 @@ async function loadFriends() {
         if (pSnap.exists()) Social.friends.push({ uid, ...pSnap.data() });
       } catch(e) {}
     }));
-    // Load squads from Firestore
-    try {
-      const myDoc = await window._fbGetDoc(window._fbDoc(db,'users_public',me.uid));
-      Social.squads = (myDoc.exists() && myDoc.data().squads) ? myDoc.data().squads : [];
-      // Backward compat: squad = first squad's members
-      Social.squad = Social.squads.length
-        ? Social.friends.filter(f => Social.squads[0].memberUids.includes(f.uid))
-        : [];
-    } catch(e) { Social.squads = []; Social.squad = []; }
+    // Load squads from shared Firestore collection (visible to all members)
+    await loadSquads();
     renderFriendsList();
     renderSquadsList();
     updateChallengeInviteList();
@@ -16904,17 +16962,78 @@ async function removeFriend(friendUid) {
   } catch(e) { console.error('removeFriend', e); }
 }
 
-// ── Save squads array to Firestore ────────────────────────────────
+// ── Save squad to shared Firestore collection ─────────────────────
+// Squads live in squads/{squadId} so ALL members can see them, not just the creator.
 async function _persistSquads() {
   const me = window._currentUser;
   if (!me) return;
+  // Write each squad to the shared squads collection
   try {
-    await window._fbSetDoc(
-      window._fbDoc(window._fbDb, 'users_public', me.uid),
-      { squads: Social.squads },
-      { merge: true }
-    );
+    await Promise.all(Social.squads.map(sq =>
+      window._fbSetDoc(
+        window._fbDoc(window._fbDb, 'squads', sq.id),
+        { ...sq, ownerUid: sq.ownerUid || me.uid, updatedAt: window._fbServerTs() }
+      )
+    ));
   } catch(e) { console.warn('_persistSquads error', e); }
+}
+
+// ── Load all squads the current user belongs to ───────────────────
+async function loadSquads() {
+  const me = window._currentUser;
+  if (!me) return;
+  const db = window._fbDb;
+  try {
+    // Squads where user is a member or the owner
+    const snap = await window._fbGetDocs(
+      window._fbQuery(window._fbCollection(db, 'squads'),
+        window._fbWhere('memberUids', 'array-contains', me.uid))
+    );
+    const squadsFromDb = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+
+    // Also fetch squads the user owns but might not have listed themselves as a member
+    const ownedSnap = await window._fbGetDocs(
+      window._fbQuery(window._fbCollection(db, 'squads'),
+        window._fbWhere('ownerUid', '==', me.uid))
+    );
+    ownedSnap.docs.forEach(d => {
+      if (!squadsFromDb.find(s => s.id === d.id)) squadsFromDb.push({ ...d.data(), id: d.id });
+    });
+
+    Social.squads = squadsFromDb;
+
+    // For each squad, ensure we have profiles for all members (not just friends)
+    const allMemberUids = [...new Set(squadsFromDb.flatMap(sq => sq.memberUids || []))];
+    await Promise.all(allMemberUids.map(async uid => {
+      if (uid === me.uid) return;
+      if (Social.friends.some(f => f.uid === uid)) return; // already loaded
+      if (Social._squadMemberProfiles && Social._squadMemberProfiles[uid]) return;
+      try {
+        const pSnap = await window._fbGetDoc(window._fbDoc(db, 'users_public', uid));
+        if (pSnap.exists()) {
+          if (!Social._squadMemberProfiles) Social._squadMemberProfiles = {};
+          Social._squadMemberProfiles[uid] = { uid, ...pSnap.data() };
+        }
+      } catch(e) {}
+    }));
+
+    // Backward compat
+    Social.squad = Social.squads.length
+      ? _getSquadMemberProfiles(Social.squads[0]).filter(f => f.uid !== me.uid)
+      : [];
+  } catch(e) { console.warn('loadSquads error', e); Social.squads = []; }
+}
+
+// ── Get full profiles for all members of a squad ─────────────────
+function _getSquadMemberProfiles(sq) {
+  if (!sq) return [];
+  const me = window._currentUser;
+  return (sq.memberUids || []).map(uid => {
+    if (me && uid === me.uid) return { uid, fullName: me.displayName || 'You', username: Social.myProfile?.username || '', photoURL: me.photoURL || '', isMe: true };
+    return Social.friends.find(f => f.uid === uid)
+      || (Social._squadMemberProfiles && Social._squadMemberProfiles[uid])
+      || { uid, fullName: '?', username: '' };
+  }).filter(Boolean);
 }
 
 // ── Render the squads list page ────────────────────────────────────
@@ -16925,38 +17044,65 @@ function renderSquadsList() {
     el.innerHTML = `<div style="text-align:center;padding:48px 0">
       <div style="font-size:2.5rem;margin-bottom:12px">🏋️</div>
       <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:700;margin-bottom:6px">No squads yet</div>
-      <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:16px">Create a squad and add your gym bros</div>
+      <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:16px">Create a squad or wait to be added by a friend</div>
       <button class="btn btn-primary btn-sm" onclick="openCreateSquad()">🚀 Create First Squad</button>
     </div>`;
     return;
   }
+  const me = window._currentUser;
   el.innerHTML = Social.squads.map((sq, idx) => {
-    const members = Social.friends.filter(f => sq.memberUids.includes(f.uid));
+    const members = _getSquadMemberProfiles(sq);
+    const isOwner = !sq.ownerUid || sq.ownerUid === me?.uid;
     const avatars = members.slice(0,5).map(f => {
       const init = (f.fullName||f.username||'?').charAt(0).toUpperCase();
-      return `<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--bg-base);border:2px solid var(--bg-card);position:relative;flex-shrink:0">
+      return `<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:var(--bg-base);border:2px solid var(--bg-card);position:relative;flex-shrink:0" title="${f.fullName||f.username||'?'}">
         ${f.photoURL?`<img src="${f.photoURL}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">`:''} ${init}
       </div>`;
     }).join('');
     const extra = members.length > 5 ? `<div style="width:32px;height:32px;border-radius:50%;background:var(--bg-elevated);border:2px solid var(--bg-card);display:flex;align-items:center;justify-content:center;font-size:0.68rem;font-weight:700;color:var(--text-secondary)">+${members.length-5}</div>` : '';
-    const memberNames = members.slice(0,3).map(f=>f.fullName||f.username||'?').join(', ') + (members.length>3?` +${members.length-3} more`:'');
-    return `<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;align-items:flex-start;gap:14px">
+
+    // Member rows with "Add Friend" button for non-friends
+    const memberRows = members.map(f => {
+      if (f.isMe) return '';
+      const isFriend = Social.friends.some(fr => fr.uid === f.uid);
+      const displayName = f.fullName || f.username || '?';
+      const init = displayName.charAt(0).toUpperCase();
+      const addBtn = !isFriend
+        ? `<button onclick="sendFriendRequestToUid('${f.uid}','${(f.username||'').replace(/'/g,"\\'")}','${displayName.replace(/'/g,"\\'")}',this)"
+             style="font-size:0.72rem;padding:4px 10px;border-radius:20px;background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.15s"
+             onmouseover="this.style.background='var(--accent)';this.style.color='var(--bg-base)'"
+             onmouseout="this.style.background='var(--accent-dim)';this.style.color='var(--accent)'">+ Add Friend</button>`
+        : `<span style="font-size:0.7rem;color:var(--green);font-weight:700">✓ Friends</span>`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
+        <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:800;color:var(--bg-base);flex-shrink:0;position:relative">
+          ${f.photoURL?`<img src="${f.photoURL}" style="position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">`:''} ${init}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.85rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${displayName}</div>
+          ${f.username?`<div style="font-size:0.7rem;color:var(--text-muted)">@${f.username}</div>`:''}
+        </div>
+        ${addBtn}
+      </div>`;
+    }).filter(Boolean).join('');
+
+    return `<div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:${memberRows?'14px':'0'}">
         <div style="font-size:2rem;flex-shrink:0;line-height:1;padding-top:2px">${sq.emoji||'🏋️'}</div>
         <div style="flex:1;min-width:0">
           <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;margin-bottom:2px">${sq.name}</div>
-          <div style="font-size:0.73rem;color:var(--text-secondary);margin-bottom:10px">${members.length} member${members.length!==1?'s':''} · ${memberNames||'—'}</div>
-          <div style="display:flex;gap:0" id="squad-avatars-${idx}">${avatars}${extra}</div>
+          <div style="font-size:0.73rem;color:var(--text-secondary);margin-bottom:10px">${members.length} member${members.length!==1?'s':''}</div>
+          <div style="display:flex;gap:0">${avatars}${extra}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-outline btn-sm" onclick="openEditSquad(${idx})">✏️</button>
-          <button class="btn btn-primary btn-sm" onclick="openChallengeForSquad(${idx})">🏆 Challenge</button>
-          <button onclick="deleteSquad(${idx})" title="Delete squad"
+          ${isOwner ? `<button class="btn btn-outline btn-sm" onclick="openEditSquad(${idx})">✏️</button>` : ''}
+          <button class="btn btn-primary btn-sm" onclick="openChallengeForSquad(${idx})">🏆</button>
+          ${isOwner ? `<button onclick="deleteSquad(${idx})" title="Delete squad"
             style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;padding:6px;border-radius:var(--radius-sm);line-height:1"
             onmouseover="this.style.color='var(--red)';this.style.background='var(--red-dim)'"
-            onmouseout="this.style.color='var(--text-muted)';this.style.background='none'">🗑</button>
+            onmouseout="this.style.color='var(--text-muted)';this.style.background='none'">🗑</button>` : ''}
         </div>
       </div>
+      ${memberRows ? `<div style="border-top:1px solid var(--border);padding-top:10px">${memberRows}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -17009,21 +17155,32 @@ function _populateSquadMemberCheckboxes(selectedUids) {
 
 // ── Save (create or update) a squad ───────────────────────────────
 async function saveSquad() {
+  const me = window._currentUser;
+  if (!me) return;
   const name  = (document.getElementById('squad-name-input')?.value||'').trim();
   const emoji = (document.getElementById('squad-emoji-input')?.value||'').trim();
   const editId = document.getElementById('squad-edit-id')?.value;
   if (!name) { showToast('Give your squad a name 💬', 'warn'); return; }
   const memberUids = [];
   document.querySelectorAll('#squad-members-checkboxes input[type=checkbox]:checked').forEach(cb => memberUids.push(cb.value));
-  const squadObj = { id: editId !== '' ? Social.squads[+editId]?.id : Date.now().toString(), name, emoji: emoji||'🏋️', memberUids };
+  // Always include the creator so they see their own squad
+  if (!memberUids.includes(me.uid)) memberUids.unshift(me.uid);
+  const squadId = editId !== '' ? (Social.squads[+editId]?.id || Date.now().toString()) : Date.now().toString();
+  const squadObj = { id: squadId, name, emoji: emoji||'🏋️', memberUids, ownerUid: me.uid };
   if (editId !== '') {
     Social.squads[+editId] = squadObj;
   } else {
     Social.squads.push(squadObj);
   }
+  // Write to shared squads collection so all members can query it
+  try {
+    await window._fbSetDoc(
+      window._fbDoc(window._fbDb, 'squads', squadId),
+      { ...squadObj, updatedAt: window._fbServerTs() }
+    );
+  } catch(e) { console.warn('saveSquad Firestore error', e); showToast('Squad saved locally — sync may be delayed', 'warn'); }
   // Sync backward-compat Social.squad
-  Social.squad = Social.friends.filter(f => Social.squads[0]?.memberUids.includes(f.uid));
-  await _persistSquads();
+  Social.squad = _getSquadMemberProfiles(Social.squads[0]).filter(f => !f.isMe);
   closeModal('modal-create-squad');
   renderSquadsList();
   renderFriendsList();
@@ -17031,13 +17188,16 @@ async function saveSquad() {
   showToast(editId !== '' ? `Squad "${name}" updated!` : `Squad "${name}" created! 🏋️`, 'success');
 }
 
-// ── Delete a squad ─────────────────────────────────────────────────
 async function deleteSquad(idx) {
+  const me = window._currentUser;
   const sq = Social.squads[idx];
   if (!sq || !confirm(`Delete squad "${sq.name}"?`)) return;
+  if (sq.ownerUid && sq.ownerUid !== me?.uid) { showToast('Only the squad creator can delete it', 'warn'); return; }
+  try {
+    await window._fbDeleteDoc(window._fbDoc(window._fbDb, 'squads', sq.id));
+  } catch(e) { console.warn('deleteSquad Firestore error', e); }
   Social.squads.splice(idx, 1);
-  Social.squad = Social.friends.filter(f => Social.squads[0]?.memberUids.includes(f.uid));
-  await _persistSquads();
+  Social.squad = Social.squads.length ? _getSquadMemberProfiles(Social.squads[0]).filter(f => !f.isMe) : [];
   renderSquadsList();
   renderFriendsList();
   showToast('Squad deleted', 'info');
