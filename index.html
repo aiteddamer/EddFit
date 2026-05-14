@@ -189,6 +189,7 @@
   window._signupUsernameTimer = null;
 
   window._validateSignupUsername = (val) => {
+    // Strip ALL characters that are not lowercase letters, digits, or underscores
     const cleaned = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
     const inp = document.getElementById('email-username-input');
     if (inp && cleaned !== val.toLowerCase()) inp.value = cleaned;
@@ -196,7 +197,43 @@
     window._signupUsername = cleaned;
     window._signupUsernameValid = false;
     if (!cleaned || cleaned.length < 5) {
-      if (stat) { stat.textContent = cleaned.length > 0 ? '⚠️ Too short (min 5 chars)' : '5–30 chars · letters, numbers, underscores'; stat.style.color = cleaned.length > 0 ? 'var(--red)' : 'var(--text-muted)'; }
+      if (stat) { stat.textContent = cleaned.length > 0 ? '⚠️ Too short (min 5 chars)' : '5–30 chars · letters & numbers only (underscore allowed inside)'; stat.style.color = cleaned.length > 0 ? 'var(--red)' : 'var(--text-muted)'; }
+      return;
+    }
+    if (cleaned.length > 30) {
+      if (stat) { stat.textContent = '⚠️ Too long (max 30 chars)'; stat.style.color = 'var(--red)'; }
+      return;
+    }
+    // Must start and end with a letter or digit (no leading/trailing underscores)
+    if (/^_|_$/.test(cleaned)) {
+      if (stat) { stat.textContent = '⚠️ Username cannot start or end with an underscore'; stat.style.color = 'var(--red)'; }
+      return;
+    }
+    // No consecutive underscores
+    if (/__/.test(cleaned)) {
+      if (stat) { stat.textContent = '⚠️ Username cannot have consecutive underscores'; stat.style.color = 'var(--red)'; }
+      return;
+    }
+    // Must contain at least one letter (not purely numeric)
+    if (!/[a-z]/.test(cleaned)) {
+      if (stat) { stat.textContent = '⚠️ Username must contain at least one letter'; stat.style.color = 'var(--red)'; }
+      return;
+    }
+    // Reserved / prohibited usernames
+    const _reservedUsernames = [
+      'admin','administrator','admins','administration',
+      'support','help','helpdesk','staff','team','official',
+      'mod','moderator','moderators',
+      'root','superuser','sysadmin','system','sys',
+      'eddfit','edfit','edd','eddfit_team','eddfit_official',
+      'info','contact','noreply','no_reply','donotreply',
+      'api','webhook','bot','robot','autobot',
+      'security','abuse','spam','report',
+      'null','undefined','anonymous','guest','user','test','testuser','demo',
+      'owner','founder','ceo','dev','developer',
+    ];
+    if (_reservedUsernames.includes(cleaned)) {
+      if (stat) { stat.textContent = '⚠️ That username is reserved — please choose another'; stat.style.color = 'var(--red)'; }
       return;
     }
     if (stat) { stat.textContent = 'Checking…'; stat.style.color = 'var(--text-muted)'; }
@@ -220,8 +257,28 @@
     const name     = (document.getElementById('email-name-input')?.value || '').trim();
     const errEl    = document.getElementById('auth-error');
     if (!email)    { if (errEl) errEl.textContent = '⚠️ Please enter your email.'; return; }
+    // ── Trusted email domain check (sign-up only gate applied below) ──
+    const _trustedDomains = [
+      'gmail.com','googlemail.com',
+      'yahoo.com','yahoo.co.uk','yahoo.fr','yahoo.de','yahoo.es','yahoo.it','yahoo.ca','yahoo.com.au',
+      'outlook.com','hotmail.com','hotmail.co.uk','live.com','live.co.uk','msn.com',
+      'icloud.com','me.com','mac.com',
+      'proton.me','protonmail.com',
+      'aol.com',
+      'zoho.com',
+      'mail.com',
+      'gmx.com','gmx.net','gmx.de',
+      'tutanota.com','tuta.io',
+      'fastmail.com',
+      'hey.com',
+    ];
+    const _emailDomain = email.split('@')[1]?.toLowerCase() || '';
+    const _emailLocalPart = email.split('@')[0] || '';
+    const _validEmailFormat = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!password) { if (errEl) errEl.textContent = '⚠️ Please enter your password.'; return; }
     if (window._emailAuthMode === 'signup') {
+      if (!_validEmailFormat || !_emailDomain) { if (errEl) errEl.textContent = '⚠️ Please enter a valid email address.'; return; }
+      if (!_trustedDomains.includes(_emailDomain)) { if (errEl) errEl.textContent = '⚠️ Please use a trusted email provider (e.g. Gmail, Outlook, Yahoo, iCloud).'; return; }
       const un = window._signupUsername;
       if (!un || un.length < 5) { if (errEl) errEl.textContent = '⚠️ Choose a username (min 5 chars).'; return; }
       if (!window._signupUsernameValid) { if (errEl) errEl.textContent = '⚠️ Username is taken or not yet checked.'; return; }
