@@ -13162,6 +13162,130 @@ function progRemoveExercise(idx) {
   renderProgDayExercises();
 }
 
+// ─── DRAG-TO-REORDER EXERCISES ───────────────────────────────────────────────
+let _dragExIdx = null;
+
+function progExDragStart(event, idx) {
+  _dragExIdx = idx;
+  event.dataTransfer.effectAllowed = 'move';
+  event.currentTarget.style.opacity = '0.4';
+}
+
+function progExDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  // Highlight drop target
+  const el = event.currentTarget;
+  el.style.borderColor = 'var(--accent)';
+}
+
+function progExDrop(event, targetIdx) {
+  event.preventDefault();
+  if (_dragExIdx === null || _dragExIdx === targetIdx) {
+    progExDragEnd(event);
+    return;
+  }
+  const da = progDayAssignments[progActiveDayIdx];
+  if (!da || !da.exercises) return;
+  const exs = da.exercises;
+  const moved = exs.splice(_dragExIdx, 1)[0];
+  exs.splice(targetIdx, 0, moved);
+  _dragExIdx = null;
+  renderProgDayExercises();
+}
+
+function progExDragEnd(event) {
+  _dragExIdx = null;
+  // Re-render to clear any stuck styles
+  renderProgDayExercises();
+}
+
+// ─── MOVE WORKOUT DAY ────────────────────────────────────────────────────────
+// Opens a small inline modal to reassign the active day's workout to a different day.
+// Past workout records are NOT affected — the program snapshot system preserves them.
+
+function openMoveDayModal() {
+  if (progActiveDayIdx === null) { showToast('Select a day first.', 'warn'); return; }
+  const da = progDayAssignments[progActiveDayIdx];
+  if (!da || !(da.exercises||[]).length) { showToast('No exercises on this day to move.', 'warn'); return; }
+
+  // Build options: all 7 days except current active one and currently-assigned workout days
+  // Allow moving to a rest day OR to another workout day (which will swap them)
+  const options = [0,1,2,3,4,5,6].filter(d => d !== progActiveDayIdx).map(d => {
+    const targetDa = progDayAssignments[d];
+    const hasWorkout = selectedProgDays.has(d) && targetDa && (targetDa.exercises||[]).length;
+    const label = DAY_NAMES[d] + (hasWorkout ? ` (swap with ${targetDa.key || 'workout'})` : ' (move here)');
+    return `<button onclick="execMoveDay(${d})"
+      style="display:block;width:100%;text-align:left;padding:11px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);color:var(--text-primary);font-size:0.88rem;font-weight:600;cursor:pointer;margin-bottom:8px;transition:all 0.15s"
+      onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+      onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'"
+    >${label}</button>`;
+  }).join('');
+
+  const da2 = progDayAssignments[progActiveDayIdx] || {};
+  const overlay = document.createElement('div');
+  overlay.id = 'move-day-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-card);border-radius:var(--radius);padding:24px 28px;width:min(400px,92vw);box-shadow:var(--shadow-lg);border:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div style="font-family:var(--font-display);font-size:1rem;font-weight:700">Move ${DAY_NAMES[progActiveDayIdx]} Workout</div>
+        <button onclick="document.getElementById('move-day-overlay').remove()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)">✕</button>
+      </div>
+      <div style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:18px">
+        Moving will reassign <strong>${da2.key || 'this workout'}</strong> to the chosen day going forward.<br>
+        <span style="color:var(--green);font-size:0.73rem">✅ Past workout records are not affected.</span>
+      </div>
+      ${options}
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+function execMoveDay(targetDayIdx) {
+  document.getElementById('move-day-overlay')?.remove();
+  if (progActiveDayIdx === null) return;
+  const fromIdx = progActiveDayIdx;
+
+  // Swap or move assignments
+  const fromDa = progDayAssignments[fromIdx];
+  const toDa   = progDayAssignments[targetDayIdx];
+
+  if (toDa && (toDa.exercises||[]).length) {
+    // SWAP: exchange both assignments
+    progDayAssignments[fromIdx]    = toDa;
+    progDayAssignments[targetDayIdx] = fromDa;
+    // Update selectedProgDays — both stay selected
+    selectedProgDays.add(fromIdx);
+    selectedProgDays.add(targetDayIdx);
+  } else {
+    // MOVE: put from's assignment on target, remove from source
+    progDayAssignments[targetDayIdx] = fromDa;
+    delete progDayAssignments[fromIdx];
+    selectedProgDays.delete(fromIdx);
+    selectedProgDays.add(targetDayIdx);
+  }
+
+  // Activate the target day so user sees the result
+  progActiveDayIdx = targetDayIdx;
+
+  renderProgWorkoutDayTabs();
+  renderProgDayAssignments();
+  renderProgDayExercises();
+
+  // Re-highlight day toggle buttons
+  document.querySelectorAll('[data-day]').forEach(btn => {
+    const d = +btn.dataset.day;
+    if (selectedProgDays.has(d)) {
+      btn.style.background='var(--accent-dim)';btn.style.borderColor='var(--accent)';btn.style.color='var(--accent)';
+    } else {
+      btn.style.background='var(--bg-elevated)';btn.style.borderColor='var(--border)';btn.style.color='var(--text-secondary)';
+    }
+  });
+
+  showToast(`Workout moved to ${DAY_NAMES[targetDayIdx]}! 📅`, 'success');
+}
+
 // Exercise picker for program builder — replaced by openProgExercisePicker above
 
 // ─── ENHANCED EXERCISE DATABASE WITH SUBGROUPS ───────────────────────────────
@@ -13807,10 +13931,18 @@ function renderProgDayExercises() {
 
   const muscleColors = {Chest:'#C0513A',Back:'#1D9E75',Shoulders:'#8B7ED8',Biceps:'#1D9E75',Triceps:'#E8A070',Legs:'#D4537E',Core:'#3d8bff',Cardio:'#16a34a',Forearms:'#BA7517','Full Body':'#e8ff47'};
   el.innerHTML = exercises.map((ex, i) => `
-    <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--bg-elevated);border-radius:var(--radius-sm);margin-bottom:8px;border:1px solid var(--border)">
+    <div draggable="true"
+      data-ex-idx="${i}"
+      ondragstart="progExDragStart(event,${i})"
+      ondragover="progExDragOver(event)"
+      ondrop="progExDrop(event,${i})"
+      ondragend="progExDragEnd(event)"
+      style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--bg-elevated);border-radius:var(--radius-sm);margin-bottom:8px;border:1px solid var(--border);transition:opacity 0.15s,border-color 0.15s;cursor:default">
+      <!-- Drag handle -->
+      <div title="Drag to reorder" style="cursor:grab;color:var(--text-muted);font-size:1rem;flex-shrink:0;line-height:1;user-select:none;padding:0 2px">⠿</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:0.88rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ex.name}</div>
-        <div style="font-size:0.7rem;font-weight:700;margin-top:2px" style="color:${muscleColors[ex.muscle]||'var(--accent)'}">${ex.muscle||''}</div>
+        <div style="font-size:0.7rem;font-weight:700;margin-top:2px;color:${muscleColors[ex.muscle]||'var(--accent)'}">${ex.muscle||''}</div>
       </div>
       <!-- Sets input -->
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
@@ -15745,7 +15877,10 @@ document.addEventListener('visibilitychange', function() {
             <div style="font-size:0.88rem;font-weight:700;color:var(--text-primary)" id="prog-active-day-label">Select a day above</div>
             <div style="font-size:0.72rem;color:var(--accent);margin-top:2px;font-weight:600" id="prog-active-day-type"></div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="openProgExercisePicker()">+ Add Exercise</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-outline btn-sm" onclick="openMoveDayModal()" title="Move this day's workout to a different day without affecting past records">📅 Move Day</button>
+            <button class="btn btn-primary btn-sm" onclick="openProgExercisePicker()">+ Add Exercise</button>
+          </div>
         </div>
 
         <!-- Muscle group filter chips — only shown when a day is selected -->
@@ -21544,7 +21679,7 @@ window.loadGlobalLeaderboard = async function() {
     const snap = await _lbTimeout(window._fbGetDocs(window._fbCollection(window._fbDb, 'leaderboard')), 8000);
 
     if (snap.empty) {
-      list.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No users on the leaderboard yet — be the first!<br><span style="font-size:0.78rem;color:var(--text-muted)">Enable 'Global Leaderboard' in Settings to appear here.</span></div></div>';
+      list.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No users on the leaderboard yet — be the first!<br><span style="font-size:0.78rem;color:var(--text-muted)">Enable \'Global Leaderboard\' in Settings to appear here.</span></div></div>';
       await _loadTrophyCase();
       return;
     }
@@ -21568,7 +21703,7 @@ window.loadGlobalLeaderboard = async function() {
 
     window._glbCache = allEntries;
     if (allEntries.length === 0) {
-      list.innerHTML = '<div class="empty-state"><div class="es-icon">🔒</div><div class="es-text">No one has opted in yet.<br><span style="font-size:0.78rem;color:var(--text-muted)">Enable 'Global Leaderboard' in Settings to be the first!</span></div></div>';
+      list.innerHTML = '<div class="empty-state"><div class="es-icon">🔒</div><div class="es-text">No one has opted in yet.<br><span style="font-size:0.78rem;color:var(--text-muted)">Enable \'Global Leaderboard\' in Settings to be the first!</span></div></div>';
       if (myRankCard) myRankCard.style.display = 'none';
       await _loadTrophyCase();
       return;
