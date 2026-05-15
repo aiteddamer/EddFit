@@ -983,6 +983,16 @@ html.dark .macro-warning.warn-red {
 }
 .meal-name { font-size: 0.88rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
 .meal-cals { font-size: 0.78rem; color: var(--text-secondary); }
+.meal-macro-summary { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.meal-macro-chip {
+  font-size: 0.72rem; font-weight: 700;
+  padding: 2px 7px; border-radius: 10px;
+  white-space: nowrap;
+}
+.meal-macro-chip.protein { background: var(--blue-dim);   color: var(--blue); }
+.meal-macro-chip.carbs   { background: var(--orange-dim); color: var(--orange); }
+.meal-macro-chip.fat     { background: var(--red-dim);    color: var(--red); }
+.meal-macro-chip.cals    { background: var(--accent-dim); color: var(--accent); }
 
 .food-item {
   display: flex; align-items: center;
@@ -8253,7 +8263,10 @@ function renderMealLog() {
   const container = document.getElementById('meal-log-container');
   container.innerHTML = meals.map(m => {
     const items = log.meals[m.key] || [];
-    const mealCals = items.reduce((s,f)=>s+f.cal,0);
+    const mealCals    = items.reduce((s,f)=>s+(f.cal||0),0);
+    const mealProtein = items.reduce((s,f)=>s+(f.protein||0),0);
+    const mealCarbs   = items.reduce((s,f)=>s+(f.carbs||0),0);
+    const mealFat     = items.reduce((s,f)=>s+(f.fat||0),0);
     const itemsHtml = items.length ? items.map((f,i) => `
       <div class="food-item">
         <div class="food-name">${f.name}</div>
@@ -8272,7 +8285,12 @@ function renderMealLog() {
         <div class="meal-header">
           <div class="meal-name">${m.label}</div>
           <div style="display:flex;align-items:center;gap:10px">
-            <span class="meal-cals">${mealCals} kcal</span>
+            <div class="meal-macro-summary">
+              <span class="meal-macro-chip protein">${Math.round(mealProtein)}g P</span>
+              <span class="meal-macro-chip carbs">${Math.round(mealCarbs)}g C</span>
+              <span class="meal-macro-chip fat">${Math.round(mealFat)}g F</span>
+              <span class="meal-macro-chip cals">${Math.round(mealCals)} kcal</span>
+            </div>
             <button class="btn btn-primary btn-sm" onclick="openQuickLog('${m.key}')">+ Add</button>
           </div>
         </div>
