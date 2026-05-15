@@ -16247,11 +16247,35 @@ function bmSelect(key) {
 function bmRenderPanel(key, data) {
   const diffColor = {Beginner:'var(--green)',Intermediate:'var(--orange)',Advanced:'var(--red)'};
   const diffBg    = {Beginner:'var(--green-dim)',Intermediate:'var(--orange-dim)',Advanced:'var(--red-dim)'};
-  const exHtml = data.exercises.map((ex, i) => `
+  const exHtml = data.exercises.map((ex, i) => {
+    const profile = BM_EX_PROFILE[ex.name] || {};
+    const steps   = BM_EX_STEPS[ex.name]   || [];
+    const tip     = BM_EX_TIPS[ex.name]    || '';
+    const profileRows = [
+      { label:'Target Muscle',   val: profile.targetMuscle   || data.name },
+      { label:'Exercise Type',   val: profile.type           || '—' },
+      { label:'Equipment',       val: profile.equipment      || '—' },
+      { label:'Mechanics',       val: profile.mechanics      || '—' },
+      { label:'Force Type',      val: profile.force          || '—' },
+      { label:'Experience',      val: ex.diff },
+      { label:'Secondary',       val: profile.secondary      || '—' },
+    ];
+    const profileHtml = profileRows.map(r => `
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:0.68rem;color:var(--text-muted);white-space:nowrap">${r.label}</span>
+        <span style="font-size:0.72rem;font-weight:600;color:var(--text-secondary);text-align:right">${r.val}</span>
+      </div>`).join('');
+    const stepsHtml = steps.length ? steps.map((s,n) => `
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span style="min-width:20px;height:20px;border-radius:50%;background:var(--accent-dim);color:var(--accent);font-size:0.65rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${n+1}</span>
+        <span style="font-size:0.75rem;color:var(--text-secondary);line-height:1.5">${s}</span>
+      </div>`).join('') : `<div style="font-size:0.75rem;color:var(--text-muted)">${tip || 'No instructions yet.'}</div>`;
+
+    return `
     <div id="bm-card-${key}-${i}" style="border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elevated);overflow:hidden;transition:border-color var(--transition)"
       onmouseover="this.style.borderColor='var(--accent)'"
       onmouseout="this.style.borderColor=window._bmOpenCard==='${key}-${i}'?'var(--accent)':'var(--border)'">
-      <!-- Header row — clicking this toggles the video -->
+      <!-- Header row -->
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;cursor:pointer"
         onclick="bmToggleVideo('${key}',${i})">
         <div style="flex:1;min-width:0">
@@ -16263,59 +16287,36 @@ function bmRenderPanel(key, data) {
         </div>
         <span style="font-size:0.68rem;padding:2px 8px;border-radius:20px;background:${diffBg[ex.diff]};color:${diffColor[ex.diff]};font-weight:700;flex-shrink:0">${ex.diff}</span>
       </div>
-      <!-- Video section — clicks inside here do NOT bubble to card -->
+      <!-- Instructions + Profile panel -->
       <div id="bm-video-${key}-${i}" style="display:none;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
-        <div id="bm-player-${key}-${i}" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden">
-          <!-- iframe fills container exactly; controls hidden via API -->
-          <iframe id="bm-iframe-${key}-${i}"
-            style="position:absolute;top:0;left:0;width:100%;height:100%;border:none"
-            allow="autoplay;encrypted-media" allowfullscreen></iframe>
-          <!-- Overlay: play/pause on click, hidden when playing -->
-          <div id="bm-overlay-${key}-${i}"
-            onclick="event.stopPropagation();bmPlayerToggle('${key}',${i})"
-            style="position:absolute;inset:0;cursor:pointer;z-index:2;display:flex;align-items:center;justify-content:center;background:transparent">
-            <div id="bm-playbtn-${key}-${i}"
-              style="width:56px;height:56px;border-radius:50%;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;transition:opacity 0.25s;opacity:0">
-              <svg width="22" height="22" viewBox="0 0 20 20" fill="white"><polygon points="5,2 18,10 5,18"/></svg>
-            </div>
+        <div style="padding:12px 14px;display:flex;flex-direction:column;gap:12px">
+          <!-- How to perform -->
+          <div>
+            <div style="font-size:0.7rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent);margin-bottom:8px">How to Perform</div>
+            <div style="display:flex;flex-direction:column;gap:6px">${stepsHtml}</div>
+            ${tip ? `<div style="margin-top:8px;padding:8px 10px;background:var(--accent-dim);border-radius:var(--radius-sm);font-size:0.72rem;color:var(--text-secondary);border-left:2px solid var(--accent)">💡 ${tip}</div>` : ''}
           </div>
-          <!-- Custom controls bar -->
-          <div onclick="event.stopPropagation()" style="position:absolute;bottom:0;left:0;right:0;z-index:3;background:linear-gradient(transparent,rgba(0,0,0,0.88));padding:6px 12px 8px;display:flex;align-items:center;gap:10px">
-            <button onclick="event.stopPropagation();bmPlayerToggle('${key}',${i})" id="bm-pbtn-${key}-${i}"
-              style="background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;flex-shrink:0">
-              <svg id="bm-picon-${key}-${i}" width="18" height="18" viewBox="0 0 20 20" fill="white"><polygon points="5,2 18,10 5,18"/></svg>
-            </button>
-            <div style="flex:1;height:3px;background:rgba(255,255,255,0.25);border-radius:2px;cursor:pointer" onclick="event.stopPropagation();bmPlayerSeek(event,'${key}',${i})">
-              <div id="bm-prog-${key}-${i}" style="height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width 0.5s linear"></div>
-            </div>
-            <span id="bm-time-${key}-${i}" style="font-size:0.65rem;color:rgba(255,255,255,0.8);white-space:nowrap;font-family:monospace">0:00</span>
-            <button onclick="event.stopPropagation();bmPlayerMute('${key}',${i})" id="bm-mbtn-${key}-${i}"
-              style="background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;flex-shrink:0">
-              <svg id="bm-micon-${key}-${i}" width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
-            </button>
-            <button onclick="event.stopPropagation();bmPlayerFS('${key}',${i})"
-              style="background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;flex-shrink:0">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-            </button>
+          <!-- Exercise Profile -->
+          <div>
+            <div style="font-size:0.7rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent);margin-bottom:6px">Exercise Profile</div>
+            <div>${profileHtml}</div>
           </div>
-        </div>
-        <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-          <div style="font-size:0.72rem;color:var(--text-secondary);flex:1">${BM_EX_TIPS[ex.name] ? '💡 ' + BM_EX_TIPS[ex.name] : ''}</div>
+          <!-- Add button -->
           <button id="bm-add-${key}-${i}" onclick="event.stopPropagation();bmAddToWorkout('${key}','${i}','${ex.name.replace(/'/g,"\\'")}','${data.name}')"
-            style="flex-shrink:0;font-size:0.75rem;padding:6px 14px;border:1px solid var(--accent);border-radius:20px;background:var(--accent-dim);color:var(--accent);cursor:pointer;font-weight:700;transition:all var(--transition)">
+            style="width:100%;font-size:0.78rem;padding:8px 14px;border:1px solid var(--accent);border-radius:var(--radius-sm);background:var(--accent-dim);color:var(--accent);cursor:pointer;font-weight:700;transition:all var(--transition);margin-top:2px">
             + Add to Workout
           </button>
         </div>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   document.getElementById('bm-panel').innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--border)">
       <div style="width:12px;height:12px;border-radius:50%;background:${data.color};flex-shrink:0"></div>
       <div>
         <div style="font-family:var(--font-display);font-size:1rem;font-weight:700">${data.name}</div>
-        <div style="font-size:0.75rem;color:var(--text-secondary)">${data.exercises.length} exercises · tap to watch & add</div>
+        <div style="font-size:0.75rem;color:var(--text-secondary)">${data.exercises.length} exercises · tap for instructions & profile</div>
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:560px;padding-right:2px">${exHtml}</div>
@@ -16464,26 +16465,18 @@ window._bmOpenCard = null;
 function bmToggleVideo(key, i) {
   const cardId  = key + '-' + i;
   const videoEl = document.getElementById('bm-video-' + key + '-' + i);
-  const iframe  = document.getElementById('bm-iframe-' + key + '-' + i);
   const arrow   = document.getElementById('bm-arrow-' + key + '-' + i);
   const card    = document.getElementById('bm-card-' + key + '-' + i);
 
   // Close previously open card
   if (window._bmOpenCard && window._bmOpenCard !== cardId) {
-    const [pk, pi] = window._bmOpenCard.split(/-(?=[^-]*$)/); // split on last dash
-    const prevVideo  = document.getElementById('bm-video-'  + pk + '-' + pi);
-    const prevIframe = document.getElementById('bm-iframe-' + pk + '-' + pi);
-    const prevArrow  = document.getElementById('bm-arrow-'  + pk + '-' + pi);
-    if (prevVideo)  prevVideo.style.display = 'none';
-    if (prevIframe) prevIframe.src = '';
-    if (prevArrow)  { prevArrow.textContent = '▶'; prevArrow.style.transform = ''; }
-    // Destroy YT player if exists
-    const prevPid = window._bmOpenCard;
-    if (prevPid && window._ytPlayers[prevPid]) {
-      try { window._ytPlayers[prevPid].destroy(); } catch(e) {}
-      delete window._ytPlayers[prevPid];
-    }
-    clearInterval(window._ytTimers[prevPid]);
+    const [pk, pi] = window._bmOpenCard.split(/-(?=[^-]*$)/);
+    const prevPanel = document.getElementById('bm-video-' + pk + '-' + pi);
+    const prevArrow = document.getElementById('bm-arrow-' + pk + '-' + pi);
+    const prevCard  = document.getElementById('bm-card-'  + pk + '-' + pi);
+    if (prevPanel) prevPanel.style.display = 'none';
+    if (prevArrow) { prevArrow.textContent = '▶'; prevArrow.style.transform = ''; }
+    if (prevCard)  prevCard.style.borderColor = 'var(--border)';
   }
 
   if (!videoEl) return;
@@ -16491,7 +16484,6 @@ function bmToggleVideo(key, i) {
   const isOpen = videoEl.style.display !== 'none';
   if (isOpen) {
     videoEl.style.display = 'none';
-    iframe.src = '';
     arrow.textContent  = '▶';
     arrow.style.transform = '';
     card.style.borderColor = 'var(--border)';
@@ -16499,30 +16491,9 @@ function bmToggleVideo(key, i) {
   } else {
     videoEl.style.display = 'block';
     arrow.textContent  = '▼';
-    arrow.style.transform = 'rotate(0deg)';
     card.style.borderColor = 'var(--accent)';
     window._bmOpenCard = cardId;
-    // Get exercise name from BM_DB
-    const exName = BM_DB[key] && BM_DB[key].exercises[i] ? BM_DB[key].exercises[i].name : '';
-    const _demicIds = {
-      'Plank':         'N31wPfeQbNs',
-      'Cable crunch':  'mlJarNnAXi0',
-      'Pull-up':       'bxguzp1DCFw',
-    };
-    const _vid = _demicIds[exName];
-    if (_vid && window.YT && window.YT.Player) {
-      bmCreatePlayer(key, i, _vid);
-    } else if (_vid) {
-      // YT API not ready yet — fallback embed, still hide controls
-      iframe.style.cssText = 'position:absolute;top:-60px;left:-10px;width:calc(100% + 20px);height:calc(100% + 120px);border:none;pointer-events:none';
-      iframe.src = 'https://www.youtube-nocookie.com/embed/' + _vid + '?autoplay=1&rel=0&modestbranding=1&playsinline=1&controls=0';
-    } else {
-      // No mapped ID — show YouTube search, hide controls bar by overflow crop
-      iframe.style.cssText = 'position:absolute;top:-60px;left:-10px;width:calc(100% + 20px);height:calc(100% + 120px);border:none;pointer-events:none';
-      iframe.src = 'https://www.youtube.com/embed?listType=search&list=' + encodeURIComponent(exName + ' DEMIC') + '&rel=0&modestbranding=1&playsinline=1&controls=0';
-    }
-    // Scroll card into view
-    setTimeout(() => document.getElementById('bm-card-' + key + '-' + i)?.scrollIntoView({behavior:'smooth', block:'nearest'}), 100);
+    setTimeout(() => card?.scrollIntoView({behavior:'smooth', block:'nearest'}), 80);
   }
 }
 
@@ -16607,6 +16578,144 @@ const BM_VIDEO_IDS = {
   'Deadlift':                     'op9kVnSso6Q',
   'Hyperextension':               'ph3pddpKzzw',
   'Superman hold':                'cc6UVNM_e_w',
+};
+
+// ── Exercise Profile Data ──────────────────────────────────────────────────
+const BM_EX_PROFILE = {
+  'Barbell bench press':         {targetMuscle:'Chest (Pectoralis Major)',type:'Strength',equipment:'Barbell',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Triceps, Shoulders'},
+  'Incline dumbbell press':      {targetMuscle:'Upper Chest',type:'Strength',equipment:'Dumbbells',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Triceps, Front Delts'},
+  'Cable fly':                   {targetMuscle:'Chest (Pectoralis Major)',type:'Hypertrophy',equipment:'Cable Machine',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'Front Delts'},
+  'Push-up':                     {targetMuscle:'Chest (Pectoralis Major)',type:'Strength',equipment:'Bodyweight',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Triceps, Core, Shoulders'},
+  'Dips (chest focus)':          {targetMuscle:'Lower Chest',type:'Strength',equipment:'Parallel Bars',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Triceps, Front Delts'},
+  'Decline bench press':         {targetMuscle:'Lower Chest',type:'Strength',equipment:'Barbell',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Triceps, Shoulders'},
+  'Plank':                       {targetMuscle:'Core (Transverse Abdominis)',type:'Endurance',equipment:'Bodyweight',mechanics:'Isolation',force:'Isometric',secondary:'Glutes, Shoulders'},
+  'Cable crunch':                {targetMuscle:'Abs (Rectus Abdominis)',type:'Strength',equipment:'Cable Machine',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Hip Flexors'},
+  'Hanging leg raise':           {targetMuscle:'Lower Abs',type:'Strength',equipment:'Pull-up Bar',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Hip Flexors, Forearms'},
+  'Ab wheel rollout':            {targetMuscle:'Abs (Rectus Abdominis)',type:'Strength',equipment:'Ab Wheel',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Lats, Shoulders, Triceps'},
+  'Bicycle crunch':              {targetMuscle:'Obliques',type:'Endurance',equipment:'Bodyweight',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Rectus Abdominis'},
+  'Dragon flag':                 {targetMuscle:'Abs (Full Core)',type:'Strength',equipment:'Bench',mechanics:'Compound',force:'Isometric / Pull',secondary:'Hip Flexors, Lats'},
+  'Overhead press':              {targetMuscle:'Shoulders (Medial Delt)',type:'Strength',equipment:'Barbell',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Triceps, Upper Traps, Core'},
+  'Lateral raise':               {targetMuscle:'Shoulders (Lateral Delt)',type:'Hypertrophy',equipment:'Dumbbells',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'Upper Traps'},
+  'Arnold press':                {targetMuscle:'Shoulders (All Heads)',type:'Hypertrophy',equipment:'Dumbbells',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Triceps, Upper Traps'},
+  'Face pull':                   {targetMuscle:'Rear Delts',type:'Hypertrophy',equipment:'Cable Machine',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Rotator Cuff, Traps'},
+  'Upright row':                 {targetMuscle:'Shoulders (Lateral Delt)',type:'Strength',equipment:'Barbell',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Traps, Biceps'},
+  'Rear delt fly':               {targetMuscle:'Rear Delts',type:'Hypertrophy',equipment:'Dumbbells',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Rhomboids, Traps'},
+  'Barbell curl':                {targetMuscle:'Biceps (Long Head)',type:'Strength',equipment:'Barbell',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Brachialis, Forearms'},
+  'Hammer curl':                 {targetMuscle:'Brachialis / Brachioradialis',type:'Hypertrophy',equipment:'Dumbbells',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Biceps'},
+  'Incline dumbbell curl':       {targetMuscle:'Biceps (Long Head)',type:'Hypertrophy',equipment:'Dumbbells',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Brachialis'},
+  'Preacher curl':               {targetMuscle:'Biceps (Short Head)',type:'Hypertrophy',equipment:'Machine / Barbell',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Brachialis'},
+  'Chin-up':                     {targetMuscle:'Biceps / Lats',type:'Strength',equipment:'Pull-up Bar',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Rear Delts, Core'},
+  'Concentration curl':          {targetMuscle:'Biceps (Peak)',type:'Hypertrophy',equipment:'Dumbbell',mechanics:'Isolation',force:'Pull (Unilateral)',secondary:'Brachialis'},
+  'Wrist curl':                  {targetMuscle:'Forearm Flexors',type:'Hypertrophy',equipment:'Barbell / Dumbbell',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'—'},
+  'Reverse wrist curl':          {targetMuscle:'Forearm Extensors',type:'Hypertrophy',equipment:'Barbell / Dumbbell',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'—'},
+  "Farmer's carry":              {targetMuscle:'Forearms / Grip',type:'Strength',equipment:'Dumbbells / Trap Bar',mechanics:'Compound',force:'Isometric',secondary:'Traps, Core, Quads'},
+  'Dead hang':                   {targetMuscle:'Forearms / Grip',type:'Endurance',equipment:'Pull-up Bar',mechanics:'Isolation',force:'Isometric',secondary:'Lats, Shoulders'},
+  'Barbell squat':               {targetMuscle:'Quads (Vastus Lateralis)',type:'Strength',equipment:'Barbell',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Glutes, Hamstrings, Core'},
+  'Leg press':                   {targetMuscle:'Quads',type:'Strength',equipment:'Machine',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Glutes, Hamstrings'},
+  'Leg extension':               {targetMuscle:'Quads (Rectus Femoris)',type:'Hypertrophy',equipment:'Machine',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'—'},
+  'Bulgarian split squat':       {targetMuscle:'Quads / Glutes',type:'Strength',equipment:'Dumbbells / Barbell',mechanics:'Compound',force:'Push (Unilateral)',secondary:'Hamstrings, Core'},
+  'Front squat':                 {targetMuscle:'Quads (Rectus Femoris)',type:'Strength',equipment:'Barbell',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Core, Glutes'},
+  'Hack squat':                  {targetMuscle:'Quads',type:'Strength',equipment:'Machine',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Glutes, Hamstrings'},
+  'Hip thrust':                  {targetMuscle:'Glutes (Gluteus Maximus)',type:'Strength',equipment:'Barbell / Machine',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'Hamstrings, Core'},
+  'Romanian deadlift':           {targetMuscle:'Hamstrings / Glutes',type:'Strength',equipment:'Barbell / Dumbbells',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Lower Back, Forearms'},
+  'Glute bridge':                {targetMuscle:'Glutes (Gluteus Maximus)',type:'Strength',equipment:'Bodyweight / Barbell',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'Hamstrings, Core'},
+  'Cable kickback':              {targetMuscle:'Glutes (Gluteus Maximus)',type:'Hypertrophy',equipment:'Cable Machine',mechanics:'Isolation',force:'Push (Unilateral)',secondary:'Hamstrings'},
+  'Step-up':                     {targetMuscle:'Quads / Glutes',type:'Strength',equipment:'Box / Dumbbells',mechanics:'Compound',force:'Push (Unilateral)',secondary:'Hamstrings, Core'},
+  'Sumo squat':                  {targetMuscle:'Glutes / Inner Thighs',type:'Strength',equipment:'Dumbbell / Barbell',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Quads, Hamstrings'},
+  'Standing calf raise':         {targetMuscle:'Calves (Gastrocnemius)',type:'Hypertrophy',equipment:'Machine / Bodyweight',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'Soleus'},
+  'Seated calf raise':           {targetMuscle:'Calves (Soleus)',type:'Hypertrophy',equipment:'Machine',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'Gastrocnemius'},
+  'Donkey calf raise':           {targetMuscle:'Calves (Gastrocnemius)',type:'Hypertrophy',equipment:'Machine / Bodyweight',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'Soleus'},
+  'Jump rope':                   {targetMuscle:'Calves / Cardio',type:'Cardio',equipment:'Jump Rope',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Core, Coordination'},
+  'Barbell shrug':               {targetMuscle:'Trapezius (Upper)',type:'Strength',equipment:'Barbell',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Forearms, Neck'},
+  'Dumbbell shrug':              {targetMuscle:'Trapezius (Upper)',type:'Hypertrophy',equipment:'Dumbbells',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Forearms, Neck'},
+  'Rack pull':                   {targetMuscle:'Trapezius / Upper Back',type:'Strength',equipment:'Barbell',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Forearms, Erectors'},
+  'Pull-up':                     {targetMuscle:'Lats (Latissimus Dorsi)',type:'Strength',equipment:'Pull-up Bar',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Biceps, Rear Delts, Core'},
+  'Lat pulldown':                {targetMuscle:'Lats (Latissimus Dorsi)',type:'Strength',equipment:'Cable Machine',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Biceps, Rear Delts'},
+  'Seated cable row':            {targetMuscle:'Lats / Mid Back',type:'Strength',equipment:'Cable Machine',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Biceps, Rear Delts'},
+  'Bent-over row':               {targetMuscle:'Lats / Mid Back',type:'Strength',equipment:'Barbell',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Biceps, Erectors'},
+  'Single-arm dumbbell row':     {targetMuscle:'Lats (Latissimus Dorsi)',type:'Strength',equipment:'Dumbbell',mechanics:'Compound',force:'Pull (Unilateral)',secondary:'Biceps, Rear Delts'},
+  'T-bar row':                   {targetMuscle:'Mid Back / Lats',type:'Strength',equipment:'T-Bar Machine',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Biceps, Rear Delts'},
+  'Close-grip bench press':      {targetMuscle:'Triceps (Long Head)',type:'Strength',equipment:'Barbell',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Chest, Front Delts'},
+  'Tricep pushdown':             {targetMuscle:'Triceps (Lateral Head)',type:'Hypertrophy',equipment:'Cable Machine',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'—'},
+  'Overhead tricep extension':   {targetMuscle:'Triceps (Long Head)',type:'Hypertrophy',equipment:'Dumbbell / Cable',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'—'},
+  'Skull crusher':               {targetMuscle:'Triceps (Long Head)',type:'Hypertrophy',equipment:'Barbell / EZ-Bar',mechanics:'Isolation',force:'Push (Bilateral)',secondary:'—'},
+  'Dips (tricep focus)':         {targetMuscle:'Triceps',type:'Strength',equipment:'Parallel Bars',mechanics:'Compound',force:'Push (Bilateral)',secondary:'Chest, Front Delts'},
+  'Leg curl (lying)':            {targetMuscle:'Hamstrings',type:'Hypertrophy',equipment:'Machine',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Calves, Glutes'},
+  'Nordic curl':                 {targetMuscle:'Hamstrings (Eccentric)',type:'Strength',equipment:'Bodyweight',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Glutes, Core'},
+  'Good morning':                {targetMuscle:'Hamstrings / Lower Back',type:'Strength',equipment:'Barbell',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Glutes, Erectors'},
+  'Glute-ham raise':             {targetMuscle:'Hamstrings / Glutes',type:'Strength',equipment:'GHD Machine',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Lower Back'},
+  'Deadlift':                    {targetMuscle:'Lower Back / Posterior Chain',type:'Strength',equipment:'Barbell',mechanics:'Compound',force:'Pull (Bilateral)',secondary:'Glutes, Hamstrings, Traps'},
+  'Hyperextension':              {targetMuscle:'Erector Spinae',type:'Hypertrophy',equipment:'GHD Machine',mechanics:'Isolation',force:'Pull (Bilateral)',secondary:'Glutes, Hamstrings'},
+  'Superman hold':               {targetMuscle:'Erector Spinae',type:'Endurance',equipment:'Bodyweight',mechanics:'Isolation',force:'Isometric',secondary:'Glutes, Hamstrings'},
+};
+
+// ── Step-by-step instructions ──────────────────────────────────────────────
+const BM_EX_STEPS = {
+  'Barbell bench press':       ['Lie flat on bench, grip bar slightly wider than shoulder-width.','Unrack the bar and hold it above your chest with arms fully extended.','Lower the bar slowly to mid-chest, keeping elbows at ~45°.','Press the bar back up explosively to starting position, squeezing chest at the top.','Keep shoulder blades retracted and feet flat throughout.'],
+  'Incline dumbbell press':    ['Set bench to 30–45°. Sit back and hold dumbbells at shoulder level.','Press both dumbbells straight up until arms are extended, not forward.','Slowly lower the dumbbells back down with control. Do not let them drop below chest line.','Squeeze chest at the top of every rep.'],
+  'Cable fly':                 ['Stand or sit at cable machine, set handles at chest height.','Hold handles with a slight bend in the elbows — maintain this bend throughout.','Bring hands together in a wide arc in front of your chest, leading with your elbows.','Slowly reverse the movement, feeling a full chest stretch. Do not straighten arms.'],
+  'Push-up':                   ['Start in a high plank: hands shoulder-width apart, body straight from head to heels.','Lower your chest toward the floor by bending elbows at ~45° to your body.','Press through your palms and push your body back up to start.','Keep core and glutes engaged the entire time — avoid sagging hips.'],
+  'Dips (chest focus)':        ['Grip parallel bars, lean slightly forward (15–30°) to emphasize chest.','Lower your body by bending elbows until upper arms are parallel to the floor.','Press back up to start, exhaling at the top. Do not flare elbows excessively.','The forward torso lean shifts load toward the lower chest.'],
+  'Decline bench press':       ['Secure your legs under the foot pads, lie back on the decline bench.','Grip the bar just wider than shoulder-width and unrack.','Lower the bar to your lower chest in a controlled arc.','Drive the bar up, extend arms fully. Keep shoulder blades pinched throughout.'],
+  'Plank':                     ['Start in a forearm plank: elbows under shoulders, body in a straight line.','Squeeze your abs, glutes, and quads simultaneously.','Keep hips level — do not let them sag or pike up.','Breathe normally and hold the position for the target duration.'],
+  'Cable crunch':              ['Kneel in front of a cable machine, hold a rope attachment at your forehead.','Hinge at the hips and crunch your elbows toward your thighs.','Contract your abs maximally at the bottom of the movement.','Slowly return to start — do not let the weight pull you back passively.'],
+  'Hanging leg raise':         ['Hang from a bar with a shoulder-width overhand grip, arms fully extended.','Keeping legs straight (or slightly bent), raise them until parallel to the floor or higher.','Lower your legs with control — avoid swinging.','Keep your core braced throughout and avoid using momentum.'],
+  'Ab wheel rollout':          ['Kneel on the floor, grip the ab wheel handles with both hands.','Roll the wheel forward until your hips are about to drop, keeping your back straight.','Use your core and lats to pull the wheel back to the starting position.','Move slowly on both the way out and back in.'],
+  'Bicycle crunch':            ['Lie on your back, hands lightly behind your head, knees raised at 90°.','Rotate your torso to bring one elbow toward the opposite knee.','Simultaneously extend the other leg straight out.','Alternate sides in a cycling motion — rotate the torso, not just the elbow.'],
+  'Dragon flag':               ['Lie on a flat bench, grip it behind your head.','Raise your entire body as a rigid unit until nearly vertical.','Lower your body slowly and under control — avoid bending at the hips.','This is primarily an eccentric movement; the lowering phase is the work.'],
+  'Overhead press':            ['Stand with barbell at collarbone level, grip just outside shoulder-width.','Brace your core and press the bar directly overhead until arms are locked out.','Move your head slightly back as the bar passes your face, then through at the top.','Lower the bar to collarbone in a controlled descent.'],
+  'Lateral raise':             ['Stand holding dumbbells at your sides, slight bend in elbows.','Raise both arms out to the sides until parallel to the floor — no higher.','Lead with your elbows and lean very slightly forward. Do not shrug.','Lower slowly and under control back to starting position.'],
+  'Arnold press':              ['Sit or stand holding dumbbells at chin height, palms facing you.','As you press upward, rotate your palms to face forward.','Fully extend arms overhead, pause, then reverse the rotation as you lower.','This rotation recruits all three heads of the deltoid.'],
+  'Face pull':                 ['Set cable to face height with a rope attachment. Stand or kneel.','Pull the rope toward your forehead, separating the ends as you pull.','Keep elbows high and flared out — do not let them drop below shoulder level.','Pause with a strong external rotation at peak contraction.'],
+  'Upright row':               ['Hold barbell or dumbbells in front of thighs with a shoulder-width grip.','Pull the bar straight up, leading with your elbows until they reach ear level.','Keep the bar close to your body throughout the movement.','Lower with control. Avoid this exercise if you have shoulder impingement.'],
+  'Rear delt fly':             ['Hinge at hips until torso is nearly parallel to the floor.','Hold dumbbells under your chest with a slight elbow bend — maintain this bend throughout.','Raise both arms out to your sides in a wide arc, leading with your elbows.','Squeeze your rear delts and rhomboids at the top, then lower slowly.'],
+  'Barbell curl':              ['Stand holding barbell with an underhand shoulder-width grip, elbows pinned to sides.','Curl the bar upward by flexing the elbow only — do not swing your torso.','Reach full contraction at the top, then lower with a 3-second negative.','Keep wrists neutral; do not let them curl under.'],
+  'Hammer curl':               ['Stand with dumbbells at sides, palms facing each other (neutral grip).','Curl one or both dumbbells up while keeping the neutral grip throughout.','Squeeze at the top. Lower slowly. No wrist rotation at any point.','This grip strongly targets the brachialis and brachioradialis.'],
+  'Incline dumbbell curl':     ['Set bench to 45–60°. Sit back and let arms hang straight down.','Curl both dumbbells up, keeping the neutral or slightly supinated grip.','The incline creates a full stretch on the long head of the bicep at the bottom.','Lower fully each rep to maximize that stretch.'],
+  'Preacher curl':             ['Set up at preacher bench, upper arms flat against the pad.','Hold barbell or dumbbells with underhand grip; arms nearly fully extended.','Curl the weight up, pause at peak contraction.','Lower fully and slowly — do not let the weight drop on the descent.'],
+  'Chin-up':                   ['Grip bar with underhand shoulder-width grip, hang fully.','Pull your chest toward the bar, driving elbows toward your hips.','Squeeze shoulder blades and biceps at the top.','Lower with control to a full dead hang before each rep.'],
+  'Concentration curl':        ['Sit on a bench, brace your elbow against your inner thigh.','Curl the dumbbell up with a full range of motion.','Squeeze hard at the top for 1 second. Lower slowly.','Keep the working arm perfectly vertical — no body lean to help.'],
+  'Wrist curl':                ['Sit with forearms resting on bench or thighs, palms facing up.','Let wrists drop as far as comfortable to get a full stretch.','Curl wrists upward as far as range allows. Hold 1 second.','Keep forearms flat on the support — only wrists move.'],
+  'Reverse wrist curl':        ['Same setup as wrist curl, but palms face down.','Extend wrists upward against the resistance.','The extensor muscles are weaker — use lighter weight than for wrist curls.','Full range of motion is key; partial reps are less effective.'],
+  "Farmer's carry":            ['Pick up heavy dumbbells or farmer handles, one in each hand.','Stand tall: shoulders back and down, chest up, core braced.','Walk forward with purpose using short, controlled steps.','Focus on grip — squeeze the handles hard throughout the carry.'],
+  'Dead hang':                 ['Jump or step up to a pull-up bar, hands shoulder-width apart.','Let your body hang completely, relaxing the shoulder muscles intentionally.','This decompresses the spine and builds grip strength.','Build toward 60 seconds consistently before adding weight.'],
+  'Barbell squat':             ['Bar rests on upper traps. Feet shoulder-width, toes slightly out.','Brace your core hard, chest up, gaze forward.','Squat down by pushing hips back and knees out over toes.','Drive through your heels to stand, keeping chest tall. Lock out at top.'],
+  'Leg press':                 ['Sit in the machine, feet shoulder-width on platform.','Unrack and lower the platform by bending knees toward your chest.','Do not let knees cave inward. Stop before hips lift off the seat.','Press through your whole foot back to start. Do not lock out knees.'],
+  'Leg extension':             ['Sit in the machine, ankles under the roller pad.','Extend your legs fully, squeezing your quads hard at the top.','Hold the peak contraction for 1 second.','Lower slowly for a 3-second negative to maximize hypertrophy.'],
+  'Bulgarian split squat':     ['Place rear foot on a bench behind you, front foot forward.','Lower your hips straight down until front thigh is parallel to floor.','Drive through your front heel to return to start.','Keep torso upright or lean slightly forward — avoid excessive forward lean.'],
+  'Front squat':               ['Bar rests on front of shoulders in a front rack or cross-arm grip.','Elbows high, chest up — this is critical to keeping torso upright.','Squat to depth, knees tracking over toes.','Drive up through the full foot, maintaining an upright torso throughout.'],
+  'Hack squat':                ['Set up in the machine with shoulders against pads, feet on platform.','Lower by bending knees to at least 90° or full depth if flexibility allows.','Press through the whole foot back to start.','Keep your back flat against the pad throughout the movement.'],
+  'Hip thrust':                ['Sit with upper back against a bench, barbell over hips.','Drive hips upward until your body forms a straight line from knees to shoulders.','Squeeze glutes as hard as possible at the top for 1 second.','Lower hips toward the floor and repeat — full range every rep.'],
+  'Romanian deadlift':         ['Stand with barbell in front of thighs, slight bend in knees — maintain this bend.','Push hips back as you lower the bar along your legs.','Feel a deep hamstring stretch at the bottom, then drive hips forward to return.','Keep back flat and core braced throughout.'],
+  'Glute bridge':              ['Lie on your back, feet flat on the floor near your glutes.','Drive your hips straight up, squeezing glutes hard at the top.','Hold peak contraction for 1–2 seconds per rep.','Lower hips toward floor without letting them fully touch before the next rep.'],
+  'Cable kickback':            ['Attach an ankle cuff, face the cable machine, lean forward slightly.','Kick the working leg straight back, extending at the hip.','Squeeze glute hard at full extension. Avoid rotating the torso.','Lower slowly — do not use momentum from the hip flexors.'],
+  'Step-up':                   ['Stand facing a box or bench. Step up with one foot, placing the full foot on the surface.','Drive through the heel of the elevated foot to stand on the box.','Tap the other foot to the box without shifting weight, then step back down.','Keep your torso upright and do not push off with the trailing leg.'],
+  'Sumo squat':                ['Stand with feet wider than shoulder-width, toes angled out 45°.','Hold a dumbbell or barbell in front. Chest up, core braced.','Squat straight down, keeping knees tracking over toes.','Drive through heels to stand, squeezing glutes and inner thighs at the top.'],
+  'Standing calf raise':       ['Stand with balls of feet on an elevated surface or calf raise machine.','Lower heels as far as possible for a full stretch.','Raise up onto tiptoes as high as possible. Pause 1 second.','Lower slowly for a 3-second negative. Single-leg variation increases difficulty.'],
+  'Seated calf raise':         ['Sit in a seated calf raise machine, pads across your thighs.','Lower heels for a full stretch of the soleus.','Press up onto tiptoes, hold 1 second at peak.','The seated position isolates the soleus more than standing raises.'],
+  'Donkey calf raise':         ['Hinge forward 90° at the hips, bracing against a surface.','Raise up onto tiptoes with full plantar flexion.','The hip flexion position changes the angle of gastrocnemius pull.','Full stretch at the bottom is the key to this variation.'],
+  'Jump rope':                 ['Hold handles lightly, rope behind you to start.','Swing the rope overhead and jump with both feet, landing on the balls of your feet.','Keep jumps small — just enough clearance for the rope.','Arms stay close to your body; wrists do the rotation, not the arms.'],
+  'Barbell shrug':             ['Hold barbell in front with shoulder-width grip, arms straight.','Shrug shoulders straight UP — not forward, not in a rolling motion.','Hold the top for 1 second to fully contract the upper traps.','Lower with control. Add straps if grip is limiting weight.'],
+  'Dumbbell shrug':            ['Hold dumbbells at sides with a neutral grip.','Shrug straight up as high as possible.','Hold 1 second at peak contraction. Lower fully.','Dumbbells allow more range of motion than barbell shrugs.'],
+  'Rack pull':                 ['Set barbell on pins just below knee level.','Set up as you would for a deadlift: hinge at hips, flat back, brace core.','Drive hips forward and stand up, bar staying close to the body.','Lower with control back to the pins.'],
+  'Pull-up':                   ['Hang from bar with overhand shoulder-width grip. Arms fully extended.','Pull your chest toward the bar by driving elbows down toward your hips.','Squeeze lats and shoulder blades together at the top.','Lower to a complete dead hang before each rep.'],
+  'Lat pulldown':              ['Sit at the machine, lean back slightly, grip bar just wider than shoulders.','Pull bar to your upper chest while driving elbows toward the floor.','Hold peak contraction for 1 second. Feel lats stretching at the top.','Return bar overhead with control — do not let the stack crash.'],
+  'Seated cable row':          ['Sit tall, feet on footplate, slight bend in knees.','Row the handle to your lower chest/abdomen, squeezing shoulder blades at the end.','Hold 1 second at peak, then slowly extend arms for a full lat stretch.','Keep your torso relatively still — minimal swinging.'],
+  'Bent-over row':             ['Hinge at hips ~45°, barbell hanging at arm length.','Row the bar to your lower chest/upper abdomen, elbows close to your body.','Squeeze shoulder blades hard at the top. Lower with control.','Keep back flat throughout — do not round the lower back.'],
+  'Single-arm dumbbell row':   ['Brace one hand on a bench, opposite foot back.','Let the dumbbell hang at arm length below your shoulder.','Row the dumbbell toward your hip, getting a full lat stretch at the bottom.','Keep your back flat and avoid rotating your torso excessively.'],
+  'T-bar row':                 ['Straddle the T-bar, hinge forward, grip the handles.','Row toward your chest, pulling elbows back and squeezing shoulder blades.','Narrow grip emphasizes the lats; wider grip hits more mid-back.','Control the descent — do not drop the weight.'],
+  'Close-grip bench press':    ['Lie flat, grip barbell with hands shoulder-width apart.','Tuck elbows to ~45° as you lower the bar to your lower chest / sternum.','Press back up to full lockout. Elbows stay tucked throughout.','Closer grip = more tricep; wider grip = more chest.'],
+  'Tricep pushdown':           ['Stand at cable machine, rope or bar attachment at chest height.','Elbows pinned to your sides throughout — they do not move.','Push hands down to full elbow extension. Squeeze triceps at lockout.','Return to start slowly; do not let elbows flare during the ascent.'],
+  'Overhead tricep extension': ['Stand or sit, hold dumbbell or cable overhead with both hands.','Lower the weight behind your head by bending at the elbows.','Fully extend back up to overhead. This stretches the long head maximally.','Keep elbows pointing forward — do not let them flare out.'],
+  'Skull crusher':             ['Lie on a flat bench, hold EZ-bar above your chest with arms extended.','Lower the bar toward your forehead (or behind your head) by bending elbows only.','Press back up to full extension. Keep upper arms perpendicular to the floor.','Slow negatives are highly effective here for hypertrophy.'],
+  'Dips (tricep focus)':       ['Grip parallel bars, torso upright (not leaning forward like chest dips).','Lower yourself by bending elbows, keeping them close to your sides.','Stop at ~90° elbow bend. Press back up to full lockout.','An upright torso shifts emphasis from chest to triceps.'],
+  'Leg curl (lying)':          ['Lie face-down on machine, ankles under the roller pad.','Curl heels toward your glutes in a full range of motion.','Hold peak contraction for 1 second at the top.','Lower slowly for a 3-second negative — this is where growth happens.'],
+  'Nordic curl':               ['Kneel with ankles anchored, sit upright.','Lower your body toward the floor as slowly as possible — this is the work.','Use hands to catch yourself at the bottom, then push back up.','Extremely challenging. Build up to full reps over weeks.'],
+  'Good morning':              ['Bar on upper traps, soft bend in knees. Stand tall.','Hinge at the hips, pushing them back as you lower your torso toward the floor.','Feel hamstrings loading. Lower until torso is nearly parallel to floor.','Drive hips forward to return. Keep back flat — this is not a back exercise.'],
+  'Glute-ham raise':           ['Set up on GHD machine with hips at the pad break point.','Start parallel to the floor, body straight.','Curl your hamstrings to raise your torso upright. Use hamstrings, not back extension.','Lower with control back to the start position.'],
+  'Deadlift':                  ['Bar over mid-foot. Hinge at hips, grip bar just outside legs.','Flatten your back, brace your core, take a deep breath.','Push the floor away (leg drive) rather than thinking "pull."','Keep bar close to your body throughout. Lock out hips and knees at the top.'],
+  'Hyperextension':            ['Secure feet in hyperextension machine, hips at pad break point.','Hinge at the hips, lowering your torso toward the floor.','Drive hips into the pad and squeeze glutes to raise your torso back up.','Do not hyperextend past neutral at the top — that stresses the spine.'],
+  'Superman hold':             ['Lie face-down, arms extended overhead, legs straight.','Simultaneously raise arms, chest, and legs off the floor.','Hold at the top, squeezing glutes and lower back.','Lower slowly. Add small pulses for an endurance variation.'],
 };
 
 const BM_EX_TIPS = {
