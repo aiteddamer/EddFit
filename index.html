@@ -16289,7 +16289,7 @@ function bmRenderPanel(key, data) {
       </div>
       <!-- Instructions + Profile panel -->
       <div id="bm-video-${key}-${i}" style="display:none;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
-        <div style="padding:12px 14px;display:flex;flex-direction:column;gap:12px">
+        <div style="padding:12px 14px;display:flex;flex-direction:column;gap:12px;max-height:340px;overflow-y:auto;-webkit-overflow-scrolling:touch">
           <!-- How to perform -->
           <div>
             <div style="font-size:0.7rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--accent);margin-bottom:8px">How to Perform</div>
@@ -16319,7 +16319,7 @@ function bmRenderPanel(key, data) {
         <div style="font-size:0.75rem;color:var(--text-secondary)">${data.exercises.length} exercises · tap for instructions & profile</div>
       </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:560px;padding-right:2px">${exHtml}</div>
+    <div style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:calc(100vh - 220px);padding-right:2px">${exHtml}</div>
   `;
 }
 
