@@ -7733,7 +7733,7 @@ function navigate(page, el) {
   if (page === 'settings')  { loadApiKeyStatus(); _refreshSettingsTargetsSummary(); }
   if (page === 'social')    { if (typeof renderSocialPage   === 'function') renderSocialPage(); }
   if (page === 'achievements') { if (typeof renderAchievementsPage === 'function') renderAchievementsPage(); }
-  if (page === 'globalleaderboard') { if (typeof loadGlobalLeaderboard === 'function') loadGlobalLeaderboard(); }
+  if (page === 'globalleaderboard') { if (typeof _updateSeasonUI === 'function') _updateSeasonUI(); if (typeof loadGlobalLeaderboard === 'function') loadGlobalLeaderboard(); }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -21367,8 +21367,14 @@ async function _checkAndHandleSeasonReset() {
   const seasonKey = _currentSeasonKey();
   const metaRef   = window._fbDoc(db, 'leaderboard_meta', 'season');
 
+  // Timeout wrapper so a slow/blocked Firestore read never hangs the whole page
+  const _withTimeout = (promise, ms) => Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+  ]);
+
   try {
-    const metaSnap = await window._fbGetDoc(metaRef);
+    const metaSnap = await _withTimeout(window._fbGetDoc(metaRef), 5000);
     const meta     = metaSnap.exists() ? metaSnap.data() : {};
     const lastSeason = meta.currentSeason || '';
 
@@ -21492,7 +21498,7 @@ window.loadGlobalLeaderboard = async function() {
   if (_lbGlbEl)  _lbGlbEl.checked  = _lbPub;
   _syncLeaderboardPrivacyUI(_lbPub);
 
-  _updateSeasonUI();
+  _updateSeasonUI(); // Always runs synchronously — season label never stays stuck
 
   const me = window._currentUser;
   if (!me) {
@@ -21500,11 +21506,11 @@ window.loadGlobalLeaderboard = async function() {
     return;
   }
 
-  list.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:0.85rem">⏳ Loading…</div>';
+  list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-size:0.85rem"><div style="font-size:2rem;margin-bottom:8px">⏳</div>Loading leaderboard…</div>';
   if (myRankCard) myRankCard.style.display = 'none';
 
-  // Check & handle monthly reset (only first user to open in a new month triggers archive)
-  await _checkAndHandleSeasonReset();
+  // Check & handle monthly reset — wrapped in try/catch so a blocked leaderboard_meta never stalls the page
+  try { await _checkAndHandleSeasonReset(); } catch(e) { console.warn('season reset skipped:', e); }
 
   // Push own score for this season — only if user opted in
   const _lbPublic = !!(State.prefs && State.prefs.leaderboardPublic);
@@ -21531,7 +21537,11 @@ window.loadGlobalLeaderboard = async function() {
 
   // Fetch current season scores
   try {
-    const snap = await window._fbGetDocs(window._fbCollection(window._fbDb, 'leaderboard'));
+    const _lbTimeout = (promise, ms) => Promise.race([
+      promise,
+      new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), {code:'timeout'})), ms))
+    ]);
+    const snap = await _lbTimeout(window._fbGetDocs(window._fbCollection(window._fbDb, 'leaderboard')), 8000);
 
     if (snap.empty) {
       list.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No users on the leaderboard yet — be the first!<br><span style="font-size:0.78rem;color:var(--text-muted)">Enable 'Global Leaderboard' in Settings to appear here.</span></div></div>';
@@ -21567,10 +21577,21 @@ window.loadGlobalLeaderboard = async function() {
     await _loadTrophyCase();
 
   } catch(e) {
-    const msg = e?.code === 'permission-denied'
-      ? 'Permission denied — check Firestore rules for the leaderboard collection.'
-      : `Could not load (${e?.code || e?.message || 'unknown'})`;
-    list.innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><div class="es-text">${msg}</div></div>`;
+    const code = e?.code || e?.message || 'unknown';
+    let icon = '⚠️', msg = '';
+    if (code === 'permission-denied') {
+      icon = '🔒';
+      msg = 'Firestore rules are blocking the leaderboard. Ask your admin to allow reads on the <code>leaderboard</code> collection.';
+    } else if (code === 'timeout') {
+      icon = '⏱️';
+      msg = 'Leaderboard took too long to load. Check your connection and try refreshing.';
+    } else if (code === 'unavailable' || code === 'network-request-failed') {
+      icon = '📡';
+      msg = 'No connection — leaderboard requires internet. Try again when online.';
+    } else {
+      msg = `Could not load leaderboard (${code})`;
+    }
+    list.innerHTML = `<div class="empty-state"><div class="es-icon">${icon}</div><div class="es-text">${msg}</div></div>`;
     console.error('loadGlobalLeaderboard error:', e);
   }
 };
