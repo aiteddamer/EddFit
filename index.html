@@ -1668,11 +1668,24 @@ html.dark .sgp-item.sgp-checked .sgp-checkbox::after { color:#111; }
 .sgp-pantry-item {
   display:flex;align-items:center;justify-content:space-between;
   padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:6px;
-  background:var(--bg-elevated);cursor:pointer;transition:background .12s;
+  background:var(--bg-elevated);transition:background .12s;
 }
 .sgp-pantry-item:hover { background:var(--bg-hover); }
 .sgp-pantry-name { font-size:0.83rem;font-weight:600;color:var(--text-primary); }
 .sgp-pantry-sub  { font-size:0.67rem;color:var(--text-muted);margin-top:1px; }
+.sgp-pantry-qty-row { display:flex;align-items:center;gap:6px;margin-top:6px; }
+.sgp-pantry-qty-input {
+  width:64px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg-card);color:var(--text-primary);font-size:0.8rem;text-align:center;
+}
+.sgp-pantry-unit-btn {
+  font-size:0.7rem;padding:3px 8px;border-radius:20px;border:1px solid var(--border);
+  background:var(--bg-card);color:var(--text-secondary);cursor:pointer;
+}
+.sgp-pantry-unit-btn.active { background:var(--accent);color:#fff;border-color:var(--accent); }
+.sgp-stock-full  { color:var(--green);font-size:0.7rem;font-weight:700; }
+.sgp-stock-low2  { color:var(--orange);font-size:0.7rem;font-weight:700; }
+.sgp-stock-empty { color:var(--red);font-size:0.7rem;font-weight:700; }
 
 @media (max-width:600px) {
   .sgp-item-sub { display:none; }
@@ -3578,11 +3591,11 @@ function dismissSplash() {
           <!-- Pantry modal overlay -->
           <div id="sgp-pantry-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:flex-end;justify-content:center" onclick="if(event.target===this)sgpClosePantry()">
             <div id="sgp-pantry-modal" style="background:var(--bg-card);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;max-height:82vh;overflow-y:auto;padding:22px 20px 32px;box-shadow:var(--shadow-lg)">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-                <div style="font-family:var(--font-display);font-size:1rem;font-weight:800">🏠 Pantry / Stock Levels</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div style="font-family:var(--font-display);font-size:1rem;font-weight:800">🏠 Pantry Stock</div>
                 <button class="btn-icon" onclick="sgpClosePantry()">✕</button>
               </div>
-              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:14px">Tap any item to cycle: ✅ In Stock → ⚠️ Low → 🛒 Need to Buy</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:14px">Enter how much you currently have at home. Stock decreases automatically as you log food.</div>
               <div id="sgp-pantry-list"></div>
             </div>
           </div>
@@ -8686,6 +8699,19 @@ function logSelectedFood() {
     State.logs[k].calorieTargetSnapshot = _logT?.calories || 2000;
   }
   State.logs[k].meals[meal].push(entry);
+  // ── Deduct from pantry stock ──────────────────────────────
+  try {
+    if (typeof sgpDeductStock === 'function' && typeof _extractBaseIngredient === 'function') {
+      const _norm = _extractBaseIngredient(f.name || '').toLowerCase().trim();
+      const _grams = f.cal ? (qty * 100) : 0; // rough: qty * 100g per serving
+      // If food has explicit grams (mode=gram), use that directly
+      const _logGrams = (typeof mpServingMode !== 'undefined' && mpServingMode === 'gram')
+        ? qty
+        : (qty * 100);
+      if (_norm) sgpDeductStock(_norm, _logGrams);
+    }
+  } catch(_e) { console.warn('pantry deduct error', _e); }
+  // ───────────────────────────────────────────────────
   save();
   closeModal('modal-food');
   renderMealLog();
@@ -11033,28 +11059,66 @@ function sgpGetTitle() {
 }
 
 // ── Pantry helpers ────────────────────────────────────────────────
-function sgpGetPantry()  { return State.pantry || (State.pantry = {}); }
-function sgpStockLevel(norm)   { return sgpGetPantry()[norm] || 'none'; }
-function sgpSetStock(norm, level) {
+// ── Pantry data shape: { [norm]: { qty: number, unit: 'g'|'ml'|'pcs' } }
+function sgpGetPantry() { return State.pantry || (State.pantry = {}); }
+
+function sgpGetStock(norm) {
+  const p = sgpGetPantry()[norm];
+  if (!p || typeof p === 'string') return { qty: 0, unit: 'g' };
+  return { qty: p.qty || 0, unit: p.unit || 'g' };
+}
+
+function sgpSetStockQty(norm, qty, unit) {
   const p = sgpGetPantry();
-  if (level === 'none') delete p[norm];
-  else p[norm] = level;
+  if (qty <= 0) { delete p[norm]; }
+  else { p[norm] = { qty: Math.round(qty * 10) / 10, unit: unit || 'g' }; }
   save();
 }
-function sgpCycleStock(norm) {
-  const cur = sgpStockLevel(norm);
-  const next = { none:'have', have:'low', low:'buy', buy:'none' }[cur];
-  sgpSetStock(norm, next);
-  sgpRenderPantryList();
-  sgpRenderList();
-  sgpSyncProgress();
+
+// Compatibility shim
+function sgpStockLevel(norm) {
+  return sgpGetStock(norm).qty > 0 ? 'have' : 'none';
 }
-function sgpStockBadgeHtml(norm) {
-  const s = sgpStockLevel(norm);
-  if (s === 'have') return `<span class="sgp-stock-badge sgp-stock-have" onclick="event.stopPropagation();sgpCycleStock('${_esc(norm)}')">✅ Have</span>`;
-  if (s === 'low')  return `<span class="sgp-stock-badge sgp-stock-low"  onclick="event.stopPropagation();sgpCycleStock('${_esc(norm)}')">⚠️ Low</span>`;
-  if (s === 'buy')  return `<span class="sgp-stock-badge sgp-stock-buy"  onclick="event.stopPropagation();sgpCycleStock('${_esc(norm)}')">🛒 Buy</span>`;
-  return `<span class="sgp-stock-badge sgp-stock-none" onclick="event.stopPropagation();sgpCycleStock('${_esc(norm)}')">+ Stock</span>`;
+
+// How much stock remains vs what the plan needs (in grams equivalent)
+function sgpStockRemaining(norm, neededQty, neededUnit) {
+  const s = sgpGetStock(norm);
+  if (s.qty <= 0) return { remaining: 0, stockG: 0, neededG: _toGrams(neededQty, neededUnit) };
+  const stockG  = _toGrams(s.qty, s.unit);
+  const neededG = _toGrams(neededQty, neededUnit);
+  return { stockG, neededG, remaining: Math.max(0, stockG - neededG) };
+}
+
+// Deduct grams from pantry stock when food is logged
+function sgpDeductStock(norm, grams) {
+  const s = sgpGetStock(norm);
+  if (s.qty <= 0) return;
+  const stockG  = _toGrams(s.qty, s.unit);
+  const newG    = Math.max(0, stockG - grams);
+  // Convert back to original unit
+  let newQty = newG;
+  if (s.unit === 'kg') newQty = newG / 1000;
+  else if (s.unit === 'ml') newQty = newG;
+  else if (s.unit === 'l')  newQty = newG / 1000;
+  else if (s.unit === 'pcs') newQty = newG / 100;
+  sgpSetStockQty(norm, Math.round(newQty * 10) / 10, s.unit);
+}
+
+function sgpStockBadgeHtml(norm, neededQty, neededUnit) {
+  const s = sgpGetStock(norm);
+  if (s.qty <= 0) return '';
+  const stockG  = _toGrams(s.qty, s.unit);
+  const neededG = neededQty ? _toGrams(neededQty, neededUnit) : 0;
+  const label   = s.unit === 'g'  ? Math.round(s.qty) + 'g'
+                : s.unit === 'kg' ? s.qty.toFixed(2).replace(/\.?0+$/, '') + 'kg'
+                : s.unit === 'ml' ? Math.round(s.qty) + 'ml'
+                : s.unit === 'l'  ? s.qty.toFixed(2).replace(/\.?0+$/, '') + 'L'
+                : Math.round(s.qty) + ' pcs';
+  const covers = neededG > 0 && stockG >= neededG;
+  const partial = neededG > 0 && stockG > 0 && stockG < neededG;
+  if (covers)  return `<span style="font-size:0.65rem;padding:2px 7px;border-radius:10px;background:var(--green-dim);color:var(--green);font-weight:700">✅ ${label} in stock</span>`;
+  if (partial) return `<span style="font-size:0.65rem;padding:2px 7px;border-radius:10px;background:var(--orange-dim,#fff3e0);color:var(--orange);font-weight:700">⚠️ ${label} left</span>`;
+  return `<span style="font-size:0.65rem;padding:2px 7px;border-radius:10px;background:var(--green-dim);color:var(--green);font-weight:700">✅ ${label}</span>`;
 }
 
 function _esc(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
@@ -11321,21 +11385,28 @@ function sgpGenerateList(source) {
     });
   }
 
-  // ── Pantry-aware subtraction ──────────────────────────────────────
+  // ── Pantry-aware subtraction (quantity-based) ──────────────────
   Object.keys(itemMap).forEach(norm => {
-    const stock = sgpStockLevel(norm);
-    const item  = itemMap[norm];
-    if (stock === 'have') {
-      // Already have plenty — zero out or mark as optional
+    const item   = itemMap[norm];
+    const stock  = sgpGetStock(norm);
+    const stockG = _toGrams(stock.qty, stock.unit);
+    const needG  = _toGrams(item.qty, item.unit);
+    if (stockG <= 0) return; // nothing in pantry — buy everything
+    if (stockG >= needG) {
+      // Pantry fully covers — nothing to buy
       item._pantryFull = true;
-    } else if (stock === 'low') {
-      // Reduce quantity by 50%
-      item.qty = item.unit === 'g' || item.unit === 'ml'
-        ? Math.round(item.qty * 0.5)
-        : Math.max(1, Math.round(item.qty * 0.5));
-      item._pantryLow = true;
+      item._stockLabel = stockG >= 1000 ? (stockG/1000).toFixed(1)+'kg' : Math.round(stockG)+'g';
+    } else {
+      // Partial — only buy the difference
+      const diffG = needG - stockG;
+      item._pantryLow  = true;
+      item._stockLabel = stockG >= 1000 ? (stockG/1000).toFixed(1)+'kg' : Math.round(stockG)+'g';
+      if (item.unit === 'g')  item.qty = Math.round(diffG);
+      else if (item.unit === 'kg') item.qty = +(diffG / 1000).toFixed(2);
+      else if (item.unit === 'ml') item.qty = Math.round(diffG);
+      else if (item.unit === 'l')  item.qty = +(diffG / 1000).toFixed(2);
+      else item.qty = Math.max(1, Math.round(item.qty * (diffG / needG)));
     }
-    // 'buy' or 'none' → keep full quantity
   });
 
   return itemMap;
@@ -11565,7 +11636,7 @@ function sgpRenderList() {
       const checked    = !!window._sgpChecked[norm];
       const stock      = sgpStockLevel(norm);
       const qtyStr     = sgpFmtQty(norm, it.qty, it.unit);
-      const stockBadge = sgpStockBadgeHtml(norm);
+      const stockBadge = sgpStockBadgeHtml(norm, it.qty, it.unit);
       const refill     = it.frequency >= 3 && stock !== 'have';
       const pantryFull = it._pantryFull;
       const pantryLow  = it._pantryLow;
@@ -11583,8 +11654,8 @@ function sgpRenderList() {
 
       // Pantry badge
       let pantryTag = '';
-      if (pantryFull) pantryTag = `<span style="font-size:0.6rem;color:var(--green);margin-left:4px">✅ In stock</span>`;
-      else if (pantryLow) pantryTag = `<span style="font-size:0.6rem;color:var(--orange);margin-left:4px">⚠️ Qty reduced (low stock)</span>`;
+      if (pantryFull) pantryTag = `<span style="font-size:0.6rem;color:var(--green);margin-left:4px">✅ Covered by pantry (${it._stockLabel||''})</span>`;
+      else if (pantryLow) pantryTag = `<span style="font-size:0.6rem;color:var(--orange);margin-left:4px">⚠️ ${it._stockLabel||''} in pantry — buy the rest</span>`;
 
       html += `
         <div class="sgp-item${checked?' sgp-checked':''}${pantryFull?' sgp-pantry-full':''}" id="sgp-item-${CSS.escape(norm)}" onclick="sgpToggleItem('${_esc(norm)}')">
@@ -11768,20 +11839,66 @@ function sgpRenderPantryList() {
   if (!el) return;
   const source  = window._sgpSource || 'plan';
   const itemMap = sgpGenerateList(source);
-  const items   = Object.values(itemMap).sort((a,b)=>a.displayName.localeCompare(b.displayName));
-  if (!items.length) { el.innerHTML='<div class="sgp-empty">No items in your plan yet.</div>'; return; }
-
-  el.innerHTML = items.map(it => {
-    const badge = sgpStockBadgeHtml(it.norm);
-    return `<div class="sgp-pantry-item" onclick="sgpCycleStock('${_esc(it.norm)}')">
-      <div>
-        <div class="sgp-pantry-name">${it.displayName}</div>
-        <div class="sgp-pantry-sub">${it.category} · ${sgpFmtQty(it.norm, it.qty, it.unit)||'—'}</div>
+  const pantry  = sgpGetPantry();
+  const extraNorms = Object.keys(pantry).filter(n => !itemMap[n] && pantry[n] && pantry[n].qty > 0);
+  const allItems = [
+    ...Object.values(itemMap).sort((a,b)=>a.displayName.localeCompare(b.displayName)),
+    ...extraNorms.map(n => ({ norm:n, displayName:n.charAt(0).toUpperCase()+n.slice(1), category:'🛍️ Other', qty:0, unit:'g' }))
+  ];
+  if (!allItems.length) {
+    el.innerHTML = '<div class="sgp-empty">📋 Add meals to your plan first, then set stock levels here.</div>';
+    return;
+  }
+  el.innerHTML = allItems.map(it => {
+    const stock = sgpGetStock(it.norm);
+    const hasStock = stock.qty > 0;
+    const needed = it.qty || 0;
+    const neededLabel = it.unit ? sgpFmtQty(it.norm, needed, it.unit) : '';
+    const stockG  = _toGrams(stock.qty, stock.unit);
+    const needG   = _toGrams(needed, it.unit || 'g');
+    const covers  = hasStock && stockG >= needG && needG > 0;
+    const partial = hasStock && stockG < needG && needG > 0;
+    const statusDot = covers  ? '<span style="color:var(--green)">✅</span>'
+                    : partial ? '<span style="color:var(--orange)">⚠️</span>'
+                    : hasStock ? '<span style="color:var(--blue)">📦</span>'
+                    : '<span style="color:var(--text-muted)">○</span>';
+    const units = it.unit === 'ml' || it.unit === 'l' ? ['ml','l'] : ['g','kg','pcs'];
+    const unitBtns = units.map(u =>
+      `<button class="sgp-pantry-unit-btn${stock.unit===u?' active':''}" onclick="sgpSetPantryUnit('${_esc(it.norm)}','${u}')">${u}</button>`
+    ).join('');
+    return `<div class="sgp-pantry-item" style="flex-direction:column;align-items:stretch;cursor:default">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div class="sgp-pantry-name">${statusDot} ${it.displayName}</div>
+          <div class="sgp-pantry-sub">${it.category}${neededLabel ? ' · needs '+neededLabel+' this week' : ''}</div>
+        </div>
+        <div style="font-size:0.72rem;color:${covers?'var(--green)':partial?'var(--orange)':'var(--text-muted)'}">
+          ${covers?'Covered':partial?'Partial':'Not set'}
+        </div>
       </div>
-      ${badge}
+      <div class="sgp-pantry-qty-row">
+        <input class="sgp-pantry-qty-input" type="number" min="0" step="any"
+          placeholder="0" value="${hasStock ? stock.qty : ''}"
+          oninput="sgpSetStockQty('${_esc(it.norm)}', +this.value||0, sgpGetStock('${_esc(it.norm)}').unit||'${it.unit||'g'}')" />
+        <div style="display:flex;gap:4px">${unitBtns}</div>
+        ${hasStock ? `<button class="sgp-pantry-unit-btn" style="color:var(--red);border-color:var(--red)" onclick="sgpSetStockQty('${_esc(it.norm)}',0,'g');sgpRenderPantryList();sgpRenderList()">🗑</button>` : ''}
+      </div>
     </div>`;
   }).join('');
 }
+
+function sgpSetPantryUnit(norm, unit) {
+  const s = sgpGetStock(norm);
+  const inG = _toGrams(s.qty, s.unit);
+  let newQty = inG;
+  if (unit === 'kg') newQty = inG / 1000;
+  else if (unit === 'l')  newQty = inG / 1000;
+  else if (unit === 'pcs') newQty = inG / 100;
+  sgpSetStockQty(norm, Math.round(newQty * 100) / 100, unit);
+  sgpRenderPantryList();
+  sgpRenderList();
+}
+
 
 // ── Week strip (mini stats bar in header) ─────────────────────────
 function sgpUpdateWeekStrip(itemMap) {
