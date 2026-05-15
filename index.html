@@ -11203,12 +11203,17 @@ function sgpGenerateList(source) {
     if (!it || !it.name) return;
 
     // ── Recipe expansion: deep-traverse ingredients ──────────────
-    if (it._mpType === 'recipe' && it._recipeId && recipeMap[it._recipeId]) {
-      const r = recipeMap[it._recipeId];
-      const servings = it.qty || 1;
+    // Coerce _recipeId to number — Firestore round-trips can stringify it
+    const _rid = it._recipeId != null ? +it._recipeId : null;
+    if (it._mpType === 'recipe' && _rid && recipeMap[_rid]) {
+      const r = recipeMap[_rid];
+      const recipeServings = r.servings || 1;  // servings the recipe makes in total
+      const userServings   = it.qty    || 1;   // servings the user added to the plan
+      const servingRatio   = userServings / recipeServings;
       (r.ingredients || []).forEach(ri => {
         const f = ri.food; if (!f || !f.name) return;
-        const g = (ri.grams || 100) * servings;
+        // ri.grams is for the whole recipe — scale down to user's serving count
+        const g = (ri.grams || 100) * servingRatio;
         const m = g / 100;
         addRaw(f.name, g >= 1000 ? +(g/1000).toFixed(2) : Math.round(g),
                g >= 1000 ? 'kg' : 'g',
