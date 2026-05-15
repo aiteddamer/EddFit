@@ -11202,17 +11202,28 @@ function sgpGenerateList(source) {
   function addItem(it, src) {
     if (!it || !it.name) return;
 
-    // ── Recipe expansion: deep-traverse ingredients ──────────────
-    // Coerce _recipeId to number — Firestore round-trips can stringify it
+    // ── Recipe expansion ──────────────────────────────
+    // Match by _recipeId first; fall back to name-match for legacy items
+    // saved before _mpType/_recipeId were added to saveMpCell.
     const _rid = it._recipeId != null ? +it._recipeId : null;
-    if (it._mpType === 'recipe' && _rid && recipeMap[_rid]) {
-      const r = recipeMap[_rid];
-      const recipeServings = r.servings || 1;  // servings the recipe makes in total
-      const userServings   = it.qty    || 1;   // servings the user added to the plan
+    const _cleanName = it.name
+      .replace(/^\ud83d\udcd6\s*/u, '')
+      .replace(/\s+x[12]$/i, '')
+      .replace(/\s*\(.*\)$/, '')
+      .replace(/\s*\xb7.*$/, '')
+      .trim().toLowerCase();
+    const _recipeByName = !(_rid && recipeMap[_rid])
+      ? Object.values(recipeMap).find(r => r.name.toLowerCase() === _cleanName)
+      : null;
+    const _matchedRecipe = (_rid && recipeMap[_rid]) || _recipeByName || null;
+
+    if (_matchedRecipe && (_matchedRecipe.ingredients || []).length) {
+      const r = _matchedRecipe;
+      const recipeServings = r.servings || 1;
+      const userServings   = it.qty    || 1;
       const servingRatio   = userServings / recipeServings;
-      (r.ingredients || []).forEach(ri => {
+      (r.ingredients).forEach(ri => {
         const f = ri.food; if (!f || !f.name) return;
-        // ri.grams is for the whole recipe — scale down to user's serving count
         const g = (ri.grams || 100) * servingRatio;
         const m = g / 100;
         addRaw(f.name, g >= 1000 ? +(g/1000).toFixed(2) : Math.round(g),
