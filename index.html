@@ -3720,6 +3720,20 @@ function dismissSplash() {
           </div>
         </div>
 
+        <!-- Privacy banner -->
+        <div id="glb-privacy-banner" style="border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span id="glb-privacy-icon" style="font-size:1.3rem;flex-shrink:0">🔒</span>
+          <div style="flex:1;min-width:0">
+            <div id="glb-privacy-label" style="font-weight:700;font-size:0.85rem">You are hidden from this leaderboard</div>
+            <div id="glb-privacy-sub" style="font-size:0.72rem;color:var(--text-secondary);margin-top:1px">Enable below to compete publicly and see your rank</div>
+          </div>
+          <label class="switch" style="flex-shrink:0">
+            <input type="checkbox" id="glb-privacy-toggle" onchange="saveLeaderboardPrivacy(this.checked)">
+            <div class="switch-track"></div>
+            <div class="switch-thumb"></div>
+          </label>
+        </div>
+
         <!-- Metric tabs -->
         <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm glb-metric-btn" data-metric="workouts" onclick="setGlbMetric('workouts',this)">💪 Workouts</button>
@@ -3759,7 +3773,7 @@ function dismissSplash() {
         </div>
 
         <div style="font-size:0.7rem;color:var(--text-muted);text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-          Scores update each time users open the leaderboard · Top 50 shown · Resets monthly
+          Only users who opt in are shown · Scores update on each visit · Top 50 shown · Resets monthly
         </div>
       </div>
 
@@ -3855,6 +3869,17 @@ function dismissSplash() {
                 </div>
                 <label class="switch">
                   <input type="checkbox" id="pref-macros" checked onchange="savePrefs()">
+                  <div class="switch-track"></div>
+                  <div class="switch-thumb"></div>
+                </label>
+              </div>
+              <div class="settings-row">
+                <div class="settings-row-info">
+                  <div class="settings-row-label">🏆 Global Leaderboard</div>
+                  <div class="settings-row-desc">Show your name &amp; score publicly on the global leaderboard</div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="pref-leaderboard-public" onchange="saveLeaderboardPrivacy(this.checked)">
                   <div class="switch-track"></div>
                   <div class="switch-thumb"></div>
                 </label>
@@ -7635,6 +7660,13 @@ function initUI() {
   });
   // Sync theme toggle
   applyTheme();
+  // Sync leaderboard privacy toggle
+  const lbPub = !!(State.prefs && State.prefs.leaderboardPublic);
+  const lbPageEl = document.getElementById('pref-leaderboard-public');
+  const lbGlbEl  = document.getElementById('glb-privacy-toggle');
+  if (lbPageEl) lbPageEl.checked = lbPub;
+  if (lbGlbEl)  lbGlbEl.checked  = lbPub;
+  _syncLeaderboardPrivacyUI(lbPub);
 }
 
 function toggleSidebar() {
@@ -10191,6 +10223,63 @@ function savePrefs() {
     if (macModal) macModal.checked = macPage.checked;
   }
   save();
+}
+
+// ── Leaderboard privacy ───────────────────────────────────────────────────
+function saveLeaderboardPrivacy(isPublic) {
+  if (!State.prefs) State.prefs = {};
+  State.prefs.leaderboardPublic = !!isPublic;
+  save();
+  // Sync both toggles
+  const pageToggle = document.getElementById('pref-leaderboard-public');
+  const glbToggle  = document.getElementById('glb-privacy-toggle');
+  if (pageToggle) pageToggle.checked = !!isPublic;
+  if (glbToggle)  glbToggle.checked  = !!isPublic;
+  _syncLeaderboardPrivacyUI(!!isPublic);
+  // If they just opted in, refresh the leaderboard to push their score
+  if (isPublic && typeof loadGlobalLeaderboard === 'function') {
+    const listEl = document.getElementById('glb-leaderboard-list');
+    if (listEl) loadGlobalLeaderboard();
+  }
+  // If they opted out, remove their entry from Firestore
+  if (!isPublic) {
+    const me = window._currentUser;
+    if (me) {
+      try {
+        window._fbDeleteDoc(window._fbDoc(window._fbDb, 'leaderboard', me.uid));
+      } catch(e) {}
+    }
+    // Re-render without their entry
+    if (window._glbCache) {
+      const filtered = window._glbCache.filter(e => !e.isMe);
+      window._glbCache = filtered;
+      if (typeof _renderGlobalLeaderboard === 'function') _renderGlobalLeaderboard(filtered);
+    }
+  }
+  showToast(isPublic ? '🏆 You are now visible on the leaderboard!' : '🔒 You are now hidden from the leaderboard.', isPublic ? 'success' : 'info');
+}
+
+function _syncLeaderboardPrivacyUI(isPublic) {
+  const banner   = document.getElementById('glb-privacy-banner');
+  const iconEl   = document.getElementById('glb-privacy-icon');
+  const labelEl  = document.getElementById('glb-privacy-label');
+  const subEl    = document.getElementById('glb-privacy-sub');
+  if (!banner) return;
+  if (isPublic) {
+    banner.style.background = 'var(--green-dim)';
+    banner.style.border     = '1px solid var(--green)';
+    if (iconEl)  iconEl.textContent  = '🌍';
+    if (labelEl) labelEl.style.color = 'var(--green)';
+    if (labelEl) labelEl.textContent = 'You are visible on the global leaderboard';
+    if (subEl)   subEl.textContent   = 'Your name and score are shown publicly';
+  } else {
+    banner.style.background = 'var(--bg-elevated)';
+    banner.style.border     = '1px solid var(--border)';
+    if (iconEl)  iconEl.textContent  = '🔒';
+    if (labelEl) labelEl.style.color = 'var(--text-primary)';
+    if (labelEl) labelEl.textContent = 'You are hidden from this leaderboard';
+    if (subEl)   subEl.textContent   = 'Enable to compete publicly and see your rank';
+  }
 }
 
 function toggleDarkMode(isDark) {
@@ -21395,6 +21484,14 @@ window.loadGlobalLeaderboard = async function() {
   const myRankCard = document.getElementById('glb-my-rank');
   if (!list) return;
 
+  // Sync privacy UI every time this page loads
+  const _lbPub = !!(State.prefs && State.prefs.leaderboardPublic);
+  const _lbPageEl = document.getElementById('pref-leaderboard-public');
+  const _lbGlbEl  = document.getElementById('glb-privacy-toggle');
+  if (_lbPageEl) _lbPageEl.checked = _lbPub;
+  if (_lbGlbEl)  _lbGlbEl.checked  = _lbPub;
+  _syncLeaderboardPrivacyUI(_lbPub);
+
   _updateSeasonUI();
 
   const me = window._currentUser;
@@ -21409,49 +21506,63 @@ window.loadGlobalLeaderboard = async function() {
   // Check & handle monthly reset (only first user to open in a new month triggers archive)
   await _checkAndHandleSeasonReset();
 
-  // Push own score for this season
-  try {
-    const myScores = (typeof calcAllLbScores === 'function') ? calcAllLbScores() : { workouts:0, streak:0, calGoalDays:0 };
-    await window._fbSetDoc(
-      window._fbDoc(window._fbDb, 'leaderboard', me.uid),
-      {
-        uid:         me.uid,
-        name:        me.displayName || me.email || 'Anonymous',
-        photoURL:    me.photoURL || '',
-        workouts:    myScores.workouts,
-        streak:      myScores.streak,
-        calGoalDays: myScores.calGoalDays,
-        season:      _currentSeasonKey(),
-        updatedAt:   window._fbServerTs()
-      },
-      { merge: true }
-    );
-  } catch(e) { console.warn('glb score push error', e); }
+  // Push own score for this season — only if user opted in
+  const _lbPublic = !!(State.prefs && State.prefs.leaderboardPublic);
+  if (_lbPublic) {
+    try {
+      const myScores = (typeof calcAllLbScores === 'function') ? calcAllLbScores() : { workouts:0, streak:0, calGoalDays:0 };
+      await window._fbSetDoc(
+        window._fbDoc(window._fbDb, 'leaderboard', me.uid),
+        {
+          uid:         me.uid,
+          name:        me.displayName || me.email || 'Anonymous',
+          photoURL:    me.photoURL || '',
+          workouts:    myScores.workouts,
+          streak:      myScores.streak,
+          calGoalDays: myScores.calGoalDays,
+          season:      _currentSeasonKey(),
+          updatedAt:   window._fbServerTs(),
+          public:      true,
+        },
+        { merge: true }
+      );
+    } catch(e) { console.warn('glb score push error', e); }
+  }
 
   // Fetch current season scores
   try {
     const snap = await window._fbGetDocs(window._fbCollection(window._fbDb, 'leaderboard'));
 
     if (snap.empty) {
-      list.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No users on the leaderboard yet — be the first!</div></div>';
+      list.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No users on the leaderboard yet — be the first!<br><span style="font-size:0.78rem;color:var(--text-muted)">Enable 'Global Leaderboard' in Settings to appear here.</span></div></div>';
       await _loadTrophyCase();
       return;
     }
 
-    const allEntries = snap.docs.map(d => {
-      const data = d.data();
-      return {
-        uid:         data.uid || d.id,
-        name:        data.name || 'Anonymous',
-        photoURL:    data.photoURL || '',
-        workouts:    data.workouts    || 0,
-        streak:      data.streak      || 0,
-        calGoalDays: data.calGoalDays || 0,
-        isMe:        (data.uid || d.id) === me.uid,
-      };
-    });
+    const allEntries = snap.docs
+      .map(d => {
+        const data = d.data();
+        return {
+          uid:         data.uid || d.id,
+          name:        data.name || 'Anonymous',
+          photoURL:    data.photoURL || '',
+          workouts:    data.workouts    || 0,
+          streak:      data.streak      || 0,
+          calGoalDays: data.calGoalDays || 0,
+          isMe:        (data.uid || d.id) === me.uid,
+          public:      !!data.public,
+        };
+      })
+      // Only show users who opted in (public: true)
+      .filter(e => e.public);
 
     window._glbCache = allEntries;
+    if (allEntries.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="es-icon">🔒</div><div class="es-text">No one has opted in yet.<br><span style="font-size:0.78rem;color:var(--text-muted)">Enable 'Global Leaderboard' in Settings to be the first!</span></div></div>';
+      if (myRankCard) myRankCard.style.display = 'none';
+      await _loadTrophyCase();
+      return;
+    }
     _renderGlobalLeaderboard(allEntries);
     await _loadTrophyCase();
 
