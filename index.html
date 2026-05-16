@@ -24228,4 +24228,1071 @@ window.dismissSharedProgram = async function(docId, btn) {
 
 })();
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     DELOAD WEEK SYSTEM — EddFit
+     Multi-signal detection engine + user control (delay 1–2 weeks)
+     ═══════════════════════════════════════════════════════════════════ -->
+<style>
+/* ── Deload Banner ── */
+#deload-banner {
+  display: none;
+  background: linear-gradient(135deg, rgba(124,58,237,0.12), rgba(37,99,235,0.08));
+  border: 1px solid var(--purple);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  animation: fadeUp 0.3s ease;
+  position: relative;
+}
+html.dark #deload-banner {
+  background: linear-gradient(135deg, rgba(167,139,250,0.1), rgba(61,139,255,0.08));
+  border-color: var(--purple);
+}
+#deload-banner .dlb-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+#deload-banner .dlb-close {
+  position: absolute; top: 10px; right: 12px;
+  background: none; border: none; font-size: 1rem;
+  cursor: pointer; color: var(--text-muted);
+  padding: 4px; border-radius: 6px; transition: all 0.15s;
+  line-height: 1;
+}
+#deload-banner .dlb-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* Deload week pill indicator in week schedule */
+.deload-pill {
+  display: inline-block;
+  background: var(--purple-dim);
+  border: 1px solid var(--purple);
+  color: var(--purple);
+  font-size: 0.55rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 8px;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
+  text-transform: uppercase;
+}
+
+/* Deload section in Programs tab */
+#deload-section {
+  margin-bottom: 20px;
+}
+#deload-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  transition: border-color 0.2s;
+}
+#deload-card.active-deload {
+  border-color: rgba(167,139,250,0.5);
+  background: linear-gradient(135deg, rgba(124,58,237,0.05), var(--bg-card));
+}
+.deload-signal-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+}
+.deload-signal-row.triggered {
+  background: rgba(124,58,237,0.08);
+  border: 1px solid rgba(124,58,237,0.2);
+}
+.deload-signal-row.ok {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  opacity: 0.6;
+}
+.deload-score-ring {
+  width: 54px; height: 54px;
+  border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+/* Modal */
+#modal-deload { display: none; }
+</style>
+
+<script>
+(function() {
+'use strict';
+
+// ── CONSTANTS ───────────────────────────────────────────────────────
+const DL = {
+  STORAGE_KEY: 'eddfit_deload',
+  // Detection thresholds
+  VOLUME_DROP_PCT: 0.15,   // 15% drop week-over-week = fatigue signal
+  MISSED_RATIO: 0.40,      // ≥40% missed scheduled sessions = fatigue
+  SESSIONS_MIN: 3,         // min sessions to start detection
+  HISTORY_WEEKS: 4,        // look back N weeks for pattern
+  CONSECUTIVE_HARD: 3,     // ≥3 hard weeks (>90% volume vs average) = overreaching
+  PLATEAU_WEEKS: 2,        // 2+ weeks flat volume = plateau signal
+  // Dynamic periodization thresholds by experience level
+  WEEKS_BETWEEN_BEGINNER:     3,   // < 2 years training
+  WEEKS_BETWEEN_INTERMEDIATE: 4,   // 2–5 years (default)
+  WEEKS_BETWEEN_ADVANCED:     6,   // 5+ years
+  WEEKS_HARD_CAP:             8,   // absolute ceiling regardless of level
+  // Subjective signal thresholds
+  SLEEP_AVG_THRESHOLD: 2.5,        // 5-day avg sleep score ≤ this triggers signal
+  SLEEP_DAYS_WINDOW:   5,          // rolling window for sleep average
+  JOINT_PAIN_MIN_JOINTS: 2,        // min joints flagged per session
+  JOINT_PAIN_MIN_SESSIONS: 2,      // min sessions in last 7 days with flags
+  // Recovery fueling (Signal 8)
+  PROTEIN_FLOOR_DEFAULT: 170,      // grams — overridden by userProfile.proteinTarget
+  PROTEIN_LOW_STREAK_DAYS: 3,      // consecutive low-protein training days to trigger
+  // Subjective signal cooldown after deload (prevents immediate re-trigger)
+  SUBJECTIVE_COOLDOWN_DAYS: 5,
+  // Score-scaled deload formula (replaces flat 40/40)
+  // Sets: 55% kept at score 40 → 40% kept at score 100
+  SET_MULT_BASE:   0.55,
+  SET_MULT_RANGE:  0.15,
+  SET_MIN:         2,              // always keep at least 2 sets
+  // Weight: 87% kept at score 40 → 80% kept at score 100
+  WEIGHT_MULT_BASE:  0.87,
+  WEIGHT_MULT_RANGE: 0.07,
+  // Reps: always reduce by 15% to lower mechanical load
+  REPS_MULT:  0.85,
+  REPS_MIN:   4,
+};
+
+// ── PERSISTENCE ──────────────────────────────────────────────────────
+function dlLoad() {
+  try { return JSON.parse(localStorage.getItem(DL.STORAGE_KEY) || '{}'); } catch { return {}; }
+}
+function dlSave(data) {
+  try { localStorage.setItem(DL.STORAGE_KEY, JSON.stringify(data)); } catch {}
+}
+function dlGet(key, def) {
+  const d = dlLoad(); return d[key] !== undefined ? d[key] : def;
+}
+function dlSet(key, val) {
+  const d = dlLoad(); d[key] = val; dlSave(d);
+}
+
+// ── DATE HELPERS ────────────────────────────────────────────────────
+function _dlTodayKey() {
+  const n = new Date();
+  return n.getFullYear() + '-' +
+    String(n.getMonth()+1).padStart(2,'0') + '-' +
+    String(n.getDate()).padStart(2,'0');
+}
+
+function _dlMondayOfDate(dateKey) {
+  const d = new Date(dateKey + 'T12:00:00');
+  const day = d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - ((day + 6) % 7));
+  return monday.getFullYear() + '-' +
+    String(monday.getMonth()+1).padStart(2,'0') + '-' +
+    String(monday.getDate()).padStart(2,'0');
+}
+
+function _dlWeekStart(weeksAgo) {
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  const day = d.getDay();
+  d.setDate(d.getDate() - ((day + 6) % 7) - (weeksAgo * 7));
+  return d;
+}
+
+function _dlWeekEnd(weeksAgo) {
+  const s = _dlWeekStart(weeksAgo);
+  const e = new Date(s); e.setDate(s.getDate() + 6); e.setHours(23,59,59,999);
+  return e;
+}
+
+function _dlDateKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// ── WEEK VOLUME + SESSION CALC ───────────────────────────────────────
+function _dlWeekData(weeksAgo) {
+  const start = _dlWeekStart(weeksAgo);
+  const end   = _dlWeekEnd(weeksAgo);
+  const workouts = (window.State && window.State.workouts) || [];
+  const ws = workouts.filter(w => {
+    if (!w.date) return false;
+    const d = new Date(w.date + 'T12:00:00');
+    return d >= start && d <= end;
+  });
+  const volumeKg = ws.reduce((s, w) => {
+    return s + (w.exercises || []).reduce((ev, ex) =>
+      ev + (ex.sets || []).reduce((sv, set) => {
+        const w2 = set.weight || 0;
+        const unit = set.weightUnit || 'kg';
+        const kg = unit === 'lbs' ? w2 / 2.20462 : w2;
+        return sv + kg * (set.reps || 0);
+      }, 0), 0);
+  }, 0);
+  const sets = ws.reduce((s, w) =>
+    s + (w.exercises || []).reduce((a, e) => a + (e.sets || []).length, 0), 0);
+  return { sessions: ws.length, volumeKg, sets, workouts: ws };
+}
+
+// Count scheduled sessions in a week (mon=0…sun=6) from active program
+function _dlScheduledForWeek(weeksAgo) {
+  const prog = window.State && window.State.programs && window.State.programs.find(p => p.active);
+  if (!prog || !prog.days) return 0;
+  return Object.keys(prog.days).length;
+}
+
+// ── DETECTION ENGINE — ALL SIGNALS ──────────────────────────────────
+/**
+ * Returns { score:0-100, signals:[], needsDeload:bool }
+ * score 0-39=ok, 40-69=warning, 70+=needs deload
+ */
+function dlAnalyze() {
+  const workouts = (window.State && window.State.workouts) || [];
+  const prog = window.State && window.State.programs && window.State.programs.find(p => p.active);
+  const signals = [];
+  let score = 0;
+
+  if (workouts.length < DL.SESSIONS_MIN) {
+    return { score: 0, signals: [], needsDeload: false, dataInsufficient: true };
+  }
+
+  // ── Signal 1: PERIODIZATION — time since last deload (experience-scaled) ──
+  const lastDeloadDate = dlGet('lastDeloadCompleted', null);
+  let weeksSinceDeload = null;
+  if (lastDeloadDate) {
+    const lastD = new Date(lastDeloadDate + 'T12:00:00');
+    const now = new Date();
+    weeksSinceDeload = Math.floor((now - lastD) / (7 * 24 * 60 * 60 * 1000));
+  } else if (prog) {
+    const progStart = prog.start || prog.startDate;
+    if (progStart) {
+      const startD = new Date(progStart + 'T12:00:00');
+      const now = new Date();
+      weeksSinceDeload = Math.floor((now - startD) / (7 * 24 * 60 * 60 * 1000));
+    }
+  }
+
+  // Resolve threshold from user experience level stored in profile
+  const _expLevel = (window.State && window.State.user && window.State.user.experienceLevel) || 'intermediate';
+  const _weeksBetween = _expLevel === 'beginner' ? DL.WEEKS_BETWEEN_BEGINNER
+    : _expLevel === 'advanced' ? DL.WEEKS_BETWEEN_ADVANCED
+    : DL.WEEKS_BETWEEN_INTERMEDIATE;
+
+  if (weeksSinceDeload !== null) {
+    if (weeksSinceDeload >= DL.WEEKS_HARD_CAP) {
+      signals.push({ id: 'periodization', weight: 30, icon: '📅', title: `${weeksSinceDeload} weeks without a deload`, desc: `Hard cap reached (${DL.WEEKS_HARD_CAP} weeks). A deload is overdue regardless of experience level.`, triggered: true });
+      score += 30;
+    } else if (weeksSinceDeload >= _weeksBetween + 2) {
+      signals.push({ id: 'periodization', weight: 30, icon: '📅', title: `${weeksSinceDeload} weeks without a deload`, desc: `Science recommends a deload every ${_weeksBetween}–${_weeksBetween + 2} weeks to allow full neural and tissue recovery.`, triggered: true });
+      score += 30;
+    } else if (weeksSinceDeload >= _weeksBetween) {
+      signals.push({ id: 'periodization', weight: 20, icon: '📅', title: `${weeksSinceDeload} weeks of continuous training`, desc: `You're approaching the recommended deload window for your experience level (every ${_weeksBetween}–${_weeksBetween + 2} weeks).`, triggered: true });
+      score += 20;
+    } else {
+      signals.push({ id: 'periodization', weight: 0, icon: '📅', title: `${weeksSinceDeload} weeks since last deload`, desc: `You're within the safe training window for your level. No deload needed yet.`, triggered: false });
+    }
+  }
+
+  // ── Signal 2: VOLUME DROP — this week vs last week ────────────────
+  const thisWeek = _dlWeekData(0);
+  const lastWeek = _dlWeekData(1);
+  const week2ago  = _dlWeekData(2);
+  const week3ago  = _dlWeekData(3);
+
+  if (lastWeek.volumeKg > 50 && thisWeek.sessions >= 1) {
+    const drop = (lastWeek.volumeKg - thisWeek.volumeKg) / lastWeek.volumeKg;
+    if (drop > DL.VOLUME_DROP_PCT && lastWeek.sessions > 1) {
+      signals.push({ id: 'volume-drop', weight: 20, icon: '📉', title: `Volume dropped ${Math.round(drop*100)}% this week`, desc: `Last week: ${Math.round(lastWeek.volumeKg).toLocaleString()} kg · This week: ${Math.round(thisWeek.volumeKg).toLocaleString()} kg. Sustained drops indicate accumulated fatigue.`, triggered: true });
+      score += 20;
+    } else {
+      signals.push({ id: 'volume-drop', weight: 0, icon: '📉', title: 'Volume is stable', desc: `No significant drop detected week-over-week.`, triggered: false });
+    }
+  }
+
+  // ── Signal 3: CONSECUTIVE HARD WEEKS — overreaching ──────────────
+  const weekVols = [week3ago.volumeKg, week2ago.volumeKg, lastWeek.volumeKg, thisWeek.volumeKg].filter(v => v > 50);
+  if (weekVols.length >= 3) {
+    const avgVol = weekVols.reduce((a, b) => a + b, 0) / weekVols.length;
+    const hardWeeks = weekVols.filter(v => v >= avgVol * 0.9).length;
+    if (hardWeeks >= DL.CONSECUTIVE_HARD) {
+      signals.push({ id: 'hard-weeks', weight: 25, icon: '🔥', title: `${hardWeeks} consecutive high-volume weeks`, desc: `Average volume: ${Math.round(avgVol).toLocaleString()} kg/week. Sustained overreaching without recovery leads to injury and performance decline.`, triggered: true });
+      score += 25;
+    } else {
+      signals.push({ id: 'hard-weeks', weight: 0, icon: '🔥', title: 'No overreaching pattern detected', desc: 'Volume varies normally across recent weeks.', triggered: false });
+    }
+  }
+
+  // ── Signal 4: MISSED SESSIONS — compliance fatigue ───────────────
+  if (prog && prog.days) {
+    const scheduledPerWeek = Object.keys(prog.days).length;
+    if (scheduledPerWeek > 0) {
+      let totalScheduled = 0, totalDone = 0;
+      for (let i = 1; i <= 3; i++) {
+        const start = _dlWeekStart(i);
+        const end   = _dlWeekEnd(i);
+        totalScheduled += scheduledPerWeek;
+        const ws = workouts.filter(w => {
+          if (!w.date) return false;
+          const d = new Date(w.date + 'T12:00:00');
+          return d >= start && d <= end;
+        });
+        totalDone += ws.length;
+      }
+      const missedRatio = totalScheduled > 0 ? 1 - (totalDone / totalScheduled) : 0;
+      if (missedRatio >= DL.MISSED_RATIO) {
+        signals.push({ id: 'missed', weight: 15, icon: '⏭️', title: `${Math.round(missedRatio*100)}% sessions missed (last 3 weeks)`, desc: `Done: ${totalDone}/${totalScheduled} scheduled sessions. Excessive missed sessions often reflect accumulated fatigue or motivation loss.`, triggered: true });
+        score += 15;
+      } else {
+        signals.push({ id: 'missed', weight: 0, icon: '⏭️', title: 'Compliance is strong', desc: `${totalDone}/${totalScheduled} sessions completed over the last 3 weeks.`, triggered: false });
+      }
+    }
+  }
+
+  // ── Signal 5: PLATEAU — zero volume progress ──────────────────────
+  if (lastWeek.volumeKg > 50 && week2ago.volumeKg > 50) {
+    const diff1 = Math.abs(lastWeek.volumeKg - week2ago.volumeKg) / Math.max(lastWeek.volumeKg, week2ago.volumeKg);
+    const diff2 = week3ago.volumeKg > 50 ? Math.abs(week2ago.volumeKg - week3ago.volumeKg) / Math.max(week2ago.volumeKg, week3ago.volumeKg) : 1;
+    if (diff1 < 0.05 && diff2 < 0.05) {
+      signals.push({ id: 'plateau', weight: 10, icon: '📊', title: 'Volume has plateaued', desc: `Minimal change in weekly volume over 2–3 weeks. A deload can reset adaptations and break the plateau.`, triggered: true });
+      score += 10;
+    } else {
+      signals.push({ id: 'plateau', weight: 0, icon: '📊', title: 'Progressive overload present', desc: 'Volume is changing week to week as expected.', triggered: false });
+    }
+  }
+
+  // ── Signal 6: LOW CALORIE + HIGH TRAINING VOLUME (nutrition stress) ──
+  const logs = window.State && window.State.logs;
+  if (logs) {
+    const targets = (window.State && window.State.targets) || {};
+    let underDays = 0, countedDays = 0;
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = _dlDateKey(d);
+      if (logs[key]) {
+        countedDays++;
+        const meals = logs[key].meals || {};
+        const cal = Object.values(meals).flat().reduce((s, f) => s + (f.cal || 0), 0);
+        if (targets.calories && cal < targets.calories * 0.80) underDays++;
+      }
+    }
+    if (countedDays >= 4 && underDays / countedDays >= 0.5 && thisWeek.sessions >= 2) {
+      signals.push({ id: 'nutrition', weight: 15, icon: '🥗', title: `Low calories + high training (${underDays}/${countedDays} days undereating)`, desc: 'Training hard while consistently under-eating accelerates fatigue and increases injury risk.', triggered: true });
+      score += 15;
+    } else {
+      signals.push({ id: 'nutrition', weight: 0, icon: '🥗', title: 'Nutrition supports training load', desc: 'No significant calorie deficit detected alongside training volume.', triggered: false });
+    }
+  }
+
+  // ── Signal 7: HIGH SESSION FREQUENCY — 6-7 days/week ─────────────
+  const recentSessions = [week3ago.sessions, week2ago.sessions, lastWeek.sessions].filter(s => s > 0);
+  if (recentSessions.length >= 2) {
+    const avgSessions = recentSessions.reduce((a, b) => a + b, 0) / recentSessions.length;
+    if (avgSessions >= 6) {
+      signals.push({ id: 'frequency', weight: 15, icon: '📆', title: `High session frequency (~${Math.round(avgSessions)} days/week)`, desc: '6–7 training days/week with no deload is a well-documented path to overtraining syndrome.', triggered: true });
+      score += 15;
+    } else {
+      signals.push({ id: 'frequency', weight: 0, icon: '📆', title: `Training ${Math.round(avgSessions)} days/week`, desc: 'Frequency is within recovery-compatible range.', triggered: false });
+    }
+  }
+
+  // ── Signal 8: SLEEP QUALITY — subjective CNS recovery indicator ──────
+  const _subjectiveCooldown = _dlSubjectiveIsInCooldown();
+  if (!_subjectiveCooldown) {
+    const sleepLogs = window.State && window.State.logs;
+    if (sleepLogs) {
+      let sleepTotal = 0, sleepDays = 0;
+      for (let i = 1; i <= DL.SLEEP_DAYS_WINDOW; i++) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        const key = _dlDateKey(d);
+        const dayLog = sleepLogs[key];
+        if (dayLog && typeof dayLog.sleepScore === 'number') {
+          sleepTotal += dayLog.sleepScore;
+          sleepDays++;
+        }
+      }
+      if (sleepDays >= 3) {
+        const sleepAvg = sleepTotal / sleepDays;
+        if (sleepAvg <= DL.SLEEP_AVG_THRESHOLD) {
+          signals.push({ id: 'sleep', weight: 12, icon: '😴', title: `Low sleep quality (avg ${sleepAvg.toFixed(1)}/5 over last ${sleepDays} days)`, desc: 'Sustained poor sleep is the primary CNS recovery blocker. 5-day average used to prevent single-night noise from triggering a false positive.', triggered: true });
+          score += 12;
+        } else {
+          signals.push({ id: 'sleep', weight: 0, icon: '😴', title: `Sleep quality adequate (avg ${sleepAvg.toFixed(1)}/5)`, desc: 'CNS recovery via sleep appears sufficient.', triggered: false });
+        }
+      }
+    }
+  }
+
+  // ── Signal 9: JOINT / NAGGING PAIN — connective tissue overuse ────────
+  if (!_subjectiveCooldown) {
+    const wkts = (window.State && window.State.workouts) || [];
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
+    const recentWkts = wkts.filter(w => w.date && new Date(w.date + 'T12:00:00') >= cutoff);
+    const sessionsWithPain = recentWkts.filter(w => {
+      const joints = w.jointPainFlags || [];
+      return joints.length >= DL.JOINT_PAIN_MIN_JOINTS;
+    }).length;
+    if (sessionsWithPain >= DL.JOINT_PAIN_MIN_SESSIONS) {
+      signals.push({ id: 'joint-pain', weight: 15, icon: '🦴', title: `Joint pain flagged in ${sessionsWithPain} sessions this week`, desc: 'Joint/connective tissue pain is a leading indicator of overuse — typically surfaces 1–2 weeks before a performance crash. Deloading now prevents more serious injury.', triggered: true });
+      score += 15;
+    } else {
+      signals.push({ id: 'joint-pain', weight: 0, icon: '🦴', title: 'No significant joint pain flagged', desc: 'No recurring joint flags detected in recent sessions.', triggered: false });
+    }
+  }
+
+  // ── Signal 10: RECOVERY FUELING — protein floor breach ───────────────
+  if (logs) {
+    const proteinFloor = (window.State && window.State.user && window.State.user.proteinTarget) || DL.PROTEIN_FLOOR_DEFAULT;
+    let lowStreak = 0, maxStreak = 0;
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const key = _dlDateKey(d);
+      const dayLog = logs[key];
+      if (dayLog) {
+        const meals = dayLog.meals || {};
+        const dayProtein = Object.values(meals).flat().reduce((s, f) => s + (f.protein || 0), 0);
+        const hasSessions = (workouts.filter(w => w.date === key).length) >= 1;
+        if (dayProtein < proteinFloor && hasSessions) {
+          lowStreak++;
+          maxStreak = Math.max(maxStreak, lowStreak);
+        } else {
+          lowStreak = 0;
+        }
+      }
+    }
+    if (maxStreak >= DL.PROTEIN_LOW_STREAK_DAYS) {
+      signals.push({ id: 'recovery-fueling', weight: 10, icon: '🥩', title: `Protein below ${proteinFloor}g floor for ${maxStreak} consecutive training days`, desc: 'Under-fuelling during high training days impairs muscle protein synthesis and CNS recovery — compounding accumulated fatigue.', triggered: true });
+      score += 10;
+    } else {
+      signals.push({ id: 'recovery-fueling', weight: 0, icon: '🥩', title: 'Recovery fueling on track', desc: `Protein intake is meeting the ${proteinFloor}g floor on training days.`, triggered: false });
+    }
+  }
+
+  const needsDeload = score >= 40;
+  return { score: Math.min(100, score), signals, needsDeload };
+}
+
+// ── SUBJECTIVE SIGNAL COOLDOWN ───────────────────────────────────────
+/**
+ * Returns true within SUBJECTIVE_COOLDOWN_DAYS after a completed deload.
+ * Prevents sleep/pain signals from re-triggering on recovery-week data.
+ */
+function _dlSubjectiveIsInCooldown() {
+  const base = dlGet('subjectiveBaselineDate', null);
+  if (!base) return false;
+  const daysSince = (Date.now() - new Date(base + 'T12:00:00')) / 86400000;
+  return daysSince < DL.SUBJECTIVE_COOLDOWN_DAYS;
+}
+
+// ── IS CURRENT WEEK A DELOAD WEEK? ──────────────────────────────────
+function dlIsDeloadWeek() {
+  const todayKey = _dlTodayKey();
+  const thisWeekMonday = _dlMondayOfDate(todayKey);
+  const scheduledWeek = dlGet('deloadScheduledWeek', null);
+  const dismissed = dlGet('deloadDismissedWeek', null);
+  // Active if scheduled for this week and not dismissed
+  if (scheduledWeek === thisWeekMonday && dismissed !== thisWeekMonday) return true;
+  // Also active if a delay brought it to this week
+  const delayedUntil = dlGet('deloadDelayedUntil', null);
+  if (delayedUntil && _dlMondayOfDate(delayedUntil) === thisWeekMonday && dismissed !== thisWeekMonday) return true;
+  return false;
+}
+
+// ── DELOAD WEEK MODIFICATION ─────────────────────────────────────────
+/**
+ * Score-scaled workout modification for deload week.
+ *
+ * Volume (sets × reps) is cut aggressively to eliminate fatigue accumulation.
+ * Intensity (weight) is kept higher to preserve motor pattern retention.
+ *
+ * Multipliers at score 40: sets ×0.55, weight ×0.87
+ * Multipliers at score 100: sets ×0.40, weight ×0.80
+ * Reps: always ×0.85 (min 4) to reduce mechanical load without losing the pattern.
+ */
+function dlModifyExercisesForDeload(exercises, score) {
+  score = (typeof score === 'number') ? Math.max(40, Math.min(100, score)) : 55;
+  const t = (score - 40) / 60; // normalised 0..1
+  const SET_MULT    = DL.SET_MULT_BASE    - (DL.SET_MULT_RANGE    * t); // 0.55 → 0.40
+  const WEIGHT_MULT = DL.WEIGHT_MULT_BASE - (DL.WEIGHT_MULT_RANGE * t); // 0.87 → 0.80
+
+  return (exercises || []).map(ex => {
+    const originalSets = ex.sets || [];
+    const keepSets = Math.max(DL.SET_MIN, Math.floor(originalSets.length * SET_MULT));
+    return {
+      ...ex,
+      sets: originalSets.slice(0, keepSets).map(set => ({
+        ...set,
+        weight: set.weight ? +(set.weight * WEIGHT_MULT).toFixed(1) : 0,
+        reps:   set.reps   ? Math.max(DL.REPS_MIN, Math.floor(set.reps * DL.REPS_MULT)) : set.reps,
+        done:   false,
+        _deload: true,
+        _deloadScore: score,
+      }))
+    };
+  });
+}
+
+// ── SCHEDULE / DELAY / DISMISS ACTIONS ───────────────────────────────
+function dlScheduleThisWeek() {
+  const monday = _dlMondayOfDate(_dlTodayKey());
+  dlSet('deloadScheduledWeek', monday);
+  dlSet('deloadDelayedUntil', null);
+  dlSet('deloadDismissedWeek', null);
+  dlRenderBanner();
+  dlRenderSection();
+  dlRenderWeekScheduleOverlay();
+  if (typeof showToast === 'function') showToast('🟣 Deload week activated — reduced volume loaded for this week.', 'success');
+}
+
+function dlDelay(weeks) {
+  const score = dlAnalyze().score;
+
+  // Score ≥ 85: hard block — both delay durations require typed confirmation
+  if (score >= 85) {
+    if (typeof showToast === 'function') {
+      showToast(`🚨 Fatigue score ${score}/100 — delaying is strongly discouraged. Deload now to avoid injury.`, 'danger');
+    }
+    const confirmed = window.confirm(
+      `⚠️ Critical fatigue score: ${score}/100\n\n` +
+      `Delaying your deload at this score significantly increases your injury risk.\n\n` +
+      `Are you sure you want to delay ${weeks} week${weeks > 1 ? 's' : ''}?`
+    );
+    if (!confirmed) return;
+    _dlPerformDelay(weeks);
+    return;
+  }
+
+  // Score 70–84: delay 2 weeks hard-blocked; delay 1 week needs soft confirm
+  if (score >= 70) {
+    if (weeks === 2) {
+      if (typeof showToast === 'function') showToast('⛔ Delay 2 weeks is disabled when fatigue score is above 70. Delay 1 week or start your deload now.', 'danger');
+      return;
+    }
+    // weeks === 1 → confirm dialog
+    const confirmed = window.confirm(
+      `⚠️ High fatigue score: ${score}/100\n\n` +
+      `Delaying 1 week with this score increases overtraining risk.\n\n` +
+      `Continue anyway?`
+    );
+    if (!confirmed) return;
+    _dlPerformDelay(1);
+    return;
+  }
+
+  // Score < 70 → no friction
+  _dlPerformDelay(weeks);
+}
+
+function _dlPerformDelay(weeks) {
+  const future = new Date();
+  future.setDate(future.getDate() + weeks * 7);
+  const futureKey = _dlDateKey(future);
+  const futureMonday = _dlMondayOfDate(futureKey);
+  dlSet('deloadDelayedUntil', futureMonday);
+  dlSet('deloadScheduledWeek', futureMonday);
+  dlSet('deloadDismissedWeek', null);
+  const label = weeks === 1 ? 'next week' : 'in 2 weeks';
+  closeDeloadModal();
+  dlRenderBanner();
+  dlRenderSection();
+  if (typeof showToast === 'function') showToast(`⏭️ Deload delayed to ${label}.`, 'info');
+}
+
+function dlDismissForNow() {
+  const score = dlAnalyze().score;
+
+  // Score ≥ 85: require explicit typed confirmation to dismiss
+  if (score >= 85) {
+    const input = window.prompt(
+      `🚨 Critical fatigue score: ${score}/100\n\n` +
+      `Dismissing this warning is strongly advised against at this score.\n\n` +
+      `Type CONTINUE to dismiss anyway:`
+    );
+    if (!input || input.trim().toUpperCase() !== 'CONTINUE') {
+      if (typeof showToast === 'function') showToast('Dismiss cancelled. Please consider starting your deload now.', 'info');
+      return;
+    }
+    _dlPerformDismiss();
+    return;
+  }
+
+  // Score 70–84: show a soft warning modal before dismissing
+  if (score >= 70) {
+    const confirmed = window.confirm(
+      `⚠️ High fatigue score: ${score}/100\n\n` +
+      `Dismissing this week means no reminder until next week. Your fatigue is high.\n\n` +
+      `Dismiss anyway?`
+    );
+    if (!confirmed) return;
+    _dlPerformDismiss();
+    return;
+  }
+
+  // Score < 70 → no friction
+  _dlPerformDismiss();
+}
+
+function _dlPerformDismiss() {
+  const monday = _dlMondayOfDate(_dlTodayKey());
+  dlSet('deloadDismissedWeek', monday);
+  closeDeloadModal();
+  dlRenderBanner();
+  dlRenderSection();
+}
+
+function dlMarkCompleted() {
+  // Persist completion to TODAY (not Monday) so mid-week completions
+  // don't gift extra days before the periodization clock starts ticking.
+  const today = _dlTodayKey();
+  dlSet('lastDeloadCompleted', today);
+
+  // Full signal engine reset
+  dlSet('deloadScheduledWeek', null);
+  dlSet('deloadDelayedUntil',  null);
+  dlSet('deloadDismissedWeek', null);
+
+  // Snapshot subjective baseline — prevents sleep/pain signals
+  // re-triggering on data logged during the recovery week itself.
+  dlSet('subjectiveBaselineDate', today);
+
+  closeDeloadModal();
+  dlRenderBanner();
+  dlRenderSection();
+  if (typeof showToast === 'function') showToast('🎉 Deload complete — all signals reset. Training resumes tomorrow.', 'success');
+}
+
+function dlReset() {
+  localStorage.removeItem(DL.STORAGE_KEY);
+  dlRenderBanner();
+  dlRenderSection();
+  if (typeof showToast === 'function') showToast('Deload data reset.', 'info');
+}
+
+// ── BANNER (shown in Today's Session tab) ────────────────────────────
+function dlRenderBanner() {
+  let banner = document.getElementById('deload-banner');
+  if (!banner) {
+    // Inject after active-program-banner
+    const apb = document.getElementById('active-program-banner');
+    if (!apb) return;
+    banner = document.createElement('div');
+    banner.id = 'deload-banner';
+    apb.parentNode.insertBefore(banner, apb.nextSibling);
+  }
+
+  const isDeload = dlIsDeloadWeek();
+  const analysis = dlAnalyze();
+  const dismissed = dlGet('deloadDismissedWeek', null);
+  const thisMonday = _dlMondayOfDate(_dlTodayKey());
+  const isSnoozed = dismissed === thisMonday;
+
+  if (isSnoozed) { banner.style.display = 'none'; return; }
+
+  if (isDeload) {
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <button class="dlb-close" onclick="dlDismissForNow()" title="Dismiss for this week">✕</button>
+      <div style="display:flex;align-items:flex-start;gap:14px">
+        <div class="dlb-icon">🟣</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:800;color:var(--purple);margin-bottom:3px">Deload Week Active</div>
+          <div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.5;margin-bottom:12px">
+            Exercises loaded this week will have <strong>~40% fewer sets and reduced weight</strong>. This is intentional — recovery drives growth.
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-sm" onclick="openDeloadModal()" style="background:var(--purple-dim);border:1px solid var(--purple);color:var(--purple);font-size:0.78rem">📊 View Details</button>
+            <button class="btn btn-sm btn-outline" onclick="dlMarkCompleted()" style="font-size:0.78rem">✅ Mark Week Complete</button>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (analysis.needsDeload && !analysis.dataInsufficient) {
+    banner.style.display = 'block';
+    const delayedUntil = dlGet('deloadDelayedUntil', null);
+    if (delayedUntil && delayedUntil > thisMonday) {
+      // Delayed — show reminder
+      const d = new Date(delayedUntil + 'T12:00:00');
+      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      banner.innerHTML = `
+        <button class="dlb-close" onclick="document.getElementById('deload-banner').style.display='none'" title="Hide">✕</button>
+        <div style="display:flex;align-items:flex-start;gap:14px">
+          <div class="dlb-icon">⏭️</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:800;color:var(--purple);margin-bottom:3px">Deload Scheduled — Week of ${label}</div>
+            <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:10px">You delayed your deload. It will activate automatically in the week of ${label}.</div>
+            <button class="btn btn-sm" onclick="openDeloadModal()" style="background:var(--purple-dim);border:1px solid var(--purple);color:var(--purple);font-size:0.78rem">Manage Deload →</button>
+          </div>
+        </div>`;
+    } else {
+      banner.innerHTML = `
+        <button class="dlb-close" onclick="dlDismissForNow()" title="Dismiss for this week">✕</button>
+        <div style="display:flex;align-items:flex-start;gap:14px">
+          <div class="dlb-icon">⚠️</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:800;color:var(--purple);margin-bottom:3px">Deload Week Recommended</div>
+            <div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.5;margin-bottom:12px">
+              Fatigue signals detected (score: <strong>${analysis.score}/100</strong>). A deload week now will prevent injury and accelerate long-term progress.
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-sm" onclick="dlScheduleThisWeek()" style="background:var(--purple);color:#fff;font-size:0.78rem">🟣 Start Deload This Week</button>
+              <button class="btn btn-sm btn-outline" onclick="openDeloadModal()" style="font-size:0.78rem">📊 View Signals</button>
+            </div>
+          </div>
+        </div>`;
+    }
+    return;
+  }
+
+  banner.style.display = 'none';
+}
+
+// ── PROGRAMS TAB SECTION ─────────────────────────────────────────────
+function dlRenderSection() {
+  // Inject deload section into Programs tab if not present
+  let section = document.getElementById('deload-section');
+  if (!section) {
+    const programsList = document.getElementById('programs-list');
+    if (!programsList) return;
+    const parent = programsList.parentElement && programsList.parentElement.parentElement;
+    if (!parent) return;
+    // Insert before "My Programs" label's parent
+    const myProgDiv = programsList.parentElement;
+    if (!myProgDiv) return;
+    section = document.createElement('div');
+    section.id = 'deload-section';
+    myProgDiv.parentElement.insertBefore(section, myProgDiv);
+  }
+
+  const analysis = dlAnalyze();
+  const isDeload = dlIsDeloadWeek();
+  const lastDeload = dlGet('lastDeloadCompleted', null);
+  const scheduled = dlGet('deloadScheduledWeek', null);
+  const delayedUntil = dlGet('deloadDelayedUntil', null);
+  const thisMonday = _dlMondayOfDate(_dlTodayKey());
+
+  const scoreColor = analysis.score >= 70 ? 'var(--red)'
+    : analysis.score >= 40 ? 'var(--orange)'
+    : 'var(--green)';
+
+  const scoreLabel = analysis.score >= 70 ? 'High Fatigue'
+    : analysis.score >= 40 ? 'Moderate Fatigue'
+    : analysis.score < 5   ? 'Not Enough Data'
+    : 'Recovery OK';
+
+  const triggeredSignals = analysis.signals.filter(s => s.triggered);
+
+  let statusHtml = '';
+  if (isDeload) {
+    statusHtml = `<div style="background:rgba(124,58,237,0.1);border:1px solid var(--purple);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;color:var(--purple);font-weight:700">
+      🟣 Deload week is active. Workout loads are automatically reduced.
+      <button onclick="dlMarkCompleted()" style="margin-left:10px;background:var(--purple);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:0.75rem;cursor:pointer;font-weight:700">Mark Complete ✅</button>
+    </div>`;
+  } else if (scheduled && scheduled > thisMonday) {
+    const d = new Date(scheduled + 'T12:00:00');
+    const label = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    statusHtml = `<div style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;color:var(--purple)">
+      ⏭️ Deload scheduled for week of <strong>${label}</strong>.
+      <button onclick="dlScheduleThisWeek()" style="margin-left:10px;background:var(--purple-dim);border:1px solid var(--purple);color:var(--purple);border-radius:6px;padding:4px 10px;font-size:0.75rem;cursor:pointer;font-weight:700">Do It This Week Instead</button>
+    </div>`;
+  }
+
+  section.innerHTML = `
+    <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:12px">🟣 Deload Management</div>
+    <div id="deload-card" class="${isDeload ? 'active-deload' : ''}">
+      ${statusHtml}
+      <!-- Score + quick actions header -->
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+        <!-- Score ring -->
+        <div class="deload-score-ring" style="background:${analysis.score > 5 ? scoreColor.replace('var(--','rgba(').replace(')','') + (analysis.score >= 40 ? ',0.15)' : ',0.1)') : 'var(--bg-elevated)'};border:2px solid ${analysis.score > 5 ? scoreColor : 'var(--border)'}">
+          <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:${analysis.score > 5 ? scoreColor : 'var(--text-muted)'}">${analysis.score}</div>
+          <div style="font-size:0.45rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);line-height:1.2">/ 100</div>
+        </div>
+        <div style="flex:1;min-width:140px">
+          <div style="font-family:var(--font-display);font-size:0.95rem;font-weight:800;color:${scoreColor};margin-bottom:2px">${scoreLabel}</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);line-height:1.4">
+            ${analysis.dataInsufficient ? 'Log at least 3 workouts to enable deload detection.' :
+              triggeredSignals.length === 0 ? 'All signals clear. Keep training hard!' :
+              `${triggeredSignals.length} fatigue signal${triggeredSignals.length !== 1 ? 's' : ''} detected.`}
+          </div>
+          ${lastDeload ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px">Last deload: ${new Date(lastDeload + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          ${!isDeload ? `<button onclick="dlScheduleThisWeek()" class="btn btn-sm" style="background:var(--purple);color:#fff;font-size:0.78rem;white-space:nowrap">🟣 Start Deload Now</button>` : ''}
+          <button onclick="openDeloadModal()" class="btn btn-sm btn-outline" style="font-size:0.78rem">📊 Full Analysis</button>
+        </div>
+      </div>
+
+      <!-- Signal rows -->
+      ${analysis.dataInsufficient ? '' : `
+      <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Detection Signals</div>
+      ${analysis.signals.map(s => `
+        <div class="deload-signal-row ${s.triggered ? 'triggered' : 'ok'}">
+          <span style="font-size:1rem;flex-shrink:0">${s.icon}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:0.8rem;color:${s.triggered ? 'var(--purple)' : 'var(--text-primary)'}">${s.title}</div>
+            <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:1px;line-height:1.4">${s.desc}</div>
+          </div>
+          <div style="flex-shrink:0;font-size:0.75rem;font-weight:800;color:${s.triggered ? 'var(--purple)' : 'var(--green)'}">${s.triggered ? '⚡' : '✅'}</div>
+        </div>
+      `).join('')}
+      `}
+    </div>`;
+}
+
+// ── DELOAD DETAIL MODAL ───────────────────────────────────────────────
+function openDeloadModal() {
+  // Create modal if not present
+  let modal = document.getElementById('modal-deload');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-deload';
+    modal.className = 'modal-overlay';
+    modal.onclick = (e) => { if (e.target === modal) closeDeloadModal(); };
+    document.body.appendChild(modal);
+  }
+
+  const analysis = dlAnalyze();
+  const isDeload  = dlIsDeloadWeek();
+  const thisMonday = _dlMondayOfDate(_dlTodayKey());
+  const scheduled  = dlGet('deloadScheduledWeek', null);
+  const delayedUntil = dlGet('deloadDelayedUntil', null);
+  const lastDeload  = dlGet('lastDeloadCompleted', null);
+  const scoreColor  = analysis.score >= 70 ? 'var(--red)' : analysis.score >= 40 ? 'var(--orange)' : 'var(--green)';
+
+  const nextWeekLabel = (() => {
+    const d = new Date(); d.setDate(d.getDate() + 7);
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  })();
+  const in2WeeksLabel = (() => {
+    const d = new Date(); d.setDate(d.getDate() + 14);
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  })();
+
+  modal.style.display = 'flex';
+  modal.innerHTML = `
+    <div class="modal-box" style="max-width:500px;width:100%;max-height:90vh;overflow-y:auto">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div>
+          <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:800">🟣 Deload Week</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px">Fatigue Analysis & Management</div>
+        </div>
+        <button onclick="closeDeloadModal()" class="btn-icon" style="font-size:1.1rem">✕</button>
+      </div>
+
+      <!-- Score summary -->
+      <div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:16px;margin-bottom:18px;display:flex;align-items:center;gap:14px">
+        <div class="deload-score-ring" style="width:62px;height:62px;background:rgba(0,0,0,0.04);border:2px solid ${scoreColor}">
+          <div style="font-size:1.3rem;font-weight:800;color:${scoreColor}">${analysis.score}</div>
+          <div style="font-size:0.5rem;color:var(--text-muted);text-transform:uppercase">/100</div>
+        </div>
+        <div>
+          <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:${scoreColor};margin-bottom:4px">
+            ${analysis.score >= 70 ? 'High Fatigue — Deload Needed' : analysis.score >= 40 ? 'Moderate Fatigue — Deload Recommended' : 'Recovery OK — No Deload Needed'}
+          </div>
+          ${lastDeload ? `<div style="font-size:0.75rem;color:var(--text-secondary)">Last deload: ${new Date(lastDeload + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>` : '<div style="font-size:0.75rem;color:var(--text-muted)">No deload recorded yet</div>'}
+          ${analysis.dataInsufficient ? '<div style="font-size:0.75rem;color:var(--orange);margin-top:3px">⚠️ More workout data needed for full analysis</div>' : ''}
+        </div>
+      </div>
+
+      <!-- All signals -->
+      <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Detection Signals (${analysis.signals.filter(s=>s.triggered).length} triggered)</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px">
+        ${analysis.signals.map(s => `
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;background:${s.triggered ? 'rgba(124,58,237,0.08)' : 'var(--bg-elevated)'};border:1px solid ${s.triggered ? 'rgba(124,58,237,0.25)' : 'var(--border)'}">
+            <span style="font-size:1rem;flex-shrink:0">${s.icon}</span>
+            <div style="flex:1">
+              <div style="font-size:0.82rem;font-weight:700;color:${s.triggered ? 'var(--purple)' : 'var(--text-primary)'}">${s.title}</div>
+              <div style="font-size:0.73rem;color:var(--text-secondary);margin-top:2px;line-height:1.4">${s.desc}</div>
+            </div>
+            <span style="font-size:0.8rem;font-weight:800;color:${s.triggered ? 'var(--purple)' : 'var(--green)'};flex-shrink:0">${s.triggered ? `+${s.weight}pts` : '✅'}</span>
+          </div>`).join('')}
+      </div>
+
+      <!-- What is a deload info box -->
+      <div style="background:var(--blue-dim);border:1px solid var(--blue);border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:0.8rem;color:var(--text-primary);line-height:1.5">
+        <div style="font-weight:700;color:var(--blue);margin-bottom:4px">💡 What happens during a deload week?</div>
+        Sets are cut aggressively (40–55% fewer) while weight is kept higher (~80–87% of normal) to preserve motor patterns. Reps also drop slightly. You keep the same movements and frequency — just enough volume reduction to let your CNS and connective tissue fully recover.
+      </div>
+
+      <!-- Action buttons -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${!isDeload ? `
+          <button onclick="dlScheduleThisWeek()" class="btn btn-primary" style="background:var(--purple);border-color:var(--purple)">
+            🟣 Start Deload This Week
+          </button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button onclick="dlDelay(1)" class="btn btn-outline" style="font-size:0.82rem">
+              ⏭️ Delay 1 Week<br><span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">Week of ${nextWeekLabel}</span>
+            </button>
+            <button onclick="dlDelay(2)" class="btn btn-outline" style="font-size:0.82rem">
+              ⏭️ Delay 2 Weeks<br><span style="font-size:0.7rem;color:var(--text-muted);font-weight:400">Week of ${in2WeeksLabel}</span>
+            </button>
+          </div>
+          <button onclick="dlDismissForNow()" class="btn btn-ghost" style="font-size:0.8rem;color:var(--text-muted)">
+            Dismiss this week (remind me next week)
+          </button>
+        ` : `
+          <button onclick="dlMarkCompleted()" class="btn btn-primary" style="background:var(--green)">
+            ✅ Mark Deload Week Complete
+          </button>
+          <button onclick="dlDismissForNow()" class="btn btn-ghost" style="font-size:0.8rem;color:var(--text-muted)">
+            Cancel / dismiss deload week
+          </button>
+        `}
+      </div>
+    </div>`;
+}
+
+function closeDeloadModal() {
+  const m = document.getElementById('modal-deload');
+  if (m) m.style.display = 'none';
+}
+
+// ── WEEK SCHEDULE OVERLAY (deload pill in week grid) ─────────────────
+function dlRenderWeekScheduleOverlay() {
+  // Adds a 🟣 DELOAD pill to each day in the week schedule grid during deload week
+  if (!dlIsDeloadWeek()) return;
+  const grid = document.getElementById('week-schedule-grid');
+  if (!grid) return;
+  const dayDivs = grid.querySelectorAll('div[onclick]');
+  dayDivs.forEach(div => {
+    if (!div.querySelector('.deload-pill')) {
+      const pill = document.createElement('div');
+      pill.className = 'deload-pill';
+      pill.textContent = 'DELOAD';
+      div.appendChild(pill);
+    }
+  });
+}
+
+// ── PATCH loadScheduledWorkout to apply deload reduction ─────────────
+const _origLoadScheduledWorkout = window.loadScheduledWorkout;
+if (typeof _origLoadScheduledWorkout === 'function') {
+  window.loadScheduledWorkout = function() {
+    _origLoadScheduledWorkout.apply(this, arguments);
+    if (dlIsDeloadWeek()) {
+      setTimeout(() => {
+        if (window.State && window.State.currentWorkout && window.State.currentWorkout.length) {
+          const _dlScore = dlAnalyze().score;
+          window.State.currentWorkout = dlModifyExercisesForDeload(window.State.currentWorkout, _dlScore);
+          if (typeof renderWorkoutPage === 'function') renderWorkoutPage();
+          if (typeof showToast === 'function') showToast('🟣 Deload week: volume cut, weight kept high for motor retention.', 'info');
+        }
+      }, 200);
+    }
+  };
+}
+
+// Also patch calLoadProgramWorkout to apply deload
+const _origCalLoad = window.calLoadProgramWorkout;
+if (typeof _origCalLoad === 'function') {
+  window.calLoadProgramWorkout = function() {
+    _origCalLoad.apply(this, arguments);
+    if (dlIsDeloadWeek()) {
+      setTimeout(() => {
+        if (window.State && window.State.currentWorkout && window.State.currentWorkout.length) {
+          const _dlScore = dlAnalyze().score;
+          window.State.currentWorkout = dlModifyExercisesForDeload(window.State.currentWorkout, _dlScore);
+          if (typeof renderWorkoutPage === 'function') renderWorkoutPage();
+          if (typeof showToast === 'function') showToast('🟣 Deload: volume reduced, intensity preserved.', 'info');
+        }
+      }, 200);
+    }
+  };
+}
+
+// Patch resolveScheduledExercisesForDate to mark deload exercises in banner
+const _origResolveSched = window.resolveScheduledExercisesForDate;
+if (typeof _origResolveSched === 'function') {
+  window.resolveScheduledExercisesForDate = function(dateKey) {
+    const result = _origResolveSched.apply(this, arguments);
+    if (result && dlIsDeloadWeek() && _dlMondayOfDate(dateKey) === _dlMondayOfDate(_dlTodayKey())) {
+      const _dlScore = dlAnalyze().score;
+      result.exercises = dlModifyExercisesForDeload(result.exercises, _dlScore);
+      result._isDeload = true;
+    }
+    return result;
+  };
+}
+
+// ── PATCH renderWeekSchedule to add deload pills ─────────────────────
+const _origRenderWeekSchedule = window.renderWeekSchedule;
+if (typeof _origRenderWeekSchedule === 'function') {
+  window.renderWeekSchedule = function() {
+    _origRenderWeekSchedule.apply(this, arguments);
+    setTimeout(() => dlRenderWeekScheduleOverlay(), 50);
+  };
+}
+
+// ── AUTO-DETECT: check if deload week should auto-activate ───────────
+function dlAutoCheck() {
+  // Auto-activate deload if scheduled for this week and not dismissed
+  const thisMonday = _dlMondayOfDate(_dlTodayKey());
+  const scheduled  = dlGet('deloadScheduledWeek', null);
+  const dismissed  = dlGet('deloadDismissedWeek', null);
+  if (scheduled === thisMonday && dismissed !== thisMonday) {
+    // Make sure it's set as active
+    dlSet('deloadScheduledWeek', thisMonday);
+  }
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────
+function dlInit() {
+  dlAutoCheck();
+  dlRenderBanner();
+  dlRenderSection();
+  dlRenderWeekScheduleOverlay();
+}
+
+// Expose globally
+window.dlScheduleThisWeek  = dlScheduleThisWeek;
+window.dlDelay             = dlDelay;
+window.dlDismissForNow     = dlDismissForNow;
+window.dlMarkCompleted     = dlMarkCompleted;
+window.dlReset             = dlReset;
+window.openDeloadModal     = openDeloadModal;
+window.closeDeloadModal    = closeDeloadModal;
+window.dlIsDeloadWeek      = dlIsDeloadWeek;
+window.dlAnalyze           = dlAnalyze;
+window.dlRenderBanner      = dlRenderBanner;
+window.dlRenderSection     = dlRenderSection;
+window.dlModifyExercisesForDeload = dlModifyExercisesForDeload;
+window._dlSubjectiveIsInCooldown  = _dlSubjectiveIsInCooldown;
+
+// Run after app data is ready
+window.addEventListener('load', () => {
+  // Wait for Firebase / State to be ready
+  const _waitForState = (tries) => {
+    if (window.State && typeof renderWeekSchedule === 'function') {
+      dlInit();
+      // Re-render whenever programs tab is opened
+      const origSwitchWT = window.switchWorkoutTab;
+      if (typeof origSwitchWT === 'function') {
+        window.switchWorkoutTab = function(tab, el) {
+          origSwitchWT.apply(this, arguments);
+          if (tab === 'programs') {
+            setTimeout(() => { dlRenderSection(); dlRenderWeekScheduleOverlay(); }, 60);
+          }
+          if (tab === 'session') {
+            setTimeout(() => dlRenderBanner(), 60);
+          }
+        };
+      }
+    } else if (tries > 0) {
+      setTimeout(() => _waitForState(tries - 1), 400);
+    }
+  };
+  _waitForState(25);
+});
+
+console.log('[DeloadSystem] EddFit Deload Week Engine v2 loaded — 10-signal detection, score-scaled formula, safety interlocks active.');
+})();
+</script>
 </body>
