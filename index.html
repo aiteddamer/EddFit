@@ -3331,30 +3331,25 @@ function dismissSplash() {
             <div style="font-size:0.78rem;color:var(--text-muted)" id="history-count"></div>
           </div>
 
-          <!-- ── Progressive Overload Card (replaces Week Comparison) ── -->
-          <div id="prog-overload-card" style="display:none;margin-bottom:20px;background:var(--bg-card);border-radius:var(--radius);padding:18px;border:1px solid var(--border)">
-            <!-- Header -->
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="font-family:var(--font-display);font-size:1rem;font-weight:800">📈 Progressive Overload</span>
-                <span id="prog-pr-badge" style="display:none;font-size:0.62rem;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;padding:2px 8px;border-radius:20px;font-weight:700;letter-spacing:0.4px">🏆 NEW PR</span>
-              </div>
-              <div style="font-size:0.72rem;color:var(--text-muted)" id="prog-sessions-scanned"></div>
+          <!-- ── Weekly Comparison Card ── -->
+          <div id="week-comparison-card" style="display:none;margin-bottom:20px;background:var(--bg-card);border-radius:var(--radius);padding:18px;border:1px solid var(--border)">
+            <div style="font-family:var(--font-display);font-size:1rem;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+              📊 Week Comparison
+              <span id="week-comp-best-badge" style="display:none;font-size:0.62rem;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;padding:2px 8px;border-radius:20px;font-weight:700;letter-spacing:0.4px">🏆 BEST WEEK</span>
             </div>
-
-            <!-- Metric toggle pills -->
-            <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
-              <button id="prog-metric-volume" onclick="setProgMetric('volume',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.15s">Volume</button>
-              <button id="prog-metric-weight" onclick="setProgMetric('weight',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Avg Weight</button>
-              <button id="prog-metric-sets" onclick="setProgMetric('sets',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Sets</button>
-              <button id="prog-metric-reps" onclick="setProgMetric('reps',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Avg Reps</button>
+            <!-- Metric pills -->
+            <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+              <button id="wcomp-metric-sessions" onclick="setWeekCompMetric('sessions',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.15s">Sessions</button>
+              <button id="wcomp-metric-volume" onclick="setWeekCompMetric('volume',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Volume</button>
+              <button id="wcomp-metric-sets" onclick="setWeekCompMetric('sets',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Sets</button>
+              <button id="wcomp-metric-exercises" onclick="setWeekCompMetric('exercises',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Exercises</button>
             </div>
-
-            <!-- Exercise rows -->
-            <div id="prog-overload-rows" style="display:flex;flex-direction:column;gap:10px"></div>
-
-            <!-- Overall insight -->
-            <div id="prog-overload-insight" style="margin-top:14px;font-size:0.78rem;color:var(--text-secondary);padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);border-left:3px solid var(--accent)"></div>
+            <!-- Bars -->
+            <div id="week-comp-bars" style="display:flex;gap:10px;align-items:flex-end;height:110px;margin-bottom:12px"></div>
+            <!-- Labels -->
+            <div id="week-comp-labels" style="display:flex;gap:10px"></div>
+            <!-- Insight -->
+            <div id="week-comp-insight" style="margin-top:12px;font-size:0.78rem;color:var(--text-secondary);padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);border-left:3px solid var(--accent)"></div>
           </div>
 
           <div id="workout-history">
@@ -4197,6 +4192,25 @@ function dismissSplash() {
           .participant-bubble:first-child { margin-left: 0; }
           .participant-bubble:hover { transform: scale(1.15); z-index: 2; }
 
+          /* Squad Rank live sync dot */
+          .squad-rank-live-dot {
+            display: inline-block;
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--green);
+            margin-left: 5px;
+            vertical-align: middle;
+            animation: sqLivePulse 2s ease-in-out infinite;
+            flex-shrink: 0;
+          }
+          @keyframes sqLivePulse {
+            0%,100% { opacity: 1; transform: scale(1); }
+            50%      { opacity: 0.4; transform: scale(0.7); }
+          }
+          /* Hero stat Squad Rank tile loading shimmer */
+          .hero-stat-loading { opacity: 0.5; animation: sqShimmer 1.2s ease-in-out infinite; }
+          @keyframes sqShimmer { 0%,100%{opacity:0.5} 50%{opacity:0.9} }
+
           /* Squad Train Together section */
           #squad-train-section { margin-bottom: 20px; }
           .squad-train-card {
@@ -4346,7 +4360,7 @@ function dismissSplash() {
             </div>
             <div class="hero-stat">
               <div class="hero-stat-val" id="hero-squad-rank">—</div>
-              <div class="hero-stat-lbl" id="hero-squad-rank-lbl">🏋️ Squad Rank</div>
+              <div class="hero-stat-lbl" id="hero-squad-rank-lbl" style="display:flex;align-items:center;justify-content:center;gap:0">🏋️ Squad Rank<span class="squad-rank-live-dot" id="squad-rank-live-dot" style="display:none" title="Live — updates automatically"></span></div>
             </div>
           </div>
         </div>
@@ -4752,26 +4766,25 @@ function dismissSplash() {
             }
           }
 
-          // ── Squad Rank: rank among squad members only ──────────────────────
-          const elSR    = document.getElementById('hero-squad-rank');
-          const elSRLbl = document.getElementById('hero-squad-rank-lbl');
-          if (elSR) {
-            const metric = (Social.lbMetric) || 'workouts';
-            const metricLabelSq = metric === 'streak'   ? '🔥 Streak Rank'
-                                : metric === 'calories' ? '🎯 Cal Rank'
-                                : '💪 Sessions Rank';
-            if (elSRLbl) elSRLbl.textContent = '🏋️ Squad ' + (metric === 'streak' ? 'Streak' : metric === 'calories' ? 'Cal' : 'Rank');
-            const allSquads = Social.squads || [];
-            const squadUids = new Set();
-            allSquads.forEach(sq => (sq.memberUids || []).forEach(uid => squadUids.add(uid)));
-            if (!me || squadUids.size === 0) {
-              elSR.textContent = '—';
-              if (elSRLbl) elSRLbl.textContent = '🏋️ Squad Rank';
-            } else {
-              elSR.textContent = '…';
-              window._calcSquadRank(metric, me, [...squadUids])
-                .then(r => { elSR.textContent = r; })
-                .catch(() => { elSR.textContent = '—'; });
+          // ── Squad Rank: handled by real-time _squadRankSync engine ─────────
+          // Just trigger a recompute with live data; the onSnapshot listeners
+          // keep it updated automatically from here on.
+          if (window._squadRankSync) {
+            window._squadRankSync();
+          } else {
+            // Fallback for first render before engine initialises
+            const elSR    = document.getElementById('hero-squad-rank');
+            const elSRLbl = document.getElementById('hero-squad-rank-lbl');
+            if (elSR) {
+              const allSquads = Social.squads || [];
+              const squadUids = new Set();
+              allSquads.forEach(sq => (sq.memberUids || []).forEach(uid => squadUids.add(uid)));
+              if (!me || squadUids.size === 0) {
+                elSR.textContent = '—';
+                if (elSRLbl) elSRLbl.innerHTML = '🏋️ Squad Rank';
+              } else {
+                elSR.textContent = '…';
+              }
             }
           }
 
@@ -5026,40 +5039,165 @@ function dismissSplash() {
           }).join('<div style="border-top:1px solid var(--border)"></div>');
         };
 
-        // ─── Squad Rank Calculator ───────────────────────────────────────
-        // Fetches leaderboard docs for all squad member UIDs, adds the current
-        // user's live score, sorts by metric, and returns "#N of M" string.
-        window._calcSquadRank = async function(metric, me, squadUids) {
+        // ─── Squad Rank Real-Time Sync Engine ───────────────────────────
+        // Keeps hero-squad-rank updated via Firestore onSnapshot listeners
+        // on each squad member's leaderboard doc. Re-wires itself whenever
+        // the squad composition or active metric changes.
+
+        let _squadRankUnsubs  = [];   // active onSnapshot unsubscribe fns
+        let _squadRankScores  = {};   // uid → score (live cache)
+        let _squadRankWatched = [];   // currently watched UIDs
+
+        // Unsubscribe all existing listeners
+        function _squadRankTeardown() {
+          _squadRankUnsubs.forEach(fn => { try { fn(); } catch(_) {} });
+          _squadRankUnsubs  = [];
+          _squadRankScores  = {};
+          _squadRankWatched = [];
+        }
+
+        // Recompute rank from live cache and write to DOM
+        function _squadRankRecompute() {
+          const me     = window._currentUser;
+          const elSR   = document.getElementById('hero-squad-rank');
+          const elSRLbl= document.getElementById('hero-squad-rank-lbl');
+          const liveDot= document.getElementById('squad-rank-live-dot');
+          const Social = window.Social || {};
+          const metric = Social.lbMetric || 'workouts';
           const metricField = metric === 'streak' ? 'streak'
                             : metric === 'calories' ? 'calGoalDays'
                             : 'workouts';
 
-          // My live score (never stale)
+          // Update label
+          const labelBase = metric === 'streak' ? '🔥 Squad Streak'
+                          : metric === 'calories' ? '🎯 Squad Cal'
+                          : '🏋️ Squad Rank';
+
+          // Rebuild label element (keep live dot)
+          if (elSRLbl) {
+            elSRLbl.innerHTML = labelBase +
+              '<span class="squad-rank-live-dot" id="squad-rank-live-dot" ' +
+              'title="Live — updates automatically"></span>';
+          }
+
+          if (!me || !elSR) return;
+
+          const allSquads = Social.squads || [];
+          const squadUids = new Set();
+          allSquads.forEach(sq => (sq.memberUids || []).forEach(uid => squadUids.add(uid)));
+
+          if (squadUids.size === 0) {
+            elSR.textContent = '—';
+            elSR.classList.remove('hero-stat-loading');
+            const dot = document.getElementById('squad-rank-live-dot');
+            if (dot) dot.style.display = 'none';
+            return;
+          }
+
+          // Show live dot
+          const dot = document.getElementById('squad-rank-live-dot');
+          if (dot) dot.style.display = '';
+
+          // My live score
           const myScores = (typeof calcAllLbScores === 'function') ? calcAllLbScores() : { workouts:0, streak:0, calGoalDays:0 };
           const myScore  = myScores[metricField] || 0;
 
-          // Fetch each squad member's leaderboard doc in parallel
+          // Build sorted list: me + all squad members from live cache
+          const entries = [{ uid: me.uid, score: myScore }];
+          [...squadUids].forEach(uid => {
+            if (uid !== me.uid) {
+              entries.push({ uid, score: _squadRankScores[uid] || 0 });
+            }
+          });
+          entries.sort((a, b) => b.score - a.score);
+
+          const myIdx = entries.findIndex(e => e.uid === me.uid);
+          const rank  = myIdx >= 0 ? myIdx + 1 : entries.length;
+          elSR.textContent = '#' + rank + ' of ' + entries.length;
+          elSR.classList.remove('hero-stat-loading');
+        }
+
+        // Start/restart real-time listeners for the current squad UIDs
+        window._squadRankSync = function() {
+          const me     = window._currentUser;
+          const Social = window.Social || {};
+          const metric = Social.lbMetric || 'workouts';
+          const metricField = metric === 'streak' ? 'streak'
+                            : metric === 'calories' ? 'calGoalDays'
+                            : 'workouts';
+
+          const allSquads = Social.squads || [];
+          const squadUids = [...new Set(
+            allSquads.flatMap(sq => sq.memberUids || [])
+          )].filter(uid => uid !== (me && me.uid)); // exclude self (we compute live)
+
+          // If same UIDs already watched — just recompute
+          const same = squadUids.length === _squadRankWatched.length &&
+                       squadUids.every(uid => _squadRankWatched.includes(uid));
+          if (same && _squadRankUnsubs.length > 0) {
+            _squadRankRecompute();
+            return;
+          }
+
+          // Teardown old listeners and start fresh
+          _squadRankTeardown();
+          _squadRankWatched = [...squadUids];
+
+          if (!me || squadUids.length === 0) {
+            _squadRankRecompute();
+            return;
+          }
+
+          // Show loading shimmer
+          const elSR = document.getElementById('hero-squad-rank');
+          if (elSR) { elSR.textContent = '…'; elSR.classList.add('hero-stat-loading'); }
+
+          // Subscribe to each squad member's leaderboard doc
+          squadUids.forEach(uid => {
+            try {
+              const ref  = window._fbDoc(window._fbDb, 'leaderboard', uid);
+              const unsub = window._fbOnSnapshot(ref, snap => {
+                const data = snap.exists() ? snap.data() : {};
+                _squadRankScores[uid] = data[metricField] || 0;
+                _squadRankRecompute();
+              }, _err => {
+                // On permission error, score stays 0
+                _squadRankScores[uid] = 0;
+                _squadRankRecompute();
+              });
+              _squadRankUnsubs.push(unsub);
+            } catch(e) {
+              _squadRankScores[uid] = 0;
+            }
+          });
+
+          // Immediate first render with cached zeroes while listeners warm up
+          _squadRankRecompute();
+        };
+
+        // Also recalc when my own score changes (workout logged etc)
+        window._squadRankRefreshMyScore = function() {
+          if (_squadRankWatched.length > 0) _squadRankRecompute();
+        };
+
+        // Legacy one-shot helper kept for any external callers
+        window._calcSquadRank = async function(metric, me, squadUids) {
+          const metricField = metric === 'streak' ? 'streak'
+                            : metric === 'calories' ? 'calGoalDays'
+                            : 'workouts';
+          const myScores = (typeof calcAllLbScores === 'function') ? calcAllLbScores() : { workouts:0, streak:0, calGoalDays:0 };
+          const myScore  = myScores[metricField] || 0;
           const memberScores = await Promise.all(squadUids.map(async uid => {
             try {
               const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'leaderboard', uid));
-              const score = snap.exists() ? (snap.data()[metricField] || 0) : 0;
-              return { uid, score };
+              return { uid, score: snap.exists() ? (snap.data()[metricField] || 0) : 0 };
             } catch(e) { return { uid, score: 0 }; }
           }));
-
-          // Build combined list: me + squad members (de-dupe in case me is in squad)
           const allEntries = [{ uid: me.uid, score: myScore }];
-          memberScores.forEach(m => {
-            if (m.uid !== me.uid) allEntries.push(m);
-          });
-
-          // Sort descending
+          memberScores.forEach(m => { if (m.uid !== me.uid) allEntries.push(m); });
           allEntries.sort((a, b) => b.score - a.score);
-
           const myIdx = allEntries.findIndex(e => e.uid === me.uid);
-          const rank  = myIdx >= 0 ? myIdx + 1 : allEntries.length;
-          const total = allEntries.length;
-          return '#' + rank + ' of ' + total;
+          return '#' + (myIdx >= 0 ? myIdx + 1 : allEntries.length) + ' of ' + allEntries.length;
         };
 
         // Hook into existing loadFriends if available
@@ -5067,6 +5205,31 @@ function dismissSplash() {
         window.renderSocialPage = async function() {
           if (typeof _origRSP === 'function') await _origRSP();
           window._updateSocialHeroStats();
+          // Start real-time squad rank sync whenever social page loads
+          window._squadRankSync();
+        };
+
+        // Re-sync when metric changes (leaderboard tab switches, etc.)
+        const _origSetLbMetric = window.setLbMetric;
+        if (typeof _origSetLbMetric === 'function') {
+          window.setLbMetric = function() {
+            _origSetLbMetric.apply(this, arguments);
+            window._squadRankSync();
+          };
+        }
+        const _origSetLbPeriod = window.setLbPeriod;
+        if (typeof _origSetLbPeriod === 'function') {
+          window.setLbPeriod = function() {
+            _origSetLbPeriod.apply(this, arguments);
+            window._squadRankSync();
+          };
+        }
+
+        // Teardown listeners on sign-out so they don't leak to next user
+        const _origFbSignOut = window._fbSignOut;
+        window._fbSignOut = async function() {
+          _squadRankTeardown();
+          if (typeof _origFbSignOut === 'function') return _origFbSignOut();
         };
         </script>
     </main>
@@ -9254,6 +9417,8 @@ function saveWorkout() {
   renderWorkoutPage();
   refreshDashboard();
   showToast('Workout saved! 💪', 'success');
+  // Refresh squad rank hero stat so my own score updates immediately
+  if (window._squadRankRefreshMyScore) window._squadRankRefreshMyScore();
 }
 
 function renderWorkoutHistory() {
@@ -9314,13 +9479,12 @@ function deleteWorkoutFromHistory(dateKey) {
 // ═══════════════════════════════════════════════════════════════════
 //  WEEKLY COMPARISON — this week vs last week vs best week
 // ═══════════════════════════════════════════════════════════════════
-// ── Progressive Overload Card (replaces Week Comparison) ─────────────
-window._progMetric = 'volume';
+window._weekCompMetric = 'sessions';
 
-function setProgMetric(metric, btn) {
-  window._progMetric = metric;
-  ['volume','weight','sets','reps'].forEach(m => {
-    const b = document.getElementById('prog-metric-' + m);
+function setWeekCompMetric(metric, btn) {
+  window._weekCompMetric = metric;
+  ['sessions','volume','sets','exercises'].forEach(m => {
+    const b = document.getElementById('wcomp-metric-' + m);
     if (!b) return;
     if (m === metric) {
       b.style.background = 'var(--accent)';
@@ -9330,7 +9494,7 @@ function setProgMetric(metric, btn) {
       b.style.color = 'var(--text-secondary)';
     }
   });
-  renderProgOverload();
+  renderWeekComparison();
 }
 
 function _weekBounds(offsetWeeks) {
@@ -9378,135 +9542,107 @@ function _allWeekStats() {
   return byWeek;
 }
 
-// ── Progressive Overload renderer ────────────────────────────────────
-function renderProgOverload() {
-  const card = document.getElementById('prog-overload-card');
+function renderWeekComparison() {
+  const card = document.getElementById('week-comparison-card');
   if (!card) return;
   const workouts = State.workouts || [];
-  if (workouts.length < 2) { card.style.display = 'none'; return; }
+  if (workouts.length === 0) { card.style.display = 'none'; return; }
   card.style.display = '';
 
-  const metric   = window._progMetric || 'volume';
-  const imperial = typeof isImperial === 'function' && isImperial();
-  const wUnit    = typeof weightUnit  === 'function' ? weightUnit() : (imperial ? 'lbs' : 'kg');
+  const metric = window._weekCompMetric || 'sessions';
+  const thisWeek = _calcWeekStats(workouts, _weekBounds(0));
+  const lastWeek = _calcWeekStats(workouts, _weekBounds(1));
 
-  // Build per-exercise history across all sessions (newest first = workouts[0])
-  const exHistory = {}; // name -> [{date, val, sets, reps, weight}]
-  workouts.forEach(w => {
-    (w.exercises || []).forEach(ex => {
-      if (!exHistory[ex.name]) exHistory[ex.name] = [];
-      const vol    = ex.sets.reduce((s,st) => s + (+st.weight||0)*(+st.reps||0), 0);
-      const avgW   = ex.sets.length ? ex.sets.reduce((s,st)=>s+(+st.weight||0),0)/ex.sets.length : 0;
-      const avgR   = ex.sets.length ? ex.sets.reduce((s,st)=>s+(+st.reps||0),0)/ex.sets.length : 0;
-      const sets   = ex.sets.length;
-      exHistory[ex.name].push({
-        date:   w.date,
-        muscle: ex.muscle || '',
-        volume: imperial ? +(vol * 2.20462).toFixed(0) : +vol.toFixed(0),
-        weight: imperial ? +(avgW * 2.20462).toFixed(1) : +avgW.toFixed(1),
-        sets,
-        reps: +avgR.toFixed(1)
-      });
-    });
+  const byWeek = _allWeekStats();
+  let bestVal = 0, bestWkKey = null, bestStats = null;
+  Object.entries(byWeek).forEach(([wk, ws]) => {
+    const start = new Date(wk);
+    const end = new Date(wk);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23,59,59,999);
+    const s = _calcWeekStats(workouts, { start, end });
+    if (s[metric] > bestVal) { bestVal = s[metric]; bestWkKey = wk; bestStats = s; }
   });
 
-  // Filter: only exercises with >= 2 sessions recorded
-  const entries = Object.entries(exHistory)
-    .filter(([,hist]) => hist.length >= 2)
-    .map(([name, hist]) => {
-      // hist is newest-first (same order as workouts)
-      const latest = hist[0];
-      const prev   = hist[1];
-      const latVal = latest[metric] || 0;
-      const preVal = prev[metric]   || 0;
-      const diff   = latVal - preVal;
-      const pct    = preVal > 0 ? Math.round((diff / preVal) * 100) : 0;
-      const allVals = hist.map(h => h[metric] || 0);
-      const best    = Math.max(...allVals);
-      const isPR    = latVal > 0 && latVal >= best && hist.length > 1;
-      return { name, muscle: latest.muscle, latVal, preVal, diff, pct, allVals: allVals.slice(0,6).reverse(), isPR };
-    })
-    .sort((a,b) => Math.abs(b.pct) - Math.abs(a.pct)); // biggest movers first
+  const thisWeekBounds = _weekBounds(0);
+  const isBestWeekThisWeek = bestWkKey === _weekDateKey(thisWeekBounds.start);
 
-  const rowsEl = document.getElementById('prog-overload-rows');
-  const prBadge = document.getElementById('prog-pr-badge');
-  const scanEl  = document.getElementById('prog-sessions-scanned');
+  const badge = document.getElementById('week-comp-best-badge');
+  if (badge) badge.style.display = isBestWeekThisWeek ? '' : 'none';
 
-  if (scanEl) scanEl.textContent = `${workouts.length} session${workouts.length>1?'s':''} scanned`;
+  const weeks = [
+    { label: 'This Week', short: 'THIS', stats: thisWeek, color: 'var(--accent)', isCurrent: true },
+    { label: 'Last Week', short: 'LAST', stats: lastWeek, color: 'var(--blue)', isCurrent: false },
+    { label: 'Best Week',  short: 'BEST', stats: bestStats || thisWeek, color: '#f59e0b', isCurrent: false },
+  ];
 
-  const anyPR = entries.some(e => e.isPR);
-  if (prBadge) prBadge.style.display = anyPR ? '' : 'none';
+  const vals = weeks.map(w => w.stats[metric] || 0);
+  const maxVal = Math.max(...vals, 1);
+  const metricLabel = { sessions:'sessions', volume: (typeof isImperial === 'function' && isImperial()) ? 'lbs vol' : 'kg vol', sets:'sets', exercises:'exercises' }[metric];
+  const formatVal = v => metric === 'volume'
+    ? Math.round((typeof isImperial === 'function' && isImperial()) ? v * 2.20462 : v).toLocaleString()
+    : v;
 
-  if (!entries.length) {
-    rowsEl.innerHTML = '<div class="empty-state"><div class="es-icon">🔄</div><div class="es-text">No overlapping exercises between sessions yet</div></div>';
-    return;
-  }
+  const barsEl = document.getElementById('week-comp-bars');
+  const labelsEl = document.getElementById('week-comp-labels');
+  if (!barsEl || !labelsEl) return;
 
-  const metricUnit = {
-    volume: wUnit + '·reps',
-    weight: wUnit,
-    sets:   'sets',
-    reps:   'avg reps'
-  }[metric];
-
-  const fmtVal = v => metric === 'volume' ? v.toLocaleString() : v;
-
-  rowsEl.innerHTML = entries.slice(0, 8).map(e => {
-    const arrow  = e.diff > 0 ? '▲' : e.diff < 0 ? '▼' : '—';
-    const color  = e.diff > 0 ? 'var(--green)' : e.diff < 0 ? 'var(--red)' : 'var(--text-muted)';
-    const maxV   = Math.max(...e.allVals, 1);
-
-    // Mini sparkline bars
-    const sparks = e.allVals.map((v, i) => {
-      const h = maxV > 0 ? Math.max(Math.round((v / maxV) * 28), v > 0 ? 3 : 1) : 1;
-      const isLast = i === e.allVals.length - 1;
-      const barColor = isLast
-        ? (e.diff > 0 ? 'var(--green)' : e.diff < 0 ? 'var(--red)' : 'var(--accent)')
-        : 'var(--border)';
-      return `<div style="width:6px;height:${h}px;background:${barColor};border-radius:2px;align-self:flex-end;transition:height 0.3s"></div>`;
-    }).join('');
-
+  barsEl.innerHTML = weeks.map((w, i) => {
+    const pct = maxVal > 0 ? (vals[i] / maxVal) * 100 : 0;
+    const barH = Math.max(pct, vals[i] > 0 ? 8 : 2);
+    const isThisBest = i === 2 && isBestWeekThisWeek;
     return `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border)${e.isPR?';border-color:var(--orange)':''}">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:0.82rem;font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-            ${e.name}${e.isPR ? ' <span style="font-size:0.62rem;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;padding:1px 6px;border-radius:20px;font-weight:700;vertical-align:middle">PR</span>' : ''}
-          </div>
-          <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px">${e.muscle || 'Exercise'} · ${fmtVal(e.preVal)} → <strong style="color:var(--text-primary)">${fmtVal(e.latVal)}</strong> ${metricUnit}</div>
-        </div>
-        <!-- Sparkline -->
-        <div style="display:flex;align-items:flex-end;gap:2px;height:32px;flex-shrink:0">${sparks}</div>
-        <!-- Delta -->
-        <div style="text-align:right;flex-shrink:0;min-width:44px">
-          <div style="font-size:0.8rem;font-weight:800;color:${color}">${arrow} ${e.pct !== 0 ? Math.abs(e.pct)+'%' : '—'}</div>
-          <div style="font-size:0.62rem;color:var(--text-muted)">${e.diff > 0 ? '+' : ''}${fmtVal(+e.diff.toFixed(1))}</div>
-        </div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:110px">
+        <div style="font-size:0.72rem;font-weight:800;color:${w.color}">${vals[i] > 0 ? formatVal(vals[i]) : '\u2014'}</div>
+        <div style="
+          width:100%;
+          height:${barH}%;
+          min-height:${vals[i]>0?'6px':'2px'};
+          background:${isThisBest?'linear-gradient(180deg,#f59e0b,var(--accent))':w.color};
+          border-radius:6px 6px 2px 2px;
+          opacity:${vals[i]>0?1:0.25};
+          transition:height 0.4s cubic-bezier(0.34,1.56,0.64,1);
+          ${w.isCurrent ? 'box-shadow:0 0 12px '+w.color+'55' : ''}
+        "></div>
       </div>`;
   }).join('');
 
-  // Insight message
-  const insightEl = document.getElementById('prog-overload-insight');
-  if (insightEl && entries.length) {
-    const up   = entries.filter(e => e.diff > 0).length;
-    const down = entries.filter(e => e.diff < 0).length;
-    const same = entries.length - up - down;
-    const prs  = entries.filter(e => e.isPR).length;
+  labelsEl.innerHTML = weeks.map((w, i) => `
+    <div style="flex:1;text-align:center">
+      <div style="font-size:0.62rem;font-weight:700;color:${w.color};letter-spacing:0.5px">${w.short}</div>
+      <div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px">${metricLabel}</div>
+    </div>`).join('');
+
+  const insightEl = document.getElementById('week-comp-insight');
+  if (insightEl) {
+    const thisVal = vals[0], lastVal = vals[1], bestV = vals[2];
     let msg = '';
-    if (up > down) {
-      msg = `📈 <strong>${up} of ${entries.length}</strong> tracked exercise${entries.length>1?'s':''} improved this session.`;
-    } else if (down > up) {
-      msg = `📉 <strong>${down} of ${entries.length}</strong> exercises dropped vs the previous session — recovery or variation day?`;
+    if (thisVal === 0 && lastVal === 0) {
+      msg = '\u{1F4A4} No workouts recorded yet this week or last \u2014 time to get moving!';
+    } else if (thisVal === 0) {
+      msg = `\u{1F634} No workouts logged this week yet. Last week you had <strong>${formatVal(lastVal)} ${metricLabel}</strong>. Let&#39;s go!`;
+    } else if (lastVal === 0) {
+      msg = `\u{1F525} Great start! You&#39;ve already hit <strong>${formatVal(thisVal)} ${metricLabel}</strong> this week.`;
     } else {
-      msg = `➡️ Mixed session — <strong>${up} up, ${down} down, ${same} unchanged</strong> across tracked exercises.`;
+      const diff = thisVal - lastVal;
+      const pctChange = Math.round((diff / lastVal) * 100);
+      if (diff > 0) {
+        msg = `\u{1F4C8} Up <strong>${pctChange}%</strong> vs last week (${formatVal(thisVal)} vs ${formatVal(lastVal)} ${metricLabel}).`;
+      } else if (diff < 0) {
+        msg = `\u{1F4C9} Down <strong>${Math.abs(pctChange)}%</strong> vs last week (${formatVal(thisVal)} vs ${formatVal(lastVal)} ${metricLabel}).`;
+      } else {
+        msg = `\u27A1\uFE0F Exactly on par with last week \u2014 <strong>${formatVal(thisVal)} ${metricLabel}</strong>.`;
+      }
     }
-    if (prs > 0) msg += ` 🏆 <strong>${prs} personal record${prs>1?'s':''}</strong> this session!`;
+    if (isBestWeekThisWeek && thisVal > 0) {
+      msg += ' \u{1F3C6} <strong>This is your best week ever!</strong>';
+    } else if (bestV > 0 && thisVal > 0) {
+      const gapPct = Math.round(((bestV - thisVal) / bestV) * 100);
+      msg += ` Your best ever was <strong>${formatVal(bestV)} ${metricLabel}</strong>${gapPct > 0 ? ` \u2014 ${gapPct}% more than this week` : ''}.`;
+    }
     insightEl.innerHTML = msg;
   }
 }
-
-// Keep legacy week comparison helpers in case other code refs them (no-op stubs)
-function renderWeekComparison() { renderProgOverload(); }
-function setWeekCompMetric(m, btn) { setProgMetric(m, btn); }
 
 function reloadWorkout(idx) {
   if (!confirm('Load this workout as today\'s session?')) return;
@@ -18206,7 +18342,7 @@ function switchSocialTab(tab, btn) {
   });
   if (tab === 'leaderboard') loadLeaderboard();
   if (tab === 'challenges')  loadChallenges();
-  if (tab === 'squads')      renderSquadsList();
+  if (tab === 'squads')      { renderSquadsList(); if (window._squadRankSync) window._squadRankSync(); }
   if (tab === 'squad' && window._renderSquadProgressWall && window.Social) {
     const wallMembers = Social.squads.length
       ? Social.friends.filter(f => Social.squads[0].memberUids.includes(f.uid))
