@@ -5183,8 +5183,8 @@ function dismissSplash() {
         <div class="form-group" style="flex:1">
           <label class="form-label">Unit</label>
           <select class="form-select" id="food-unit" onchange="onFoodUnitChange()">
-            <option value="100g">Per 100g</option>
             <option value="gram">Custom grams</option>
+            <option value="100g">Per 100g</option>
           </select>
         </div>
       </div>
@@ -8906,10 +8906,10 @@ function selectFood(id) {
     document.getElementById('food-scoop-val').value = 1;
     _showScoopMode();
   } else {
-    // Standard 100g mode
-    document.getElementById('food-qty').value = 1;
-    document.getElementById('food-unit').value = '100g';
-    _showGram100Mode();
+    // Default to custom grams mode (user enters exact grams)
+    document.getElementById('food-gram-val').value = 100;
+    document.getElementById('food-unit').value = 'gram';
+    _showCustomGramMode();
   }
 
   updateFoodPreview();
@@ -26020,336 +26020,221 @@ window.addEventListener('load', () => {
 
 
 <!-- ═══════════════════════════════════════════════════════════════
-     EDDFIT GUIDED TOUR — Cartoon Bodybuilder Mascot + Step Tooltips
-     Triggered once after onboarding completes (startApp runs).
-     State stored in localStorage: 'eddfit_tour_done'
+     EDDFIT GUIDED TOUR v2 — Deep-Dive Feature Tour with Flex
 ═══════════════════════════════════════════════════════════════ -->
 <style>
 /* ── Tour Overlay ── */
-#tour-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 9000;
-  pointer-events: none;
-}
-#tour-overlay.active { display: block; }
-
-/* Spotlight cutout */
-#tour-spotlight {
-  position: fixed;
-  inset: 0;
-  z-index: 9001;
-  pointer-events: none;
-  transition: clip-path 0.45s cubic-bezier(0.4,0,0.2,1);
-}
-
-/* Dark backdrop via box-shadow on spotlight element */
+#tour-overlay { display:none; position:fixed; inset:0; z-index:9000; pointer-events:none; }
+#tour-overlay.active { display:block; }
 #tour-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.62);
-  z-index: 9002;
-  pointer-events: all;
-  transition: opacity 0.3s;
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.65);
+  z-index:9002; pointer-events:all;
+  transition:opacity 0.3s;
 }
-
-/* The spotlight hole — transparent region punched out */
 #tour-highlight-box {
-  position: fixed;
-  border-radius: 12px;
-  z-index: 9003;
-  pointer-events: none;
-  box-shadow: 0 0 0 9999px rgba(0,0,0,0.62);
-  transition: all 0.45s cubic-bezier(0.4,0,0.2,1);
-  border: 2.5px solid rgba(232,255,71,0.7);
+  position:fixed; border-radius:12px; z-index:9003; pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(0,0,0,0.65);
+  transition:all 0.42s cubic-bezier(0.4,0,0.2,1);
+  border:2.5px solid rgba(232,255,71,0.8);
+  opacity:0;
 }
-
-/* ── Mascot + Speech Bubble container ── */
+/* ── Mascot + Bubble ── */
 #tour-mascot-wrap {
-  position: fixed;
-  z-index: 9010;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  pointer-events: all;
-  transition: all 0.45s cubic-bezier(0.4,0,0.2,1);
-  bottom: 90px;
-  right: 24px;
+  position:fixed; z-index:9010;
+  display:flex; flex-direction:column; align-items:flex-end;
+  pointer-events:all;
+  transition:all 0.42s cubic-bezier(0.4,0,0.2,1);
+  bottom:20px; right:16px;
 }
-
-/* Speech bubble */
 #tour-bubble {
-  background: var(--bg-card, #fff);
-  border: 1.5px solid var(--border, rgba(0,0,0,0.1));
-  border-radius: 18px;
-  padding: 18px 20px 14px;
-  max-width: 280px;
-  min-width: 220px;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
-  position: relative;
-  margin-bottom: 6px;
-  animation: bubblePop 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+  background:var(--bg-card,#fff);
+  border:1.5px solid var(--border,rgba(0,0,0,0.1));
+  border-radius:18px; padding:16px 18px 13px;
+  max-width:290px; min-width:230px;
+  box-shadow:0 10px 40px rgba(0,0,0,0.2);
+  position:relative; margin-bottom:8px;
+  animation:bubblePop 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
 }
 @keyframes bubblePop {
-  from { opacity:0; transform: scale(0.8) translateY(12px); }
-  to   { opacity:1; transform: scale(1) translateY(0); }
+  from{opacity:0;transform:scale(0.82) translateY(10px)}
+  to{opacity:1;transform:scale(1) translateY(0)}
 }
-
-/* Bubble tail pointing down-right toward mascot */
 #tour-bubble::after {
-  content: '';
-  position: absolute;
-  bottom: -11px;
-  right: 36px;
-  border: 11px solid transparent;
-  border-top-color: var(--bg-card, #fff);
-  border-bottom: 0;
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.08));
+  content:''; position:absolute;
+  bottom:-10px; right:40px;
+  border:10px solid transparent;
+  border-top-color:var(--bg-card,#fff);
+  border-bottom:0;
 }
 #tour-bubble::before {
-  content: '';
-  position: absolute;
-  bottom: -13px;
-  right: 35px;
-  border: 12px solid transparent;
-  border-top-color: var(--border, rgba(0,0,0,0.1));
-  border-bottom: 0;
+  content:''; position:absolute;
+  bottom:-12px; right:39px;
+  border:11px solid transparent;
+  border-top-color:var(--border,rgba(0,0,0,0.1));
+  border-bottom:0;
 }
-
-.tour-step-label {
-  font-size: 0.62rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--accent, #e8ff47);
-  background: var(--accent-dim, rgba(232,255,71,0.12));
-  padding: 2px 8px;
-  border-radius: 20px;
-  display: inline-block;
-  margin-bottom: 8px;
+.tour-section-chip {
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:0.6rem; font-weight:800; text-transform:uppercase;
+  letter-spacing:0.8px; padding:3px 9px; border-radius:20px;
+  background:var(--accent-dim,rgba(232,255,71,0.12));
+  color:var(--accent,#e8ff47); margin-bottom:7px;
 }
-
+.tour-step-counter {
+  font-size:0.58rem; color:var(--text-muted,#9ca3af);
+  font-weight:600; float:right; margin-top:1px;
+}
 .tour-bubble-title {
-  font-family: var(--font-display, 'Syne', sans-serif);
-  font-size: 1rem;
-  font-weight: 800;
-  color: var(--text-primary, #111);
-  margin-bottom: 5px;
-  line-height: 1.2;
+  font-family:var(--font-display,'Syne',sans-serif);
+  font-size:0.97rem; font-weight:800;
+  color:var(--text-primary,#111);
+  margin-bottom:5px; line-height:1.2;
+  clear:both;
 }
-
 .tour-bubble-desc {
-  font-size: 0.8rem;
-  color: var(--text-secondary, #555);
-  line-height: 1.55;
-  margin-bottom: 14px;
+  font-size:0.78rem; color:var(--text-secondary,#555);
+  line-height:1.6; margin-bottom:13px;
 }
-
 .tour-btn-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
+  display:flex; gap:8px; align-items:center;
+  justify-content:space-between;
 }
-
-.tour-skip-btn {
-  font-size: 0.72rem;
-  color: var(--text-muted, #9ca3af);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 0;
-  font-family: var(--font-body, sans-serif);
-  transition: color 0.2s;
-}
-.tour-skip-btn:hover { color: var(--text-secondary, #555); }
-
-.tour-next-btn {
-  font-family: var(--font-display, 'Syne', sans-serif);
-  font-size: 0.82rem;
-  font-weight: 700;
-  background: var(--accent, #e8ff47);
-  color: #111;
-  border: none;
-  border-radius: 20px;
-  padding: 8px 20px;
-  cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-}
-.tour-next-btn:hover { transform: translateY(-1px) scale(1.03); box-shadow: 0 4px 18px rgba(0,0,0,0.2); }
-.tour-next-btn:active { transform: scale(0.97); }
-
-.tour-dot-row {
-  display: flex;
-  gap: 5px;
-  justify-content: center;
-  margin-bottom: 10px;
-}
+.tour-dot-row { display:flex; gap:4px; justify-content:center; margin-bottom:9px; flex-wrap:wrap; }
 .tour-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--border-active, rgba(0,0,0,0.15));
-  transition: background 0.25s, transform 0.25s;
+  width:5px; height:5px; border-radius:50%;
+  background:var(--border-active,rgba(0,0,0,0.15));
+  transition:all 0.25s; flex-shrink:0;
 }
-.tour-dot.active {
-  background: var(--accent, #e8ff47);
-  transform: scale(1.3);
+.tour-dot.active { background:var(--accent,#e8ff47); transform:scale(1.5); }
+.tour-dot.done { background:var(--accent,#e8ff47); opacity:0.4; }
+.tour-skip-btn {
+  font-size:0.7rem; color:var(--text-muted,#9ca3af);
+  background:none; border:none; cursor:pointer;
+  font-family:var(--font-body,sans-serif); transition:color 0.2s;
 }
-
+.tour-skip-btn:hover { color:var(--text-secondary,#555); }
+.tour-next-btn {
+  font-family:var(--font-display,'Syne',sans-serif);
+  font-size:0.82rem; font-weight:800;
+  background:var(--accent,#e8ff47); color:#111;
+  border:none; border-radius:20px; padding:8px 18px;
+  cursor:pointer; transition:transform 0.15s,box-shadow 0.15s;
+  box-shadow:0 2px 12px rgba(0,0,0,0.15); white-space:nowrap;
+}
+.tour-next-btn:hover { transform:translateY(-1px) scale(1.03); }
+.tour-next-btn:active { transform:scale(0.97); }
+.tour-back-btn {
+  font-size:0.72rem; color:var(--text-muted,#9ca3af);
+  background:none; border:1px solid var(--border,rgba(0,0,0,0.1));
+  border-radius:12px; padding:5px 10px; cursor:pointer;
+  font-family:var(--font-body,sans-serif); transition:all 0.2s;
+}
+.tour-back-btn:hover { color:var(--text-secondary,#555); border-color:var(--border-active); }
 /* ── Mascot SVG ── */
 #tour-mascot-svg {
-  width: 90px;
-  height: 110px;
-  filter: drop-shadow(0 6px 18px rgba(0,0,0,0.22));
-  animation: mascotIdle 3s ease-in-out infinite;
-  transform-origin: center bottom;
-  cursor: pointer;
+  width:86px; height:106px;
+  filter:drop-shadow(0 6px 18px rgba(0,0,0,0.25));
+  animation:mascotIdle 3s ease-in-out infinite;
+  transform-origin:center bottom; cursor:pointer;
 }
 @keyframes mascotIdle {
-  0%,100% { transform: translateY(0) rotate(-1deg); }
-  50%      { transform: translateY(-6px) rotate(1deg); }
+  0%,100%{transform:translateY(0) rotate(-1deg)}
+  50%{transform:translateY(-6px) rotate(1deg)}
 }
 #tour-mascot-svg.mascot-cheer {
-  animation: mascotCheer 0.6s cubic-bezier(0.34,1.56,0.64,1) both;
+  animation:mascotCheer 0.65s cubic-bezier(0.34,1.56,0.64,1) both;
 }
 @keyframes mascotCheer {
-  0%   { transform: scale(1) rotate(0deg); }
-  30%  { transform: scale(1.18) rotate(-8deg); }
-  60%  { transform: scale(1.1) rotate(7deg); }
-  100% { transform: scale(1) rotate(0deg); animation-name: mascotIdle; }
+  0%{transform:scale(1) rotate(0)}
+  30%{transform:scale(1.2) rotate(-9deg)}
+  60%{transform:scale(1.1) rotate(8deg)}
+  100%{transform:scale(1) rotate(0); animation-name:mascotIdle}
 }
-
-/* ── Tour welcome intro screen ── */
+/* ── Welcome Screen ── */
 #tour-welcome {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 9020;
-  background: var(--bg-base, #0a0b0f);
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  animation: fadeInUp 0.5s ease both;
+  display:none; position:fixed; inset:0; z-index:9020;
+  background:var(--bg-base,#0a0b0f);
+  flex-direction:column; align-items:center; justify-content:center;
+  animation:fadeInUp 0.5s ease both; padding:24px;
 }
-#tour-welcome.show { display: flex; }
+#tour-welcome.show { display:flex; }
 @keyframes fadeInUp {
-  from { opacity:0; transform: translateY(24px); }
-  to   { opacity:1; transform: translateY(0); }
+  from{opacity:0;transform:translateY(24px)}
+  to{opacity:1;transform:translateY(0)}
 }
-
 .tw-mascot-big {
-  width: 130px; height: 160px;
-  animation: mascotIdle 3s ease-in-out infinite;
-  transform-origin: center bottom;
-  margin-bottom: 12px;
-  filter: drop-shadow(0 10px 30px rgba(232,255,71,0.3));
+  width:120px; height:150px;
+  animation:mascotIdle 3s ease-in-out infinite;
+  transform-origin:center bottom; margin-bottom:10px;
+  filter:drop-shadow(0 8px 24px rgba(232,255,71,0.3));
 }
-
 .tw-title {
-  font-family: var(--font-display, 'Syne', sans-serif);
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--text-primary, #fff);
-  margin-bottom: 6px;
-  text-align: center;
+  font-family:var(--font-display,'Syne',sans-serif);
+  font-size:1.9rem; font-weight:800; color:var(--text-primary,#fff);
+  margin-bottom:6px; text-align:center;
 }
-.tw-title span { color: var(--accent, #e8ff47); }
-
+.tw-title span { color:var(--accent,#e8ff47); }
 .tw-sub {
-  font-size: 0.9rem;
-  color: var(--text-secondary, #888);
-  text-align: center;
-  max-width: 300px;
-  line-height: 1.6;
-  margin-bottom: 28px;
+  font-size:0.88rem; color:var(--text-secondary,#888);
+  text-align:center; max-width:310px; line-height:1.65;
+  margin-bottom:26px;
 }
-
 .tw-start-btn {
-  font-family: var(--font-display, 'Syne', sans-serif);
-  font-size: 1rem;
-  font-weight: 800;
-  background: var(--accent, #e8ff47);
-  color: #111;
-  border: none;
-  border-radius: 30px;
-  padding: 14px 40px;
-  cursor: pointer;
-  box-shadow: 0 4px 24px rgba(232,255,71,0.3);
-  transition: transform 0.2s, box-shadow 0.2s;
-  margin-bottom: 12px;
+  font-family:var(--font-display,'Syne',sans-serif);
+  font-size:1rem; font-weight:800;
+  background:var(--accent,#e8ff47); color:#111;
+  border:none; border-radius:30px; padding:14px 38px;
+  cursor:pointer; box-shadow:0 4px 24px rgba(232,255,71,0.3);
+  transition:transform 0.2s,box-shadow 0.2s; margin-bottom:12px;
 }
-.tw-start-btn:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 8px 32px rgba(232,255,71,0.4); }
-
+.tw-start-btn:hover { transform:translateY(-2px) scale(1.04); box-shadow:0 8px 32px rgba(232,255,71,0.4); }
 .tw-skip-link {
-  font-size: 0.78rem;
-  color: var(--text-muted, #4a5168);
-  background: none; border: none;
-  cursor: pointer;
-  font-family: var(--font-body, sans-serif);
-  text-decoration: underline;
-  transition: color 0.2s;
+  font-size:0.76rem; color:var(--text-muted,#4a5168);
+  background:none; border:none; cursor:pointer;
+  text-decoration:underline; transition:color 0.2s;
 }
-.tw-skip-link:hover { color: var(--text-secondary, #888); }
-
-/* Light mode overrides for bubble */
-html:not(.dark) #tour-bubble::after { border-top-color: #fff; }
-html:not(.dark) #tour-bubble::before { border-top-color: rgba(0,0,0,0.08); }
+.tw-skip-link:hover { color:var(--text-secondary,#888); }
+/* Light mode */
+html:not(.dark) #tour-bubble::after { border-top-color:#fff; }
+html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
 </style>
 
-<!-- Tour Welcome Screen -->
+<!-- Welcome screen -->
 <div id="tour-welcome">
   <svg class="tw-mascot-big" viewBox="0 0 130 160" xmlns="http://www.w3.org/2000/svg">
-    <!-- Body -->
     <ellipse cx="65" cy="105" rx="28" ry="38" fill="#FF8C42"/>
-    <!-- Neck -->
     <rect x="57" y="68" width="16" height="14" rx="6" fill="#FFAB76"/>
-    <!-- Head -->
     <ellipse cx="65" cy="58" rx="26" ry="26" fill="#FFAB76"/>
-    <!-- Hair -->
     <ellipse cx="65" cy="34" rx="24" ry="10" fill="#2C1810"/>
     <rect x="41" y="34" width="9" height="12" rx="4" fill="#2C1810"/>
     <rect x="80" y="34" width="9" height="12" rx="4" fill="#2C1810"/>
-    <!-- Eyes closed happy -->
     <path d="M54 55 Q57 52 60 55" fill="none" stroke="#2C1810" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M70 55 Q73 52 76 55" fill="none" stroke="#2C1810" stroke-width="2.5" stroke-linecap="round"/>
-    <!-- Cheek blush -->
     <ellipse cx="51" cy="60" rx="6" ry="4" fill="#FF9B7D" opacity="0.5"/>
     <ellipse cx="79" cy="60" rx="6" ry="4" fill="#FF9B7D" opacity="0.5"/>
-    <!-- Big grin -->
     <path d="M54 66 Q65 76 76 66" fill="none" stroke="#2C1810" stroke-width="2.5" stroke-linecap="round"/>
-    <!-- Teeth -->
     <path d="M57 67 Q65 74 73 67" fill="white" opacity="0.7"/>
-    <!-- Left arm raised (celebrating) -->
     <path d="M37 95 Q20 70 15 50" stroke="#FF8C42" stroke-width="13" stroke-linecap="round" fill="none"/>
-    <!-- Left fist -->
     <circle cx="14" cy="46" r="9" fill="#FFAB76"/>
-    <!-- Right arm down -->
     <path d="M93 95 Q110 110 115 120" stroke="#FF8C42" stroke-width="13" stroke-linecap="round" fill="none"/>
-    <!-- Right hand -->
     <circle cx="116" cy="123" r="9" fill="#FFAB76"/>
-    <!-- Shorts -->
     <path d="M37 122 Q38 143 50 148 Q65 152 80 148 Q92 143 93 122 Z" fill="#7C3AED"/>
-    <!-- Legs -->
     <path d="M50 148 Q48 160 50 162" stroke="#FFAB76" stroke-width="11" stroke-linecap="round" fill="none"/>
     <path d="M80 148 Q82 160 80 162" stroke="#FFAB76" stroke-width="11" stroke-linecap="round" fill="none"/>
-    <!-- Shoes -->
     <ellipse cx="50" cy="163" rx="12" ry="5" fill="#2C1810"/>
     <ellipse cx="80" cy="163" rx="12" ry="5" fill="#2C1810"/>
-    <!-- Stars sparkle -->
     <text x="8" y="30" font-size="14" fill="#E8FF47" opacity="0.9">✦</text>
     <text x="108" y="40" font-size="11" fill="#E8FF47" opacity="0.8">✦</text>
     <text x="95" y="18" font-size="9" fill="#E8FF47" opacity="0.7">✦</text>
   </svg>
   <div class="tw-title">Hey, I'm <span>Flex!</span> 💪</div>
-  <div class="tw-sub">Your personal EddFit coach. Let me show you around the app — it'll only take a minute!</div>
-  <button class="tw-start-btn" onclick="tourStart()">Let's Go! 🚀</button>
-  <button class="tw-skip-link" onclick="tourSkip()">No thanks, I'll explore on my own</button>
+  <div class="tw-sub">I'm your personal EddFit coach. Let me walk you through every feature so you can crush your goals from day one!</div>
+  <button class="tw-start-btn" onclick="tourStart()">Show Me Around! 🚀</button>
+  <button class="tw-skip-link" onclick="tourSkip()">Skip — I'll explore myself</button>
 </div>
 
-<!-- Tour Overlay: backdrop + highlight box -->
+<!-- Overlay: backdrop + highlight box -->
 <div id="tour-overlay">
   <div id="tour-backdrop" onclick="tourNextOnBackdrop()"></div>
   <div id="tour-highlight-box"></div>
@@ -26359,149 +26244,251 @@ html:not(.dark) #tour-bubble::before { border-top-color: rgba(0,0,0,0.08); }
 <div id="tour-mascot-wrap" style="display:none">
   <div id="tour-bubble">
     <div class="tour-dot-row" id="tour-dots"></div>
-    <div class="tour-step-label" id="tour-step-label">Step 1 of 8</div>
-    <div class="tour-bubble-title" id="tour-bubble-title">Dashboard</div>
-    <div class="tour-bubble-desc"  id="tour-bubble-desc">Your command center!</div>
+    <div class="tour-section-chip" id="tour-section-chip">📊 Dashboard</div>
+    <span class="tour-step-counter" id="tour-step-counter">1 / 30</span>
+    <div class="tour-bubble-title" id="tour-bubble-title">Welcome!</div>
+    <div class="tour-bubble-desc"  id="tour-bubble-desc">Let's go!</div>
     <div class="tour-btn-row">
-      <button class="tour-skip-btn" onclick="tourSkip()">Skip tour</button>
-      <button class="tour-next-btn" id="tour-next-btn" onclick="tourNext()">Next →</button>
+      <button class="tour-skip-btn" onclick="tourSkip()">✕ Exit</button>
+      <div style="display:flex;gap:6px">
+        <button class="tour-back-btn" id="tour-back-btn" onclick="tourBack()">← Back</button>
+        <button class="tour-next-btn" id="tour-next-btn" onclick="tourNext()">Next →</button>
+      </div>
     </div>
   </div>
   <svg id="tour-mascot-svg" viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg">
-    <!-- Body -->
     <ellipse cx="50" cy="80" rx="22" ry="30" fill="#FF8C42"/>
-    <!-- Neck -->
     <rect x="43" y="52" width="14" height="11" rx="5" fill="#FFAB76"/>
-    <!-- Head -->
     <ellipse cx="50" cy="44" rx="22" ry="22" fill="#FFAB76"/>
-    <!-- Hair -->
     <ellipse cx="50" cy="24" rx="20" ry="9" fill="#2C1810"/>
     <rect x="30" y="24" width="8" height="10" rx="4" fill="#2C1810"/>
     <rect x="62" y="24" width="8" height="10" rx="4" fill="#2C1810"/>
-    <!-- Eyes -->
     <ellipse cx="43" cy="41" rx="4" ry="4.5" fill="white"/>
     <ellipse cx="57" cy="41" rx="4" ry="4.5" fill="white"/>
     <ellipse cx="44" cy="42" rx="2.5" ry="2.5" fill="#2C1810"/>
     <ellipse cx="58" cy="42" rx="2.5" ry="2.5" fill="#2C1810"/>
-    <!-- Eye shine -->
     <circle cx="45" cy="41" r="1" fill="white"/>
     <circle cx="59" cy="41" r="1" fill="white"/>
-    <!-- Brows -->
     <path d="M39 36 Q43 34 47 36" fill="none" stroke="#2C1810" stroke-width="1.8" stroke-linecap="round"/>
     <path d="M53 36 Q57 34 61 36" fill="none" stroke="#2C1810" stroke-width="1.8" stroke-linecap="round"/>
-    <!-- Blush -->
     <ellipse cx="36" cy="46" rx="5" ry="3.5" fill="#FF9B7D" opacity="0.5"/>
     <ellipse cx="64" cy="46" rx="5" ry="3.5" fill="#FF9B7D" opacity="0.5"/>
-    <!-- Smile -->
     <path d="M41 51 Q50 59 59 51" fill="none" stroke="#2C1810" stroke-width="2.2" stroke-linecap="round"/>
-    <!-- Teeth -->
     <path d="M44 52 Q50 57 56 52" fill="white" opacity="0.7"/>
-    <!-- Left arm with dumbbell -->
     <path d="M28 72 Q14 60 10 48" stroke="#FF8C42" stroke-width="11" stroke-linecap="round" fill="none"/>
-    <!-- Dumbbell -->
     <rect x="3" y="40" width="14" height="6" rx="3" fill="#555"/>
     <rect x="1" y="38" width="4" height="10" rx="2" fill="#333"/>
     <rect x="13" y="38" width="4" height="10" rx="2" fill="#333"/>
-    <!-- Right arm casual -->
     <path d="M72 72 Q86 78 90 88" stroke="#FF8C42" stroke-width="11" stroke-linecap="round" fill="none"/>
     <circle cx="92" cy="92" r="7" fill="#FFAB76"/>
-    <!-- Shorts -->
     <path d="M28 95 Q29 112 38 116 Q50 120 62 116 Q71 112 72 95 Z" fill="#7C3AED"/>
-    <!-- Legs -->
     <path d="M38 116 Q36 124 38 126" stroke="#FFAB76" stroke-width="9" stroke-linecap="round" fill="none"/>
     <path d="M62 116 Q64 124 62 126" stroke="#FFAB76" stroke-width="9" stroke-linecap="round" fill="none"/>
-    <!-- Shoes -->
     <ellipse cx="38" cy="127" rx="10" ry="4" fill="#2C1810"/>
     <ellipse cx="62" cy="127" rx="10" ry="4" fill="#2C1810"/>
   </svg>
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════
-//  EDDFIT GUIDED TOUR ENGINE
-// ═══════════════════════════════════════════════════════════
 (function() {
   'use strict';
+  const TOUR_KEY = 'eddfit_tour_done_v2';
 
-  const TOUR_KEY = 'eddfit_tour_done_v1';
-
-  // ── Tour steps definition ──────────────────────────────────
-  // Each step: { target: CSS selector or null, title, desc, navTo: page name or null, align: 'auto'|'left'|'right' }
+  // ─── DEEP-DIVE TOUR STEPS ────────────────────────────────────────────
+  // section: chip label | navTo: page to navigate to | target: CSS selector to highlight
+  // subTarget: highlight a specific sub-element after nav | isLast: final celebration step
   const TOUR_STEPS = [
-    {
-      target: '#page-dashboard',
-      navTo: 'dashboard',
-      title: '📊 Your Dashboard',
-      desc: "This is your home base! See today's calories, macros, workout summary, and streak all in one place. Check in here every day!"
-    },
-    {
-      target: '.nav-item[onclick*="workouts"]',
-      navTo: 'workouts',
-      title: '🏋️ Workouts',
-      desc: "Log your sessions, start a program, and track every rep. Your workout history and programs live here."
-    },
-    {
-      target: '.nav-item[onclick*="nutrition"]',
-      navTo: 'nutrition',
-      title: '🥗 Nutrition Log',
-      desc: "Search foods, scan barcodes, and log every meal. Your macros update in real-time as you log!"
-    },
-    {
-      target: '.nav-item[onclick*="mealplan"]',
-      navTo: 'mealplan',
-      title: '📋 Meal Plan',
-      desc: "Plan your meals for the week ahead. Great for staying on track with your calorie targets every single day."
-    },
-    {
-      target: '.nav-item[onclick*="progress"]',
-      navTo: 'progress',
-      title: '📈 Progress',
-      desc: "Track your body weight over time and see beautiful charts of your fitness journey. Log your weight daily!"
-    },
-    {
-      target: '.nav-item[onclick*="goals"]',
-      navTo: 'goals',
-      title: '🎯 Goals',
-      desc: "Set short and long-term fitness goals. Crush them and earn achievements — I'll be cheering you on! 💪"
-    },
-    {
-      target: '.nav-item[onclick*="calendar"]',
-      navTo: 'calendar',
-      title: '📅 Calendar',
-      desc: "See your full schedule — upcoming workouts, rest days, and logged sessions all mapped out."
-    },
-    {
-      target: '.nav-item[onclick*="settings"]',
-      navTo: 'settings',
-      title: '⚙️ Settings',
-      desc: "Adjust your macro targets, switch dark/light mode, manage your profile, and connect AI features here."
-    },
-    {
-      target: null,
-      navTo: 'dashboard',
-      title: "You're all set! 🎉",
-      desc: "That's the full tour! Remember: log daily, crush your workouts, and I'll always be here if you need a guide. Let's get after it!",
-      isLast: true
-    }
+
+    // ══ DASHBOARD ══
+    { section:'📊 Dashboard', navTo:'dashboard', target:'.welcome-banner',
+      title:'Your Daily Greeting 👋',
+      desc:'Every day starts here! See your name, today\'s date, and your daily fitness score — a live rating of how well you\'re hitting your targets.' },
+
+    { section:'📊 Dashboard', navTo:'dashboard', target:'.grid-4',
+      title:'🔥 Your 4 Key Stats',
+      desc:'At a glance: Calories Remaining (how much you can still eat today), Protein logged, Workouts this week, and your Current Weight. These update live as you log!' },
+
+    { section:'📊 Dashboard', navTo:'dashboard', target:'#calorie-ring-svg',
+      title:'🍩 Calorie Ring',
+      desc:'This donut ring fills up as you eat. The goal is to hit — not exceed — your daily calorie target. The color changes from green to red if you go over!' },
+
+    { section:'📊 Dashboard', navTo:'dashboard', target:'.macro-row',
+      title:'💊 Macro Progress Bars',
+      desc:'Track Protein (blue), Carbs (orange), and Fat (red) in real-time. Each bar shows how much you\'ve eaten vs. your daily goal. Hit that protein bar! 💪' },
+
+    { section:'📊 Dashboard', navTo:'dashboard', target:'#dash-recent-meals',
+      title:'🍽️ Recent Meals',
+      desc:'Your last logged meals appear here. Tap "View All" to jump straight to your full Nutrition Log. No meals yet? Head to Nutrition Log to add your first one!' },
+
+    { section:'📊 Dashboard', navTo:'dashboard', target:'#dash-workout-summary',
+      title:'💪 Today\'s Workout',
+      desc:'See today\'s scheduled exercises here. Tap "Plan" to go to the Workouts section and either load a program session or add exercises manually.' },
+
+    { section:'📊 Dashboard', navTo:'dashboard', target:'#dash-badges-widget',
+      title:'🎖️ Recent Badges',
+      desc:'Badges unlock automatically as you hit milestones — first workout, 7-day streak, protein goals, and more! Keep tracking daily to collect them all.' },
+
+    // ══ NUTRITION LOG ══
+    { section:'🥗 Nutrition Log', navTo:'nutrition', target:'.grid-4',
+      title:'📊 Daily Macro Summary',
+      desc:'At the top of the Nutrition Log, you see your total Calories, Protein, Carbs, and Fat for the day — with progress bars showing how close you are to each goal.' },
+
+    { section:'🥗 Nutrition Log', navTo:'nutrition', target:'#meal-log-container',
+      title:'🍳 Your Meal Sections',
+      desc:'Your day is split into Breakfast, Lunch, Dinner, and Snacks. Each section has a "+ Add Food" button. Tap it to search thousands of foods and add them instantly!' },
+
+    { section:'🥗 Nutrition Log', navTo:'nutrition', target:'#meal-log-container',
+      title:'🔍 How to Add a Food',
+      desc:'Tap "+ Add Food" → type a food name (e.g. "chicken breast") → select it from the list → choose your serving size → tap "Log it!" The macros update immediately.' },
+
+    { section:'🥗 Nutrition Log', navTo:'nutrition', target:'#meal-log-container',
+      title:'⚖️ Serving Sizes',
+      desc:'After selecting a food, you can log by grams (weigh it on a scale!), by servings (1 cup, 1 piece), or by 100g for easy math. The calorie preview updates live as you adjust.' },
+
+    { section:'🥗 Nutrition Log', navTo:'nutrition', target:'#nutrition-date-label',
+      title:'📅 Navigate Days',
+      desc:'Use the ← Prev / Next → buttons to view and edit any past or future day\'s nutrition. Great for planning meals ahead or fixing yesterday\'s forgotten entries.' },
+
+    { section:'🥗 Nutrition Log', navTo:'nutrition', target:'#macro-warnings-container',
+      title:'⚠️ Smart Macro Warnings',
+      desc:'EddFit automatically warns you if your protein is too low, calories too high, or macros are unbalanced. These science-backed alerts help you optimise every day.' },
+
+    // ══ WORKOUTS ══
+    { section:'🏋️ Workouts', navTo:'workouts', target:'[data-tab="session"]',
+      title:'📋 Today\'s Session Tab',
+      desc:'This is where you log every rep and set! Your active program\'s workout auto-loads here each day. You can also manually add any exercise you want.' },
+
+    { section:'🏋️ Workouts', navTo:'workouts', target:'#session-action-btns',
+      title:'➕ Adding Exercises',
+      desc:'Tap "+ Add Exercise" to open the full exercise library — filtered by muscle group. Search by name, pick your sets & reps, and it\'ll be added to your session instantly.' },
+
+    { section:'🏋️ Workouts', navTo:'workouts', target:'#exercise-list',
+      title:'✅ Logging Sets',
+      desc:'For each exercise, enter the weight and reps for every set, then tap the checkmark to mark it done. Your session stats (volume, sets done) update live as you go!' },
+
+    { section:'🏋️ Workouts', navTo:'workouts', target:'[data-tab="templates"]',
+      title:'⚡ Quick Start Templates',
+      desc:'Don\'t have a program yet? Tap "Quick Start" to load pre-built workouts — Push Day, Pull Day, Full Body, Cardio, and more. One tap loads all exercises instantly.' },
+
+    { section:'🏋️ Workouts', navTo:'workouts', target:'[data-tab="programs"]',
+      title:'🏆 Training Programs',
+      desc:'Build or choose a structured multi-week program. Built-in options include PPL, Upper/Lower, Full Body, and Bro Split. Your program auto-fills each day\'s workout!' },
+
+    { section:'🏋️ Workouts', navTo:'workouts', target:'#week-schedule-grid',
+      title:'📅 This Week\'s Schedule',
+      desc:'Inside Programs, the weekly grid shows every day at a glance — which days are training days, rest days, and which ones you\'ve already completed this week.' },
+
+    { section:'🏋️ Workouts', navTo:'workouts', target:'[data-tab="history"]',
+      title:'🕐 Workout History',
+      desc:'Every saved session is stored here. Tap any entry to review the full exercise breakdown. The Progressive Overload tracker shows if you\'re lifting more over time — the key to growth!' },
+
+    // ══ MEAL PLAN ══
+    { section:'📋 Meal Plan', navTo:'mealplan', target:'#page-mealplan',
+      title:'📋 Weekly Meal Planner',
+      desc:'Plan your entire week of meals in advance! Tap any cell (e.g. Monday Breakfast) to search and assign a food. The weekly calorie total updates automatically.' },
+
+    // ══ PROGRESS ══
+    { section:'📈 Progress', navTo:'progress', target:'#page-progress',
+      title:'📈 Your Progress Charts',
+      desc:'Log your weight daily and watch your journey unfold as a beautiful chart. Switch between 1 week, 1 month, and 3 month views to spot trends and celebrate wins!' },
+
+    { section:'📈 Progress', navTo:'progress', target:'#page-progress',
+      title:'📏 Body Measurements',
+      desc:'Track more than just weight! Log chest, waist, hips, arms, and thighs to see your body composition changing even when the scale doesn\'t move.' },
+
+    // ══ GOALS ══
+    { section:'🎯 Goals', navTo:'goals', target:'#page-goals',
+      title:'🎯 Set Your Goals',
+      desc:'Create custom fitness goals with milestones — "Run 5km", "Hit 100kg squat", "Lose 5kg". Each goal shows a progress bar and completion status. Check off milestones as you crush them!' },
+
+    // ══ CALENDAR ══
+    { section:'📅 Calendar', navTo:'calendar', target:'#page-calendar',
+      title:'📅 Your Fitness Calendar',
+      desc:'Every logged workout and meal shows up here as a colour-coded dot. Green = trained, orange = nutrition logged. Tap any day to see the full breakdown or edit entries.' },
+
+    // ══ RECORDS ══
+    { section:'🏅 Records', navTo:'records', target:'#page-records',
+      title:'🏅 Personal Records',
+      desc:'EddFit automatically tracks your all-time best lifts for every exercise. Your estimated 1-Rep Max is calculated using the Epley formula — see your true strength!' },
+
+    // ══ SETTINGS ══
+    { section:'⚙️ Settings', navTo:'settings', target:'#page-settings',
+      title:'🎚️ Calorie & Macro Targets',
+      desc:'This is the only place to change your daily goals. Use the sliders to adjust calories, protein, carbs, and fat. Changes only affect today forward — your history is always preserved.' },
+
+    { section:'⚙️ Settings', navTo:'settings', target:'#page-settings',
+      title:'🌙 Dark Mode & Units',
+      desc:'Toggle dark/light mode and switch between metric (kg/cm) and imperial (lbs/in) — everything throughout the whole app updates instantly.' },
+
+    { section:'⚙️ Settings', navTo:'settings', target:'#page-settings',
+      title:'✨ AI Smart Suggestions',
+      desc:'Connect your own Claude, Gemini, or ChatGPT API key and unlock AI-powered goal analysis. Flex will analyse your data and give you personalised recommendations!' },
+
+    // ══ ACHIEVEMENTS ══
+    { section:'🎖️ Achievements', navTo:'achievements', target:'#achievements-progress-bar-wrap',
+      title:'🎖️ Your Badge Collection',
+      desc:'See every badge you own and how many you\'ve unlocked out of the total. The progress bar fills up as you earn more — can you hit 100%?' },
+
+    { section:'🎖️ Achievements', navTo:'achievements', target:'#achievements-grid',
+      title:'🏅 How to Unlock Badges',
+      desc:'Badges unlock automatically — just keep using the app! Log your first meal, hit a 7-day streak, complete 10 workouts, crush your protein goal... there are dozens to discover. No manual claiming needed!' },
+
+    // ══ SOCIAL — FRIENDS ══
+    { section:'👥 Social', navTo:'social', target:'#social-hero-banner',
+      title:'🌟 Your Social Hub',
+      desc:'Welcome to the Social section! See your global rank, squad rank, and live activity from your gym bros. The ticker at the top shows real-time updates from your squad.' },
+
+    { section:'👥 Social › Friends', navTo:'social', target:'#social-my-profile-card',
+      title:'🪪 Your Public Profile',
+      desc:'This is what your friends see. Tap "✏️ Edit" to set your @username, display name, and photo. Your streak, workout count, and challenge wins are shown here automatically.' },
+
+    { section:'👥 Social › Friends', navTo:'social', target:'#social-tab-friends .card',
+      title:'➕ Adding Friends',
+      desc:"Type a friend's @username in the search box and tap Add. They'll get a request notification. Once they accept, you can see each other's workouts and compete in challenges!" },
+
+    { section:'👥 Social › Friends', navTo:'social', target:'#pending-invites-list',
+      title:'🔔 Friend Requests',
+      desc:'Any pending requests from others appear here. Accept to connect — or decline to keep your squad tight. Once connected, their real-time activity appears in your feed.' },
+
+    // ══ SOCIAL — SQUADS ══
+    { section:'👥 Social › Squads', navTo:'social', target:'.social-tab-bar',
+      title:'🏋️ Squads Tab',
+      desc:'Squads let you group your friends into named teams — like "Monday Crew" or "Leg Day Gang". Tap the Squads tab, then "+ New Squad" to create one and invite members.' },
+
+    // ══ SOCIAL — CHALLENGES ══
+    { section:'🏆 Challenges', navTo:'social', target:'#daily-challenge-banner',
+      title:'⚡ Daily Challenge',
+      desc:'Every day there\'s a fresh community challenge — tap "Accept! 🔥" to opt in. Complete it before midnight to earn bonus XP and climb the leaderboard. They reset every 24 hours!' },
+
+    { section:'🏆 Challenges', navTo:'social', target:'.challenge-type-grid',
+      title:'🎯 Quick Challenges',
+      desc:'Challenge your squad in 6 types: Workout War (most sessions), Streak King (longest streak), Calorie Burn, Gym Grind, HIIT Hero, or build a totally Custom challenge. One tap to start!' },
+
+    { section:'🏆 Challenges', navTo:'social', target:'#challenges-list',
+      title:'💥 Active Challenges',
+      desc:'All your live head-to-head battles live here. Each card shows the participants, a live progress bar, and who\'s winning. Your progress updates automatically as you log workouts!' },
+
+    // ══ FINAL ══
+    { section:'🎉 All Done!', navTo:'dashboard', target:null, isLast:true,
+      title:"You're a Pro now! 🎉",
+      desc:"That's the FULL EddFit deep-dive — Dashboard, Nutrition, Workouts, Achievements, Friends, Challenges and more! I'll always be in Settings → Replay Tour if you need me. Now let's get AFTER IT! 💪🔥" },
   ];
 
   let currentStep = 0;
   let highlightEl = null;
   let _resizeTimer = null;
 
-  // ── Public: called by startApp() after onboarding ─────────
+  // ── Public API ──────────────────────────────────────────────────────
   window.tourMaybeShow = function() {
-    if (localStorage.getItem(TOUR_KEY)) return; // already done
-    // Small delay so app renders fully before welcome appears
+    if (localStorage.getItem(TOUR_KEY)) return;
     setTimeout(() => {
-      const welcome = document.getElementById('tour-welcome');
-      if (welcome) welcome.classList.add('show');
-    }, 800);
+      const w = document.getElementById('tour-welcome');
+      if (w) w.classList.add('show');
+    }, 900);
   };
 
   window.tourStart = function() {
-    const welcome = document.getElementById('tour-welcome');
-    if (welcome) welcome.classList.remove('show');
+    document.getElementById('tour-welcome').classList.remove('show');
     currentStep = 0;
     document.getElementById('tour-overlay').classList.add('active');
     document.getElementById('tour-mascot-wrap').style.display = 'flex';
@@ -26509,81 +26496,92 @@ html:not(.dark) #tour-bubble::before { border-top-color: rgba(0,0,0,0.08); }
   };
 
   window.tourNext = function() {
-    // Cheer animation on mascot
-    const mascot = document.getElementById('tour-mascot-svg');
-    mascot.classList.remove('mascot-cheer');
-    void mascot.offsetWidth;
-    mascot.classList.add('mascot-cheer');
-    setTimeout(() => mascot.classList.remove('mascot-cheer'), 700);
-
+    cheer();
     currentStep++;
-    if (currentStep >= TOUR_STEPS.length) {
-      tourEnd();
-    } else {
-      renderStep(currentStep);
-    }
+    if (currentStep >= TOUR_STEPS.length) { tourEnd(); return; }
+    renderStep(currentStep);
   };
 
-  window.tourSkip = function() {
-    tourEnd();
+  window.tourBack = function() {
+    if (currentStep <= 0) return;
+    currentStep--;
+    renderStep(currentStep);
   };
 
-  window.tourNextOnBackdrop = function() {
-    // Clicking backdrop skips to next (gentle UX)
-    tourNext();
-  };
+  window.tourSkip = function() { tourEnd(); };
+  window.tourNextOnBackdrop = function() { tourNext(); };
 
   function tourEnd() {
     localStorage.setItem(TOUR_KEY, '1');
     document.getElementById('tour-overlay').classList.remove('active');
     document.getElementById('tour-mascot-wrap').style.display = 'none';
-    const welcome = document.getElementById('tour-welcome');
-    if (welcome) welcome.classList.remove('show');
-    // Navigate back to dashboard cleanly
+    document.getElementById('tour-welcome').classList.remove('show');
     const dashNav = document.querySelector('.nav-item[onclick*="dashboard"]');
-    if (dashNav && typeof navigate === 'function') navigate('dashboard', dashNav);
-    // Celebration toast
-    if (typeof showToast === 'function') {
-      showToast("🎉 Tour complete! Time to crush your goals, champ!", 'success');
-    }
+    if (typeof navigate === 'function') navigate('dashboard', dashNav || document.querySelector('.nav-item'));
+    if (typeof showToast === 'function') showToast('🎉 Tour complete! Go crush those goals, champ!', 'success');
+  }
+
+  function cheer() {
+    const m = document.getElementById('tour-mascot-svg');
+    m.classList.remove('mascot-cheer');
+    void m.offsetWidth;
+    m.classList.add('mascot-cheer');
+    setTimeout(() => m.classList.remove('mascot-cheer'), 700);
   }
 
   function renderStep(idx) {
     const step = TOUR_STEPS[idx];
     if (!step) return;
 
-    // Navigate to the right page if needed
+    // Navigate page
     if (step.navTo && typeof navigate === 'function') {
       const navEl = document.querySelector(`.nav-item[onclick*="${step.navTo}"]`);
       navigate(step.navTo, navEl || document.querySelector('.nav-item'));
+      // For workout sub-tabs
+      if (step.navTo === 'workouts') {
+        setTimeout(() => {
+          const tabMap = { '[data-tab="session"]':'session','[data-tab="templates"]':'templates','[data-tab="programs"]':'programs','[data-tab="history"]':'history' };
+          if (step.target && tabMap[step.target]) {
+            if (typeof switchWorkoutTab === 'function') switchWorkoutTab(tabMap[step.target], null);
+          }
+        }, 80);
+      }
     }
 
-    // Small delay for page paint before computing positions
     setTimeout(() => {
       updateBubble(step, idx);
       updateHighlight(step.target);
-    }, 120);
+    }, 160);
   }
 
   function updateBubble(step, idx) {
-    // Dots
-    const dotsEl = document.getElementById('tour-dots');
-    dotsEl.innerHTML = TOUR_STEPS.map((_, i) =>
-      `<div class="tour-dot ${i === idx ? 'active' : ''}"></div>`
-    ).join('');
+    const total = TOUR_STEPS.length;
 
-    document.getElementById('tour-step-label').textContent = `Step ${idx + 1} of ${TOUR_STEPS.length}`;
+    // Dots — show only nearby steps to avoid overflow
+    const dotsEl = document.getElementById('tour-dots');
+    const radius = 4;
+    const start = Math.max(0, idx - radius);
+    const end = Math.min(total - 1, idx + radius);
+    let html = '';
+    if (start > 0) html += '<div class="tour-dot done" style="opacity:0.3"></div>';
+    for (let i = start; i <= end; i++) {
+      const cls = i === idx ? 'active' : i < idx ? 'done' : '';
+      html += `<div class="tour-dot ${cls}"></div>`;
+    }
+    if (end < total - 1) html += '<div class="tour-dot" style="opacity:0.3"></div>';
+    dotsEl.innerHTML = html;
+
+    document.getElementById('tour-section-chip').textContent = step.section;
+    document.getElementById('tour-step-counter').textContent = `${idx + 1} / ${total}`;
     document.getElementById('tour-bubble-title').textContent = step.title;
     document.getElementById('tour-bubble-desc').textContent  = step.desc;
 
     const nextBtn = document.getElementById('tour-next-btn');
-    if (step.isLast) {
-      nextBtn.textContent = "Let's Go! 🔥";
-    } else {
-      nextBtn.textContent = 'Next →';
-    }
+    const backBtn = document.getElementById('tour-back-btn');
+    nextBtn.textContent = step.isLast ? "Let's Go! 🔥" : 'Next →';
+    backBtn.style.display = idx === 0 ? 'none' : '';
 
-    // Re-trigger animation
+    // Re-trigger pop animation
     const bubble = document.getElementById('tour-bubble');
     bubble.style.animation = 'none';
     void bubble.offsetWidth;
@@ -26592,111 +26590,78 @@ html:not(.dark) #tour-bubble::before { border-top-color: rgba(0,0,0,0.08); }
 
   function updateHighlight(selector) {
     const box = document.getElementById('tour-highlight-box');
-
     if (!selector) {
-      // Final step — no highlight, center mascot
       box.style.opacity = '0';
       positionMascotCenter();
       return;
     }
-
     const el = document.querySelector(selector);
-    if (!el) {
-      box.style.opacity = '0';
-      positionMascotCenter();
-      return;
-    }
-
+    if (!el) { box.style.opacity = '0'; positionMascotCenter(); return; }
     highlightEl = el;
     box.style.opacity = '1';
     positionHighlight(el);
-    positionMascotNearHighlight(el);
+    positionMascot(el);
   }
 
   function positionHighlight(el) {
     const box = document.getElementById('tour-highlight-box');
-    const rect = el.getBoundingClientRect();
-    const pad = 8;
-    box.style.left   = (rect.left - pad) + 'px';
-    box.style.top    = (rect.top  - pad) + 'px';
-    box.style.width  = (rect.width  + pad*2) + 'px';
-    box.style.height = (rect.height + pad*2) + 'px';
+    const r = el.getBoundingClientRect();
+    const pad = 7;
+    box.style.left   = (r.left - pad) + 'px';
+    box.style.top    = (r.top  - pad) + 'px';
+    box.style.width  = (r.width  + pad*2) + 'px';
+    box.style.height = (r.height + pad*2) + 'px';
   }
 
-  function positionMascotNearHighlight(el) {
+  function positionMascot(el) {
     const wrap = document.getElementById('tour-mascot-wrap');
-    const rect = el.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    // Decide position: try right of element, else left, else bottom-right corner
-    wrap.style.transition = 'all 0.45s cubic-bezier(0.4,0,0.2,1)';
-
-    // Default: bottom-right of screen
-    wrap.style.bottom = '24px';
-    wrap.style.right  = '24px';
-    wrap.style.left   = 'auto';
-    wrap.style.top    = 'auto';
-
-    // If the element is in the right sidebar area, shift mascot to left
-    if (rect.left > vw * 0.5) {
+    const r   = el.getBoundingClientRect();
+    const vw  = window.innerWidth;
+    const vh  = window.innerHeight;
+    // Default: bottom-right
+    wrap.style.cssText = 'position:fixed;z-index:9010;display:flex;flex-direction:column;align-items:flex-end;pointer-events:all;transition:all 0.42s cubic-bezier(0.4,0,0.2,1);bottom:20px;right:16px;left:auto;top:auto;transform:none';
+    // If element is in the right half, move mascot to left
+    if (r.left > vw * 0.48) {
       wrap.style.right = 'auto';
-      wrap.style.left  = '24px';
+      wrap.style.left  = '16px';
+      wrap.style.alignItems = 'flex-start';
+      // Flip bubble tail to right side
+      const bubble = document.getElementById('tour-bubble');
+      bubble.style.setProperty('--tail-right', 'auto');
     }
-
-    // If element is near bottom, show mascot near top-right
-    if (rect.bottom > vh * 0.65) {
+    // If element is near bottom, move mascot to top area
+    if (r.bottom > vh * 0.62) {
       wrap.style.bottom = 'auto';
-      wrap.style.top    = '24px';
+      wrap.style.top    = '16px';
     }
   }
 
   function positionMascotCenter() {
     const wrap = document.getElementById('tour-mascot-wrap');
-    wrap.style.transition = 'all 0.45s cubic-bezier(0.4,0,0.2,1)';
-    wrap.style.bottom = '50%';
-    wrap.style.right  = '50%';
-    wrap.style.left   = 'auto';
-    wrap.style.top    = 'auto';
-    wrap.style.transform = 'translate(50%, 50%)';
-    setTimeout(() => { wrap.style.transform = ''; }, 500);
+    wrap.style.cssText = 'position:fixed;z-index:9010;display:flex;flex-direction:column;align-items:center;pointer-events:all;transition:all 0.42s cubic-bezier(0.4,0,0.2,1);bottom:50%;right:50%;transform:translate(50%,50%)';
+    setTimeout(() => { wrap.style.transform = 'translate(50%,50%)'; }, 10);
   }
 
-  // Reposition on resize
   window.addEventListener('resize', () => {
     clearTimeout(_resizeTimer);
     _resizeTimer = setTimeout(() => {
-      if (highlightEl) {
-        positionHighlight(highlightEl);
-        positionMascotNearHighlight(highlightEl);
-      }
-    }, 100);
+      if (highlightEl) { positionHighlight(highlightEl); positionMascot(highlightEl); }
+    }, 120);
   });
 
-  // ── Hook into startApp ─────────────────────────────────────
-  // Patch startApp to call tourMaybeShow after it runs
+  // ── Hook into startApp ──────────────────────────────────────────────
   const _origStartApp = window.startApp;
   if (typeof _origStartApp === 'function') {
     window.startApp = function() {
       _origStartApp.apply(this, arguments);
-      // Wait until app is visible
-      setTimeout(() => window.tourMaybeShow(), 600);
+      setTimeout(() => window.tourMaybeShow(), 700);
     };
-  } else {
-    // Fallback: listen for app becoming visible
-    const _obs = new MutationObserver(() => {
-      const app = document.getElementById('app');
-      if (app && app.style.display !== 'none') {
-        _obs.disconnect();
-        setTimeout(() => window.tourMaybeShow(), 600);
-      }
-    });
-    _obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
   }
 
-  // Also expose a way to re-trigger tour from settings
+  // ── Replay from settings ────────────────────────────────────────────
   window.restartTour = function() {
     localStorage.removeItem(TOUR_KEY);
+    currentStep = 0;
     window.tourMaybeShow();
   };
 
