@@ -1038,6 +1038,15 @@ html.dark .macro-warning.warn-red {
   background: color-mix(in srgb, var(--blue) 12%, transparent);
   border: 1.5px dashed var(--blue);
 }
+.meal-empty-drop {
+  border: 1.5px dashed transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+.meal-empty-drop.drag-over {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+  color: var(--blue) !important;
+}
 .food-name { flex: 1; font-size: 0.88rem; }
 .food-macros { display: flex; gap: 12px; align-items: center; }
 .food-macro-val { font-size: 0.75rem; color: var(--text-secondary); }
@@ -8365,7 +8374,7 @@ function renderMealLog() {
         <button class="btn-icon" style="padding:4px 6px;font-size:0.75rem;color:var(--accent)" onclick="openEditFood('${m.key}',${i},'${k}')" title="Edit">✏️</button>
         <button class="btn-icon" style="padding:4px 6px;font-size:0.75rem" onclick="removeFood('${m.key}',${i},'${k}')">✕</button>
       </div>
-    `).join('') : '<div style="padding:8px 14px;font-size:0.8rem;color:var(--text-muted)">Nothing logged yet</div>';
+    `).join('') : '<div class="meal-drop-zone meal-empty-drop" data-drop-meal="' + m.key + '" data-drop-date="' + k + '" style="padding:12px 14px;font-size:0.8rem;color:var(--text-muted);text-align:center;min-height:40px;display:flex;align-items:center;justify-content:center">Drop food here or add one ↑</div>';
     return `
       <div class="card meal-section">
         <div class="meal-header">
