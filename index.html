@@ -3346,6 +3346,7 @@ function dismissSplash() {
               <button id="wcomp-metric-volume" onclick="setWeekCompMetric('volume',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Volume</button>
               <button id="wcomp-metric-sets" onclick="setWeekCompMetric('sets',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Sets</button>
               <button id="wcomp-metric-exercises" onclick="setWeekCompMetric('exercises',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">Exercises</button>
+              <button id="wcomp-metric-overload" onclick="setWeekCompMetric('overload',this)" style="font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;background:var(--bg-elevated);color:var(--text-secondary);transition:all 0.15s">📈 Overload</button>
             </div>
             <!-- Bars -->
             <div id="week-comp-bars" style="display:flex;gap:10px;align-items:flex-end;height:110px;margin-bottom:12px"></div>
@@ -3353,6 +3354,8 @@ function dismissSplash() {
             <div id="week-comp-labels" style="display:flex;gap:10px"></div>
             <!-- Insight -->
             <div id="week-comp-insight" style="margin-top:12px;font-size:0.78rem;color:var(--text-secondary);padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);border-left:3px solid var(--accent)"></div>
+            <!-- Progressive Overload panel (shown when Overload pill active) -->
+            <div id="week-comp-overload-panel" style="display:none;margin-top:4px"></div>
           </div>
 
           <div id="workout-history">
@@ -9367,11 +9370,11 @@ window._weekCompMetric = 'sessions';
 
 function setWeekCompMetric(metric, btn) {
   window._weekCompMetric = metric;
-  ['sessions','volume','sets','exercises'].forEach(m => {
+  ['sessions','volume','sets','exercises','overload'].forEach(m => {
     const b = document.getElementById('wcomp-metric-' + m);
     if (!b) return;
     if (m === metric) {
-      b.style.background = 'var(--accent)';
+      b.style.background = metric === 'overload' ? 'var(--green)' : 'var(--accent)';
       b.style.color = '#fff';
     } else {
       b.style.background = 'var(--bg-elevated)';
@@ -9434,6 +9437,30 @@ function renderWeekComparison() {
   card.style.display = '';
 
   const metric = window._weekCompMetric || 'sessions';
+
+  // ── Progressive Overload mode ──────────────────────────────────────
+  const barsEl    = document.getElementById('week-comp-bars');
+  const labelsEl  = document.getElementById('week-comp-labels');
+  const insightEl = document.getElementById('week-comp-insight');
+  const overloadPanel = document.getElementById('week-comp-overload-panel');
+
+  if (metric === 'overload') {
+    if (barsEl)    barsEl.style.display    = 'none';
+    if (labelsEl)  labelsEl.style.display  = 'none';
+    if (insightEl) insightEl.style.display = 'none';
+    if (overloadPanel) {
+      overloadPanel.style.display = '';
+      _renderWeekOverloadPanel(overloadPanel, workouts);
+    }
+    return;
+  }
+
+  // ── Regular bar chart modes ────────────────────────────────────────
+  if (barsEl)    barsEl.style.display    = '';
+  if (labelsEl)  labelsEl.style.display  = '';
+  if (insightEl) insightEl.style.display = '';
+  if (overloadPanel) overloadPanel.style.display = 'none';
+
   const thisWeek = _calcWeekStats(workouts, _weekBounds(0));
   const lastWeek = _calcWeekStats(workouts, _weekBounds(1));
 
@@ -9467,8 +9494,6 @@ function renderWeekComparison() {
     ? Math.round((typeof isImperial === 'function' && isImperial()) ? v * 2.20462 : v).toLocaleString()
     : v;
 
-  const barsEl = document.getElementById('week-comp-bars');
-  const labelsEl = document.getElementById('week-comp-labels');
   if (!barsEl || !labelsEl) return;
 
   barsEl.innerHTML = weeks.map((w, i) => {
@@ -9497,7 +9522,6 @@ function renderWeekComparison() {
       <div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px">${metricLabel}</div>
     </div>`).join('');
 
-  const insightEl = document.getElementById('week-comp-insight');
   if (insightEl) {
     const thisVal = vals[0], lastVal = vals[1], bestV = vals[2];
     let msg = '';
@@ -9526,6 +9550,125 @@ function renderWeekComparison() {
     }
     insightEl.innerHTML = msg;
   }
+}
+
+// ── Progressive Overload panel renderer ──────────────────────────────
+function _renderWeekOverloadPanel(panel, workouts) {
+  const thisWeekBounds = _weekBounds(0);
+  const lastWeekBounds = _weekBounds(1);
+
+  const thisWorkouts = workouts.filter(w => {
+    const d = new Date(w.date);
+    return d >= thisWeekBounds.start && d <= thisWeekBounds.end;
+  });
+  const lastWorkouts = workouts.filter(w => {
+    const d = new Date(w.date);
+    return d >= lastWeekBounds.start && d <= lastWeekBounds.end;
+  });
+
+  // Aggregate per exercise across the whole week
+  function aggByExercise(wks) {
+    const map = {};
+    wks.forEach(w => {
+      (w.exercises || []).forEach(ex => {
+        const key = ex.name || ex.exercise || 'Unknown';
+        if (!map[key]) map[key] = { name: key, muscle: ex.muscle || '', sets: [], totalSets: 0 };
+        map[key].sets.push(...(ex.sets || []));
+        map[key].totalSets += (ex.sets || []).length;
+      });
+    });
+    return map;
+  }
+
+  const thisMap = aggByExercise(thisWorkouts);
+  const lastMap = aggByExercise(lastWorkouts);
+
+  // Only show exercises that appear in BOTH weeks
+  const shared = Object.keys(thisMap).filter(k => lastMap[k]);
+
+  if (!thisWorkouts.length && !lastWorkouts.length) {
+    panel.innerHTML = `<div class="empty-state"><div class="es-icon">📈</div><div class="es-text">No workouts this week or last week to compare</div></div>`;
+    return;
+  }
+  if (!shared.length) {
+    // Show all exercises from this week vs last week even if no overlap, with a note
+    const allThisWeek = Object.keys(thisMap);
+    if (!allThisWeek.length) {
+      panel.innerHTML = `<div style="font-size:0.78rem;color:var(--text-muted);padding:10px 0;text-align:center">No workouts logged this week yet. Keep going! 💪</div>`;
+      return;
+    }
+    panel.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);padding:8px 10px;background:var(--bg-elevated);border-radius:var(--radius-sm);margin-bottom:10px">
+      No matching exercises between this week and last week — can't compare overload yet.
+    </div>`;
+    return;
+  }
+
+  const useImperial = typeof isImperial === 'function' && isImperial();
+  const wUnit = typeof weightUnit === 'function' ? weightUnit() : 'kg';
+
+  const rows = shared.map(key => {
+    const t = thisMap[key], l = lastMap[key];
+    const tVol  = t.sets.reduce((s, st) => s + (+st.weight||0)*(+st.reps||0), 0);
+    const lVol  = l.sets.reduce((s, st) => s + (+st.weight||0)*(+st.reps||0), 0);
+    const tAvgW = t.sets.length ? t.sets.reduce((s, st) => s + (+st.weight||0), 0) / t.sets.length : 0;
+    const lAvgW = l.sets.length ? l.sets.reduce((s, st) => s + (+st.weight||0), 0) / l.sets.length : 0;
+    const tSets = t.totalSets, lSets = l.totalSets;
+
+    const volDiff  = tVol - lVol;
+    const wDiff    = tAvgW - lAvgW;
+    const setsDiff = tSets - lSets;
+
+    const volPct   = lVol   ? Math.round((volDiff / lVol) * 100)   : 0;
+    const wPct     = lAvgW  ? Math.round((wDiff  / lAvgW) * 100)   : 0;
+
+    function badge(val, pct, label, isWeight) {
+      const up = val > 0;
+      const dn = val < 0;
+      const color = up ? 'var(--green)' : dn ? 'var(--red)' : 'var(--text-muted)';
+      const arrow = up ? '▲' : dn ? '▼' : '—';
+      const displayVal = isWeight
+        ? (useImperial ? Math.abs(val * 2.20462).toFixed(1) : Math.abs(val).toFixed(1)) + wUnit
+        : Math.abs(val);
+      const pctStr = pct !== undefined && val !== 0 ? ` (${Math.abs(pct)}%)` : '';
+      return `<div style="text-align:center">
+        <div style="font-size:0.7rem;font-weight:800;color:${color}">${arrow} ${displayVal}${pctStr}</div>
+        <div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px">${label}</div>
+      </div>`;
+    }
+
+    // Overall status
+    const improving = volDiff > 0 || wDiff > 0;
+    const declining = volDiff < 0 && wDiff < 0;
+    const statusIcon = improving ? '📈' : declining ? '📉' : '➡️';
+    const statusColor = improving ? 'var(--green)' : declining ? 'var(--red)' : 'var(--text-muted)';
+
+    return `<div style="background:var(--bg-elevated);border-radius:var(--radius-sm);padding:10px 12px;border-left:3px solid ${statusColor}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div>
+          <div style="font-size:0.83rem;font-weight:700">${statusIcon} ${key}</div>
+          <div style="font-size:0.65rem;color:var(--text-muted);margin-top:1px">${t.muscle || 'Exercise'} · ${tSets} sets this week vs ${lSets} last</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+        ${badge(volDiff,  volPct, 'Volume',   false)}
+        ${badge(wDiff,    wPct,   'Avg Weight', true)}
+        ${badge(setsDiff, undefined, 'Sets',   false)}
+      </div>
+    </div>`;
+  }).join('');
+
+  const upCount   = shared.filter(k => (thisMap[k].sets.reduce((s,st)=>s+(+st.weight||0)*(+st.reps||0),0)) > (lastMap[k].sets.reduce((s,st)=>s+(+st.weight||0)*(+st.reps||0),0))).length;
+  const downCount = shared.filter(k => (thisMap[k].sets.reduce((s,st)=>s+(+st.weight||0)*(+st.reps||0),0)) < (lastMap[k].sets.reduce((s,st)=>s+(+st.weight||0)*(+st.reps||0),0))).length;
+  const summary = upCount > downCount
+    ? `📈 <strong>${upCount}/${shared.length}</strong> exercises progressed this week — keep overloading!`
+    : downCount > upCount
+    ? `📉 <strong>${downCount}/${shared.length}</strong> exercises declined vs last week — push harder!`
+    : `➡️ Volume holding steady across <strong>${shared.length}</strong> exercises vs last week.`;
+
+  panel.innerHTML = `
+    <div style="font-size:0.75rem;color:var(--text-secondary);padding:8px 12px;background:var(--bg-elevated);border-radius:var(--radius-sm);border-left:3px solid var(--green);margin-bottom:10px">${summary}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">${rows}</div>
+  `;
 }
 
 function reloadWorkout(idx) {
