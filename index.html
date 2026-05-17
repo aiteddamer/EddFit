@@ -565,6 +565,8 @@ body {
 }
 .activity-option:hover { border-color: var(--border-active); }
 .activity-option.selected { border-color: var(--accent); background: var(--accent-dim); }
+.am-act-opt.selected { border-color: var(--accent) !important; background: var(--accent-dim) !important; }
+.am-act-opt:hover { border-color: var(--border-active) !important; }
 .activity-option .ao-icon { font-size: 1.2rem; }
 .activity-option .ao-info {}
 .activity-option .ao-name { font-size: 0.88rem; font-weight: 600; }
@@ -10392,6 +10394,10 @@ function getActiveAIKey() {
 }
 
 function saveTargets() {
+  // Save updated activity level to profile
+  if (window._amActivityMultiplier) {
+    State.profile.activity = window._amActivityMultiplier;
+  }
   State.targets.calories = +document.getElementById('s-cal').value || State.targets.calories;
   State.targets.protein = +document.getElementById('s-protein').value || State.targets.protein;
   State.targets.carbs = +document.getElementById('s-carbs').value || State.targets.carbs;
@@ -14976,9 +14982,26 @@ function openAdjustMacrosModal() {
   document.getElementById('am-pro-slider').value = T.protein;
   document.getElementById('am-carb-slider').value = T.carbs;
   document.getElementById('am-fat-slider').value = T.fat;
+  // Pre-select current activity level
+  const curActivity = State.profile?.activity || 1.55;
+  window._amActivityMultiplier = curActivity;
+  amHighlightActivity(curActivity);
   amUpdate();
   amPopulatePresetLabels(); // populate profile-driven preset labels + basis line
   openModal('modal-adjust-macros');
+}
+
+function amSelectActivity(val) {
+  window._amActivityMultiplier = val;
+  amHighlightActivity(val);
+  amUpdate();
+  amPopulatePresetLabels();
+}
+
+function amHighlightActivity(val) {
+  document.querySelectorAll('#am-activity-options .am-act-opt').forEach(el => {
+    el.classList.toggle('selected', parseFloat(el.dataset.val) === val);
+  });
 }
 
 function amUpdate(changed) {
@@ -15055,7 +15078,8 @@ function amUpdate(changed) {
   const bmr  = isMale
     ? 10 * wKg + 6.25 * hCm - 5 * age + 5
     : 10 * wKg + 6.25 * hCm - 5 * age - 161;
-  const tdee = Math.round(bmr * 1.55); // moderate activity
+  const act  = window._amActivityMultiplier || State.profile?.activity || 1.55;
+  const tdee = Math.round(bmr * act);
   if (el('am-tdee-label')) el('am-tdee-label').textContent = `Est. TDEE: ${tdee} kcal (start: ${startWkg}kg)`;
   if (el('am-cal-tdee-hint')) el('am-cal-tdee-hint').textContent = `TDEE ~${tdee}`;
 
@@ -15177,9 +15201,9 @@ function _amGetTDEE() {
     ? 10 * wKg + 6.25 * hCm - 5 * age + 5
     : 10 * wKg + 6.25 * hCm - 5 * age - 161;
 
-  // Fixed moderate activity multiplier — matches Est. TDEE label (accounts for all daily activity, not just logged workouts)
-  const activityMultiplier = 1.55;
-  const workoutsPerWeek = 0; // not used for multiplier anymore
+  // Use user-selected activity (from modal picker or saved profile)
+  const activityMultiplier = window._amActivityMultiplier || State.profile?.activity || 1.55;
+  const workoutsPerWeek = 0;
 
   return { tdee: Math.round(bmr * activityMultiplier), wKg, activityMultiplier, workoutsPerWeek };
 }
@@ -16506,6 +16530,38 @@ document.addEventListener('visibilitychange', function() {
             <div style="font-size:0.9rem;margin-bottom:2px">⚖️ Body Recomp</div>
             <div style="font-size:0.65rem;color:var(--text-secondary);font-weight:500" id="am-preset-label-recomp">—</div>
           </button>
+        </div>
+      </div>
+
+      <!-- Activity Level -->
+      <div style="margin-bottom:18px">
+        <div style="font-size:0.72rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🏃 Activity Level <span style="font-size:0.68rem;color:var(--text-muted);font-weight:400;text-transform:none">(affects TDEE &amp; presets)</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px" id="am-activity-options">
+          <div class="am-act-opt" data-val="1.2"   onclick="amSelectActivity(1.2)"   style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;transition:all var(--transition)">
+            <span style="font-size:1rem">🛋️</span>
+            <div style="flex:1"><div style="font-size:0.83rem;font-weight:600">Sedentary</div><div style="font-size:0.7rem;color:var(--text-muted)">Little or no exercise</div></div>
+            <span style="font-size:0.72rem;color:var(--text-muted)">×1.2</span>
+          </div>
+          <div class="am-act-opt" data-val="1.375" onclick="amSelectActivity(1.375)" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;transition:all var(--transition)">
+            <span style="font-size:1rem">🚶</span>
+            <div style="flex:1"><div style="font-size:0.83rem;font-weight:600">Lightly Active</div><div style="font-size:0.7rem;color:var(--text-muted)">Light exercise 1–3 days/week</div></div>
+            <span style="font-size:0.72rem;color:var(--text-muted)">×1.375</span>
+          </div>
+          <div class="am-act-opt" data-val="1.55"  onclick="amSelectActivity(1.55)"  style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;transition:all var(--transition)">
+            <span style="font-size:1rem">🏋️</span>
+            <div style="flex:1"><div style="font-size:0.83rem;font-weight:600">Moderately Active</div><div style="font-size:0.7rem;color:var(--text-muted)">Moderate exercise 3–5 days/week</div></div>
+            <span style="font-size:0.72rem;color:var(--text-muted)">×1.55</span>
+          </div>
+          <div class="am-act-opt" data-val="1.725" onclick="amSelectActivity(1.725)" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;transition:all var(--transition)">
+            <span style="font-size:1rem">🔥</span>
+            <div style="flex:1"><div style="font-size:0.83rem;font-weight:600">Very Active</div><div style="font-size:0.7rem;color:var(--text-muted)">Hard exercise 6–7 days/week</div></div>
+            <span style="font-size:0.72rem;color:var(--text-muted)">×1.725</span>
+          </div>
+          <div class="am-act-opt" data-val="1.9"   onclick="amSelectActivity(1.9)"   style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer;transition:all var(--transition)">
+            <span style="font-size:1rem">⚡</span>
+            <div style="flex:1"><div style="font-size:0.83rem;font-weight:600">Extra Active</div><div style="font-size:0.7rem;color:var(--text-muted)">Very hard exercise &amp; physical job</div></div>
+            <span style="font-size:0.72rem;color:var(--text-muted)">×1.9</span>
+          </div>
         </div>
       </div>
 
@@ -20301,8 +20357,11 @@ function _bdgMetricEntries() {
   return (State.metrics||[]).filter(m => m.weight).length;
 }
 function _bdgMealsInMealType(type) {
+  // Count days where that meal has at least 1 food logged (not total items)
   let t = 0;
-  Object.values(State.logs||{}).forEach(d => t += ((d.meals||{})[type]||[]).length);
+  Object.values(State.logs||{}).forEach(d => {
+    if (((d.meals||{})[type]||[]).length > 0) t++;
+  });
   return t;
 }
 function _bdgDaysWithAllMeals() {
