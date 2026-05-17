@@ -15282,6 +15282,68 @@ function amPopulatePresetLabels() {
   if (basisEl) basisEl.textContent = `${wDisp} · ${workoutsPerWeek}x/wk · TDEE ~${tdee}`;
 }
 
+// 2026 evidence-based guidelines per preset
+const _AM_GUIDELINES = {
+  'cut': {
+    title: '🔻 Cut — Evidence-Based Guidelines',
+    rows: [
+      { icon: '🔥', label: 'Deficit', value: '300–500 kcal/day below TDEE', source: 'ISSN 2025' },
+      { icon: '🥩', label: 'Protein', value: '2.3–3.1g/kg — preserves muscle in deficit', source: 'ISSN Position Stand' },
+      { icon: '📉', label: 'Rate', value: '~0.5kg/week max — faster risks muscle loss', source: 'ISSN / BDA' },
+      { icon: '🫚', label: 'Fat', value: '20–35% of total calories', source: 'WHO' },
+    ]
+  },
+  'lean-bulk': {
+    title: '📈 Lean Bulk — Evidence-Based Guidelines',
+    rows: [
+      { icon: '➕', label: 'Surplus', value: '200–300 kcal/day above TDEE', source: 'Iraki et al. 2019 · BodySpec 2025' },
+      { icon: '🥩', label: 'Protein', value: '1.6–2.2g/kg — 0.40–0.55g/kg per meal', source: 'ISSN Position Stand' },
+      { icon: '📈', label: 'Rate', value: '0.25–0.5% of bodyweight/week gain', source: 'NSCA · Slater et al. 2019' },
+      { icon: '🫚', label: 'Fat', value: '20–30% of total calories', source: 'WHO · ISSN' },
+    ]
+  },
+  'bulk': {
+    title: '💪 Bulk — Evidence-Based Guidelines',
+    rows: [
+      { icon: '➕', label: 'Surplus', value: '400–500 kcal/day above TDEE', source: 'NSCA' },
+      { icon: '🥩', label: 'Protein', value: '1.6–2.2g/kg bodyweight/day', source: 'ISSN Position Stand' },
+      { icon: '📈', label: 'Rate', value: '0.5–1% of bodyweight/week — above = mostly fat', source: 'Myprotein · ISSN 2026' },
+      { icon: '🫚', label: 'Fat', value: '20–35% of total calories', source: 'WHO' },
+    ]
+  },
+  'recomp': {
+    title: '⚖️ Body Recomp — Evidence-Based Guidelines',
+    rows: [
+      { icon: '⚡', label: 'Calories', value: 'Maintenance or mild deficit 200–500 kcal', source: 'BDA 2025 · NSCA 2020' },
+      { icon: '🥩', label: 'Protein', value: '2.3–3.1g/kg fat-free mass — key driver', source: 'NSCA Strength & Conditioning 2020' },
+      { icon: '👤', label: 'Best for', value: 'Beginners, detrained, higher body fat %', source: 'Longland et al. 2016 · BodySpec 2025' },
+      { icon: '🫚', label: 'Fat', value: '30–40% of total calories', source: 'Transparent Labs 2025' },
+    ]
+  }
+};
+
+function amShowGuidelines(preset) {
+  const guide = _AM_GUIDELINES[preset];
+  const panel = document.getElementById('am-guidelines-panel');
+  const title = document.getElementById('am-guide-title');
+  const rows  = document.getElementById('am-guide-rows');
+  if (!guide || !panel) return;
+  title.textContent = guide.title;
+  rows.innerHTML = guide.rows.map(r => `
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:1rem;flex-shrink:0;margin-top:1px">${r.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">
+          <span style="font-size:0.75rem;font-weight:700;color:var(--text-primary)">${r.label}</span>
+          <span style="font-size:0.78rem;color:var(--text-primary)">${r.value}</span>
+        </div>
+        <div style="font-size:0.62rem;color:var(--text-muted);margin-top:1px">${r.source}</div>
+      </div>
+    </div>
+  `).join('').replace(/border-bottom[^"]+";(?=[^}]*<\/div>\s*$)/, '');
+  panel.style.display = 'block';
+}
+
 function amApplyPreset(preset) {
   const result = _amBuildPreset(preset);
   if (!result) return;
@@ -15304,6 +15366,9 @@ function amApplyPreset(preset) {
     activeBtn.style.borderColor = 'var(--accent)';
     activeBtn.querySelector('div:first-child').style.color = 'var(--accent)';
   }
+
+  // Show 2026 evidence-based guidelines for this preset
+  amShowGuidelines(preset);
 
   amUpdate();
 }
@@ -16530,6 +16595,15 @@ document.addEventListener('visibilitychange', function() {
             <div style="font-size:0.9rem;margin-bottom:2px">⚖️ Body Recomp</div>
             <div style="font-size:0.65rem;color:var(--text-secondary);font-weight:500" id="am-preset-label-recomp">—</div>
           </button>
+        </div>
+
+        <!-- 2026 Evidence-Based Guidelines Panel — shown when a preset is selected -->
+        <div id="am-guidelines-panel" style="display:none;margin-top:12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);overflow:hidden">
+          <div style="padding:10px 13px;background:var(--accent-dim);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:0.72rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.4px" id="am-guide-title">Guidelines</div>
+            <div style="font-size:0.62rem;color:var(--text-muted)">ISSN · WHO · NSCA · BDA 2025–2026</div>
+          </div>
+          <div style="padding:12px 13px;display:flex;flex-direction:column;gap:8px" id="am-guide-rows"></div>
         </div>
       </div>
 
