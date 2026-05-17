@@ -1010,10 +1010,34 @@ html.dark .macro-warning.warn-red {
   display: flex; align-items: center;
   padding: 10px 14px;
   border-radius: var(--radius-sm);
-  transition: background var(--transition);
+  transition: background var(--transition), opacity 0.15s;
   gap: 12px;
+  cursor: default;
 }
 .food-item:hover { background: var(--bg-elevated); }
+.food-item.dragging { opacity: 0.35; }
+.food-item.drag-over-top { border-top: 2px solid var(--blue); }
+.food-item.drag-over-bottom { border-bottom: 2px solid var(--blue); }
+.food-drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+  user-select: none;
+  flex-shrink: 0;
+}
+.food-drag-handle:active { cursor: grabbing; }
+.meal-drop-zone {
+  min-height: 8px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, min-height 0.15s;
+}
+.meal-drop-zone.drag-over {
+  min-height: 36px;
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+  border: 1.5px dashed var(--blue);
+}
 .food-name { flex: 1; font-size: 0.88rem; }
 .food-macros { display: flex; gap: 12px; align-items: center; }
 .food-macro-val { font-size: 0.75rem; color: var(--text-secondary); }
@@ -8325,7 +8349,12 @@ function renderMealLog() {
     const mealCarbs   = items.reduce((s,f)=>s+(f.carbs||0),0);
     const mealFat     = items.reduce((s,f)=>s+(f.fat||0),0);
     const itemsHtml = items.length ? items.map((f,i) => `
-      <div class="food-item">
+      <div class="food-item"
+           draggable="true"
+           data-meal="${m.key}"
+           data-index="${i}"
+           data-date="${k}">
+        <span class="food-drag-handle" title="Drag to reorder or move">⠿</span>
         <div class="food-name">${f.name}</div>
         <div class="food-macros">
           <div class="food-macro-val"><span>${f.protein}g</span> P</div>
@@ -8334,9 +8363,9 @@ function renderMealLog() {
         </div>
         <div class="food-cals">${f.cal} kcal</div>
         <button class="btn-icon" style="padding:4px 6px;font-size:0.75rem;color:var(--accent)" onclick="openEditFood('${m.key}',${i},'${k}')" title="Edit">✏️</button>
-        <button class="btn-icon" style="padding:4px 6px; font-size:0.75rem" onclick="removeFood('${m.key}',${i},'${k}')">✕</button>
+        <button class="btn-icon" style="padding:4px 6px;font-size:0.75rem" onclick="removeFood('${m.key}',${i},'${k}')">✕</button>
       </div>
-    `).join('') : '<div style="padding:8px 14px; font-size:0.8rem; color:var(--text-muted)">Nothing logged yet</div>';
+    `).join('') : '<div style="padding:8px 14px;font-size:0.8rem;color:var(--text-muted)">Nothing logged yet</div>';
     return `
       <div class="card meal-section">
         <div class="meal-header">
@@ -8352,9 +8381,113 @@ function renderMealLog() {
           </div>
         </div>
         ${itemsHtml}
+        <div class="meal-drop-zone" data-drop-meal="${m.key}" data-drop-date="${k}"></div>
       </div>
     `;
   }).join('');
+
+  // ── Wire up drag-and-drop after rendering ──────────────────────────
+  _bindMealDragDrop(k);
+}
+
+function _bindMealDragDrop(dateKey) {
+  // State for the current drag
+  let _drag = null; // { meal, index, date, el }
+
+  const items = document.querySelectorAll('#meal-log-container .food-item[draggable]');
+  const zones = document.querySelectorAll('#meal-log-container .meal-drop-zone');
+
+  // ── Food item events ───────────────────────────────────────────────
+  items.forEach(el => {
+    el.addEventListener('dragstart', e => {
+      _drag = {
+        meal:  el.dataset.meal,
+        index: +el.dataset.index,
+        date:  el.dataset.date,
+        el
+      };
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    el.addEventListener('dragend', () => {
+      el.classList.remove('dragging');
+      document.querySelectorAll('.drag-over-top,.drag-over-bottom').forEach(x => {
+        x.classList.remove('drag-over-top','drag-over-bottom');
+      });
+      zones.forEach(z => z.classList.remove('drag-over'));
+      _drag = null;
+    });
+
+    el.addEventListener('dragover', e => {
+      if (!_drag) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      // Show top/bottom indicator
+      document.querySelectorAll('.drag-over-top,.drag-over-bottom').forEach(x => {
+        x.classList.remove('drag-over-top','drag-over-bottom');
+      });
+      const rect = el.getBoundingClientRect();
+      const mid  = rect.top + rect.height / 2;
+      el.classList.add(e.clientY < mid ? 'drag-over-top' : 'drag-over-bottom');
+    });
+
+    el.addEventListener('dragleave', () => {
+      el.classList.remove('drag-over-top','drag-over-bottom');
+    });
+
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      if (!_drag) return;
+      const targetMeal  = el.dataset.meal;
+      const targetIndex = +el.dataset.index;
+      const rect = el.getBoundingClientRect();
+      const insertAfter = e.clientY >= rect.top + rect.height / 2;
+      _moveFoodItem(_drag, { meal: targetMeal, index: targetIndex + (insertAfter ? 1 : 0), date: dateKey });
+    });
+  });
+
+  // ── Meal drop-zone events (drop onto empty meal or end of list) ────
+  zones.forEach(zone => {
+    zone.addEventListener('dragover', e => {
+      if (!_drag) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      zones.forEach(z => z.classList.remove('drag-over'));
+      zone.classList.add('drag-over');
+    });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      if (!_drag) return;
+      const targetMeal = zone.dataset.dropMeal;
+      const log = State.logs[dateKey];
+      const targetIndex = (log.meals[targetMeal] || []).length;
+      _moveFoodItem(_drag, { meal: targetMeal, index: targetIndex, date: dateKey });
+    });
+  });
+}
+
+function _moveFoodItem(src, dst) {
+  const log = State.logs[src.date];
+  if (!log) return;
+  const srcItems = log.meals[src.meal];
+  const dstItems = log.meals[dst.meal];
+  if (!srcItems) return;
+
+  // Remove from source
+  const [item] = srcItems.splice(src.index, 1);
+  if (!item) return;
+
+  // Insert into destination (adjust index if same meal and after removal point)
+  let insertAt = dst.index;
+  if (src.meal === dst.meal && dst.index > src.index) insertAt--;
+  insertAt = Math.max(0, Math.min(insertAt, dstItems.length));
+  dstItems.splice(insertAt, 0, item);
+
+  save();
+  renderMealLog();
+  refreshNutritionPage();
 }
 
 let _editFoodMeal = null, _editFoodIdx = -1, _editFoodDate = null;
@@ -8575,18 +8708,21 @@ function selectCustomFood(id) {
       unitSelect.innerHTML = '<option value="100g">Per 100g</option><option value="gram">Custom grams</option>';
       unitSelect.value = '100g';
     } else {
-      // Unit food: offer serving (macros as-is) or custom qty
-      const servingLabel = cf.serving || '1 serving';
-      const sizeHint = cf.servingSize ? ` (${cf.servingSize}ml/g)` : '';
-      unitSelect.innerHTML = `<option value="serving">Per serving${sizeHint}</option>`;
+      // Unit food: offer serving (macros as-is) OR custom grams
+      const sizeHint = cf.servingSize ? ` (${cf.servingSize}g)` : '';
+      unitSelect.innerHTML = `<option value="serving">Per serving${sizeHint}</option><option value="gram">Custom grams</option>`;
       unitSelect.value = 'serving';
     }
   }
+  // Store base serving size so preview/log can scale by grams
+  selectedFood._baseServingSize = cf.servingSize || null;
   // Reset qty
   const qtyEl = document.getElementById('food-qty');
   if (qtyEl) qtyEl.value = 1;
   const gramInput = document.getElementById('food-gram-input');
-  if (gramInput) gramInput.style.display = 'none';
+  if (gramInput) { gramInput.style.display = 'none'; }
+  const gramVal = document.getElementById('food-gram-val');
+  if (gramVal && cf.servingSize) gramVal.value = cf.servingSize;
 
   updateFoodPreview();
   safeStyle('selected-food-preview','display','block');
@@ -8651,10 +8787,20 @@ function switchToScoopMode() {
 function onFoodUnitChange() {
   const unit = document.getElementById('food-unit').value;
   if (unit === 'gram') {
-    // Carry over the qty*100 as the starting gram value
-    const qty = parseFloat(document.getElementById('food-qty').value) || 1;
-    document.getElementById('food-gram-val').value = Math.round(qty * 100);
+    // For unit-type custom foods: pre-fill with the food's servingSize if available
+    const baseG = (selectedFood && selectedFood._baseServingSize) ? selectedFood._baseServingSize : null;
+    if (baseG) {
+      document.getElementById('food-gram-val').value = baseG;
+    } else {
+      // Fallback: carry over qty*100 (per-100g foods)
+      const qty = parseFloat(document.getElementById('food-qty').value) || 1;
+      document.getElementById('food-gram-val').value = Math.round(qty * 100);
+    }
     _showCustomGramMode();
+  } else if (unit === 'serving') {
+    // Back to single-serving mode for custom unit foods
+    document.getElementById('food-qty').value = 1;
+    _showGram100Mode();
   } else {
     _showGram100Mode();
   }
@@ -8699,26 +8845,71 @@ function selectFood(id) {
 
 function updateFoodPreview() {
   if (!selectedFood) return;
-  const qty = +document.getElementById('food-qty').value || 1;
   const f = selectedFood;
+  let ratio = 1;
+
+  // Detect which mode we're in
+  const gramInput = document.getElementById('food-gram-input');
+  const gramVisible = gramInput && gramInput.style.display !== 'none';
+  const unitVal = document.getElementById('food-unit') ? document.getElementById('food-unit').value : '';
+
+  if (gramVisible || unitVal === 'gram') {
+    // Custom grams mode
+    const inputG = parseFloat(document.getElementById('food-gram-val').value) || 0;
+    if (f.servingType === 'gram' || f._baseServingSize == null) {
+      // Per-100g food: ratio = grams / 100
+      ratio = inputG / 100;
+    } else {
+      // Unit food with known serving size: ratio = inputG / servingSize
+      ratio = inputG / (f._baseServingSize || 100);
+    }
+  } else if (unitVal === '100g') {
+    const qty = +document.getElementById('food-qty').value || 1;
+    ratio = qty;
+  } else {
+    // serving mode (qty servings)
+    const qty = +document.getElementById('food-qty').value || 1;
+    ratio = qty;
+  }
+
   document.getElementById('sfp-name').textContent = f.name;
-  document.getElementById('sfp-cal').textContent = Math.round(f.cal*qty) + ' kcal';
-  document.getElementById('sfp-pro').textContent = Math.round(f.protein*qty) + 'g protein';
-  document.getElementById('sfp-carb').textContent = Math.round(f.carbs*qty) + 'g carbs';
-  document.getElementById('sfp-fat').textContent = Math.round(f.fat*qty) + 'g fat';
+  document.getElementById('sfp-cal').textContent = Math.round(f.cal * ratio) + ' kcal';
+  document.getElementById('sfp-pro').textContent = Math.round(f.protein * ratio) + 'g protein';
+  document.getElementById('sfp-carb').textContent = Math.round(f.carbs * ratio) + 'g carbs';
+  document.getElementById('sfp-fat').textContent = Math.round(f.fat * ratio) + 'g fat';
 }
 
 function logSelectedFood() {
   if (!selectedFood) return;
-  const qty = +document.getElementById('food-qty').value || 1;
   const meal = document.getElementById('food-meal-select').value;
   const f = selectedFood;
+
+  // Determine ratio (same logic as updateFoodPreview)
+  let ratio = 1;
+  const gramInput = document.getElementById('food-gram-input');
+  const gramVisible = gramInput && gramInput.style.display !== 'none';
+  const unitVal = document.getElementById('food-unit') ? document.getElementById('food-unit').value : '';
+
+  if (gramVisible || unitVal === 'gram') {
+    const inputG = parseFloat(document.getElementById('food-gram-val').value) || 0;
+    if (f.servingType === 'gram' || f._baseServingSize == null) {
+      ratio = inputG / 100;
+    } else {
+      ratio = inputG / (f._baseServingSize || 100);
+    }
+  } else if (unitVal === '100g') {
+    ratio = +document.getElementById('food-qty').value || 1;
+  } else {
+    ratio = +document.getElementById('food-qty').value || 1;
+  }
+
+  const qty = ratio; // keep qty as the effective multiplier for backward compat
   const entry = {
     name: f.name,
-    cal: Math.round(f.cal*qty),
-    protein: Math.round(f.protein*qty),
-    carbs: Math.round(f.carbs*qty),
-    fat: Math.round(f.fat*qty),
+    cal: Math.round(f.cal * ratio),
+    protein: Math.round(f.protein * ratio),
+    carbs: Math.round(f.carbs * ratio),
+    fat: Math.round(f.fat * ratio),
     qty
   };
   const k = nutritionDate;
