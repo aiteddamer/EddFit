@@ -3680,7 +3680,7 @@ function dismissSplash() {
             <button class="btn btn-outline btn-sm" onclick="loadSharedInbox()">↻ Refresh</button>
           </div>
           <div id="shared-inbox-list">
-            <div class="empty-state"><div class="es-icon">📭</div><div class="es-text">Nothing shared yet — ask a friend to send you their recipe!</div></div>
+            <div class="empty-state"><div class="es-icon">📭</div><div class="es-text">Nothing shared yet — ask a friend to send you their recipe or custom food!</div></div>
           </div>
         </div>
       </div>
@@ -3978,7 +3978,7 @@ function dismissSplash() {
                   <button class="btn btn-outline" style="width:100%;font-size:0.75rem;opacity:0.7" onclick="gdriveSignOut()">⛔ Disconnect Drive</button>
                   <div id="gdrive-status" style="font-size:0.72rem;margin-top:8px;color:var(--text-muted);min-height:16px"></div>
                 </div>
-                <button class="btn btn-outline" onclick="window.restartTour && window.restartTour()" style="border-color:var(--accent);color:var(--accent)">💪 Replay App Tour with Flex</button>
+                <button class="btn btn-outline" onclick="window.restartTour && window.restartTour()" style="border-color:var(--accent);color:var(--accent)">💪 Replay App Tour with Ayman</button>
                 <button class="btn btn-danger" onclick="resetOnboarding()">🔄 Reset & Re-do Onboarding</button>
               </div>
             </div>
@@ -20452,13 +20452,18 @@ function renderLeaderboard(entries) {
       const snap = await window._fbGetDocs(q);
 
       if (snap.empty) {
-        container.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">Nothing shared yet — ask a friend to send you their recipe!</div></div>';
+        container.innerHTML = '<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">Nothing shared yet — ask a friend to send you their recipe or custom food!</div></div>';
         if (badge) badge.style.display = 'none';
         return;
       }
 
       // Sort client-side by sentAt descending (avoids composite index requirement)
-      const sortedDocs = snap.docs.slice().sort((a, b) => {
+      // Only show recipes and custom foods — filter out programs & meal templates
+      const filteredDocs = snap.docs.filter(d => {
+        const t = d.data().type;
+        return t === 'recipe' || !t || t === 'customFood';
+      });
+      const sortedDocs = filteredDocs.slice().sort((a, b) => {
         const aT = a.data().sentAt?.toMillis?.() || 0;
         const bT = b.data().sentAt?.toMillis?.() || 0;
         return bT - aT;
@@ -20554,6 +20559,12 @@ function renderLeaderboard(entries) {
       const d    = snap.data();
       const item = d.data;
 
+      // Only import recipes and custom foods from this inbox
+      if (d.type === 'program' || d.type === 'mealTemplate') {
+        if (btn) { btn.disabled = false; btn.textContent = '⬇️ Import'; btn.style.opacity = ''; }
+        if (typeof showToast === 'function') showToast('This item type is not supported in the shared inbox.', 'warn');
+        return;
+      }
       if (d.type === 'recipe') {
         const exists = State.recipes.some(r => r.name.toLowerCase() === item.name.toLowerCase());
         const newRecipe = { ...item, id: Date.now(), importedFrom: d.fromName || 'Friend' };
@@ -26020,7 +26031,7 @@ window.addEventListener('load', () => {
 
 
 <!-- ═══════════════════════════════════════════════════════════════
-     EDDFIT GUIDED TOUR v2 — Deep-Dive Feature Tour with Flex
+     EDDFIT GUIDED TOUR v2 — Deep-Dive Feature Tour with Ayman
 ═══════════════════════════════════════════════════════════════ -->
 <style>
 /* ── Tour Overlay ── */
@@ -26133,7 +26144,7 @@ window.addEventListener('load', () => {
 .tour-back-btn:hover { color:var(--text-secondary,#555); border-color:var(--border-active); }
 /* ── Mascot SVG ── */
 #tour-mascot-svg {
-  width:86px; height:106px;
+  width:92px; height:114px;
   filter:drop-shadow(0 6px 18px rgba(0,0,0,0.25));
   animation:mascotIdle 3s ease-in-out infinite;
   transform-origin:center bottom; cursor:pointer;
@@ -26202,33 +26213,75 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
 
 <!-- Welcome screen -->
 <div id="tour-welcome">
-  <svg class="tw-mascot-big" viewBox="0 0 130 160" xmlns="http://www.w3.org/2000/svg">
-    <ellipse cx="65" cy="105" rx="28" ry="38" fill="#FF8C42"/>
-    <rect x="57" y="68" width="16" height="14" rx="6" fill="#FFAB76"/>
-    <ellipse cx="65" cy="58" rx="26" ry="26" fill="#FFAB76"/>
-    <ellipse cx="65" cy="34" rx="24" ry="10" fill="#2C1810"/>
-    <rect x="41" y="34" width="9" height="12" rx="4" fill="#2C1810"/>
-    <rect x="80" y="34" width="9" height="12" rx="4" fill="#2C1810"/>
-    <path d="M54 55 Q57 52 60 55" fill="none" stroke="#2C1810" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M70 55 Q73 52 76 55" fill="none" stroke="#2C1810" stroke-width="2.5" stroke-linecap="round"/>
-    <ellipse cx="51" cy="60" rx="6" ry="4" fill="#FF9B7D" opacity="0.5"/>
-    <ellipse cx="79" cy="60" rx="6" ry="4" fill="#FF9B7D" opacity="0.5"/>
-    <path d="M54 66 Q65 76 76 66" fill="none" stroke="#2C1810" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M57 67 Q65 74 73 67" fill="white" opacity="0.7"/>
-    <path d="M37 95 Q20 70 15 50" stroke="#FF8C42" stroke-width="13" stroke-linecap="round" fill="none"/>
-    <circle cx="14" cy="46" r="9" fill="#FFAB76"/>
-    <path d="M93 95 Q110 110 115 120" stroke="#FF8C42" stroke-width="13" stroke-linecap="round" fill="none"/>
-    <circle cx="116" cy="123" r="9" fill="#FFAB76"/>
-    <path d="M37 122 Q38 143 50 148 Q65 152 80 148 Q92 143 93 122 Z" fill="#7C3AED"/>
-    <path d="M50 148 Q48 160 50 162" stroke="#FFAB76" stroke-width="11" stroke-linecap="round" fill="none"/>
-    <path d="M80 148 Q82 160 80 162" stroke="#FFAB76" stroke-width="11" stroke-linecap="round" fill="none"/>
-    <ellipse cx="50" cy="163" rx="12" ry="5" fill="#2C1810"/>
-    <ellipse cx="80" cy="163" rx="12" ry="5" fill="#2C1810"/>
-    <text x="8" y="30" font-size="14" fill="#E8FF47" opacity="0.9">✦</text>
-    <text x="108" y="40" font-size="11" fill="#E8FF47" opacity="0.8">✦</text>
-    <text x="95" y="18" font-size="9" fill="#E8FF47" opacity="0.7">✦</text>
+  <svg class="tw-mascot-big" viewBox="0 0 140 170" xmlns="http://www.w3.org/2000/svg">
+    <!-- Shorts -->
+    <path d="M42 118 Q40 145 54 152 Q70 158 86 152 Q100 145 98 118 Z" fill="#7C3AED"/>
+    <line x1="70" y1="118" x2="70" y2="152" stroke="#6D28D9" stroke-width="1.5" opacity="0.5"/>
+    <!-- Calves -->
+    <ellipse cx="56" cy="160" rx="9" ry="13" fill="#C97D4E"/>
+    <ellipse cx="84" cy="160" rx="9" ry="13" fill="#C97D4E"/>
+    <!-- Calf definition -->
+    <path d="M50 153 Q56 162 62 155" fill="none" stroke="#A0612E" stroke-width="1.2" opacity="0.5"/>
+    <path d="M78 153 Q84 162 90 155" fill="none" stroke="#A0612E" stroke-width="1.2" opacity="0.5"/>
+    <!-- Shoes -->
+    <ellipse cx="56" cy="172" rx="13" ry="5" fill="#1C1009"/>
+    <ellipse cx="84" cy="172" rx="13" ry="5" fill="#1C1009"/>
+    <!-- Torso - wide muscular -->
+    <path d="M40 118 Q36 95 38 78 Q44 68 70 66 Q96 68 102 78 Q104 95 100 118 Z" fill="#D4844A"/>
+    <!-- Chest definition lines -->
+    <path d="M55 80 Q70 86 85 80" fill="none" stroke="#B56A30" stroke-width="1.5" opacity="0.6"/>
+    <line x1="70" y1="80" x2="70" y2="100" stroke="#B56A30" stroke-width="1.2" opacity="0.4"/>
+    <!-- Abs -->
+    <ellipse cx="65" cy="100" rx="5" ry="4" fill="#B56A30" opacity="0.3"/>
+    <ellipse cx="75" cy="100" rx="5" ry="4" fill="#B56A30" opacity="0.3"/>
+    <ellipse cx="65" cy="109" rx="5" ry="3.5" fill="#B56A30" opacity="0.25"/>
+    <ellipse cx="75" cy="109" rx="5" ry="3.5" fill="#B56A30" opacity="0.25"/>
+    <!-- Neck -->
+    <rect x="62" y="58" width="16" height="12" rx="6" fill="#C97D4E"/>
+    <!-- Traps -->
+    <ellipse cx="50" cy="72" rx="14" ry="8" fill="#C97D4E"/>
+    <ellipse cx="90" cy="72" rx="14" ry="8" fill="#C97D4E"/>
+    <!-- LEFT ARM - raised double bicep pose -->
+    <!-- Upper arm -->
+    <path d="M42 80 Q22 72 16 60" stroke="#D4844A" stroke-width="14" stroke-linecap="round" fill="none"/>
+    <!-- Bicep peak LEFT -->
+    <ellipse cx="28" cy="68" rx="10" ry="7" fill="#E89050" transform="rotate(-35 28 68)"/>
+    <!-- Forearm LEFT - bent up -->
+    <path d="M16 60 Q10 48 18 40" stroke="#C97D4E" stroke-width="11" stroke-linecap="round" fill="none"/>
+    <!-- Fist LEFT -->
+    <ellipse cx="19" cy="37" rx="9" ry="8" fill="#C97D4E"/>
+    <!-- RIGHT ARM - raised double bicep pose -->
+    <path d="M98 80 Q118 72 124 60" stroke="#D4844A" stroke-width="14" stroke-linecap="round" fill="none"/>
+    <!-- Bicep peak RIGHT -->
+    <ellipse cx="112" cy="68" rx="10" ry="7" fill="#E89050" transform="rotate(35 112 68)"/>
+    <!-- Forearm RIGHT - bent up -->
+    <path d="M124 60 Q130 48 122 40" stroke="#C97D4E" stroke-width="11" stroke-linecap="round" fill="none"/>
+    <!-- Fist RIGHT -->
+    <ellipse cx="121" cy="37" rx="9" ry="8" fill="#C97D4E"/>
+    <!-- HEAD -->
+    <ellipse cx="70" cy="44" rx="26" ry="24" fill="#C97D4E"/>
+    <!-- Dark hair - short fade -->
+    <ellipse cx="70" cy="23" rx="24" ry="9" fill="#1A0E08"/>
+    <rect x="46" y="23" width="8" height="10" rx="4" fill="#1A0E08"/>
+    <rect x="86" y="23" width="8" height="10" rx="4" fill="#1A0E08"/>
+    <!-- Beard shadow -->
+    <path d="M50 52 Q70 62 90 52 Q88 58 70 62 Q52 58 50 52 Z" fill="#1A0E08" opacity="0.25"/>
+    <!-- Eyes - happy squint -->
+    <path d="M57 40 Q61 37 65 40" fill="none" stroke="#1A0E08" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M75 40 Q79 37 83 40" fill="none" stroke="#1A0E08" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Cheek blush -->
+    <ellipse cx="54" cy="47" rx="7" ry="5" fill="#E07050" opacity="0.35"/>
+    <ellipse cx="86" cy="47" rx="7" ry="5" fill="#E07050" opacity="0.35"/>
+    <!-- Big grin showing teeth -->
+    <path d="M56 53 Q70 66 84 53" fill="#1A0E08" stroke="#1A0E08" stroke-width="1"/>
+    <path d="M59 54 Q70 63 81 54 L81 58 Q70 67 59 58 Z" fill="white"/>
+    <!-- Sparkles -->
+    <text x="2" y="28" font-size="16" fill="#E8FF47" opacity="0.95">✦</text>
+    <text x="116" y="24" font-size="13" fill="#E8FF47" opacity="0.85">✦</text>
+    <text x="105" y="10" font-size="10" fill="#E8FF47" opacity="0.75">✦</text>
+    <text x="20" y="12" font-size="9" fill="#E8FF47" opacity="0.7">✦</text>
   </svg>
-  <div class="tw-title">Hey, I'm <span>Flex!</span> 💪</div>
+  <div class="tw-title">Hey, I'm <span>Ayman!</span> 💪</div>
   <div class="tw-sub">I'm your personal EddFit coach. Let me walk you through every feature so you can crush your goals from day one!</div>
   <button class="tw-start-btn" onclick="tourStart()">Show Me Around! 🚀</button>
   <button class="tw-skip-link" onclick="tourSkip()">Skip — I'll explore myself</button>
@@ -26256,36 +26309,140 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
       </div>
     </div>
   </div>
-  <svg id="tour-mascot-svg" viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg">
-    <ellipse cx="50" cy="80" rx="22" ry="30" fill="#FF8C42"/>
-    <rect x="43" y="52" width="14" height="11" rx="5" fill="#FFAB76"/>
-    <ellipse cx="50" cy="44" rx="22" ry="22" fill="#FFAB76"/>
-    <ellipse cx="50" cy="24" rx="20" ry="9" fill="#2C1810"/>
-    <rect x="30" y="24" width="8" height="10" rx="4" fill="#2C1810"/>
-    <rect x="62" y="24" width="8" height="10" rx="4" fill="#2C1810"/>
-    <ellipse cx="43" cy="41" rx="4" ry="4.5" fill="white"/>
-    <ellipse cx="57" cy="41" rx="4" ry="4.5" fill="white"/>
-    <ellipse cx="44" cy="42" rx="2.5" ry="2.5" fill="#2C1810"/>
-    <ellipse cx="58" cy="42" rx="2.5" ry="2.5" fill="#2C1810"/>
-    <circle cx="45" cy="41" r="1" fill="white"/>
-    <circle cx="59" cy="41" r="1" fill="white"/>
-    <path d="M39 36 Q43 34 47 36" fill="none" stroke="#2C1810" stroke-width="1.8" stroke-linecap="round"/>
-    <path d="M53 36 Q57 34 61 36" fill="none" stroke="#2C1810" stroke-width="1.8" stroke-linecap="round"/>
-    <ellipse cx="36" cy="46" rx="5" ry="3.5" fill="#FF9B7D" opacity="0.5"/>
-    <ellipse cx="64" cy="46" rx="5" ry="3.5" fill="#FF9B7D" opacity="0.5"/>
-    <path d="M41 51 Q50 59 59 51" fill="none" stroke="#2C1810" stroke-width="2.2" stroke-linecap="round"/>
-    <path d="M44 52 Q50 57 56 52" fill="white" opacity="0.7"/>
-    <path d="M28 72 Q14 60 10 48" stroke="#FF8C42" stroke-width="11" stroke-linecap="round" fill="none"/>
-    <rect x="3" y="40" width="14" height="6" rx="3" fill="#555"/>
-    <rect x="1" y="38" width="4" height="10" rx="2" fill="#333"/>
-    <rect x="13" y="38" width="4" height="10" rx="2" fill="#333"/>
-    <path d="M72 72 Q86 78 90 88" stroke="#FF8C42" stroke-width="11" stroke-linecap="round" fill="none"/>
-    <circle cx="92" cy="92" r="7" fill="#FFAB76"/>
-    <path d="M28 95 Q29 112 38 116 Q50 120 62 116 Q71 112 72 95 Z" fill="#7C3AED"/>
-    <path d="M38 116 Q36 124 38 126" stroke="#FFAB76" stroke-width="9" stroke-linecap="round" fill="none"/>
-    <path d="M62 116 Q64 124 62 126" stroke="#FFAB76" stroke-width="9" stroke-linecap="round" fill="none"/>
-    <ellipse cx="38" cy="127" rx="10" ry="4" fill="#2C1810"/>
-    <ellipse cx="62" cy="127" rx="10" ry="4" fill="#2C1810"/>
+  <svg id="tour-mascot-svg" viewBox="0 0 110 136" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- Reusable head + torso base -->
+      <!-- Pose groups: only one visible at a time via JS -->
+    </defs>
+
+    <!-- ══ SHARED BASE: legs, shoes, shorts, torso, neck, head (always visible) ══ -->
+    <!-- Shorts -->
+    <path d="M35 102 Q33 122 45 128 Q56 133 66 133 Q76 133 77 128 Q89 122 87 102 Z" fill="#7C3AED"/>
+    <line x1="61" y1="102" x2="61" y2="128" stroke="#6D28D9" stroke-width="1.2" opacity="0.45"/>
+    <!-- Legs -->
+    <ellipse cx="47" cy="135" rx="9" ry="10" fill="#C97D4E"/>
+    <ellipse cx="75" cy="135" rx="9" ry="10" fill="#C97D4E"/>
+    <!-- Calf lines -->
+    <path d="M42 128 Q47 136 52 130" fill="none" stroke="#A0612E" stroke-width="1" opacity="0.45"/>
+    <path d="M70 128 Q75 136 80 130" fill="none" stroke="#A0612E" stroke-width="1" opacity="0.45"/>
+    <!-- Shoes -->
+    <ellipse cx="47" cy="144" rx="12" ry="4.5" fill="#1A0E08"/>
+    <ellipse cx="75" cy="144" rx="12" ry="4.5" fill="#1A0E08"/>
+    <!-- Torso -->
+    <path d="M33 102 Q31 83 34 70 Q40 60 61 59 Q82 60 88 70 Q91 83 89 102 Z" fill="#D4844A"/>
+    <!-- Chest definition -->
+    <path d="M46 72 Q61 78 76 72" fill="none" stroke="#B56A30" stroke-width="1.3" opacity="0.55"/>
+    <line x1="61" y1="72" x2="61" y2="88" stroke="#B56A30" stroke-width="1" opacity="0.35"/>
+    <!-- Abs -->
+    <ellipse cx="56" cy="88" rx="5" ry="3.5" fill="#B56A30" opacity="0.28"/>
+    <ellipse cx="66" cy="88" rx="5" ry="3.5" fill="#B56A30" opacity="0.28"/>
+    <ellipse cx="56" cy="96" rx="5" ry="3" fill="#B56A30" opacity="0.22"/>
+    <ellipse cx="66" cy="96" rx="5" ry="3" fill="#B56A30" opacity="0.22"/>
+    <!-- Neck -->
+    <rect x="54" y="51" width="14" height="11" rx="5" fill="#C97D4E"/>
+    <!-- Traps -->
+    <ellipse cx="43" cy="64" rx="12" ry="7" fill="#C97D4E"/>
+    <ellipse cx="79" cy="64" rx="12" ry="7" fill="#C97D4E"/>
+    <!-- HEAD -->
+    <ellipse cx="61" cy="37" rx="23" ry="21" fill="#C97D4E"/>
+    <!-- Hair -->
+    <ellipse cx="61" cy="19" rx="21" ry="8" fill="#1A0E08"/>
+    <rect x="40" y="19" width="7" height="9" rx="4" fill="#1A0E08"/>
+    <rect x="75" y="19" width="7" height="9" rx="4" fill="#1A0E08"/>
+    <!-- Beard shadow -->
+    <path d="M44 46 Q61 55 78 46 Q76 51 61 55 Q46 51 44 46 Z" fill="#1A0E08" opacity="0.2"/>
+    <!-- Eyes always smiling/happy -->
+    <path d="M50 33 Q54 30 58 33" fill="none" stroke="#1A0E08" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M64 33 Q68 30 72 33" fill="none" stroke="#1A0E08" stroke-width="2.2" stroke-linecap="round"/>
+    <!-- Cheeks -->
+    <ellipse cx="47" cy="40" rx="6" ry="4" fill="#E07050" opacity="0.3"/>
+    <ellipse cx="75" cy="40" rx="6" ry="4" fill="#E07050" opacity="0.3"/>
+    <!-- Big grin with teeth -->
+    <path d="M49 45 Q61 57 73 45" fill="#1A0E08"/>
+    <path d="M52 46 Q61 55 70 46 L70 50 Q61 58 52 50 Z" fill="white"/>
+
+    <!-- ══ POSE GROUPS — toggled by JS ══ -->
+
+    <!-- POSE 0: Double bicep flex (both arms raised) -->
+    <g id="ayman-pose-0">
+      <path d="M35 76 Q18 67 12 54" stroke="#D4844A" stroke-width="13" stroke-linecap="round" fill="none"/>
+      <ellipse cx="22" cy="62" rx="9" ry="6" fill="#E89050" transform="rotate(-40 22 62)"/>
+      <path d="M12 54 Q6 43 14 36" stroke="#C97D4E" stroke-width="10" stroke-linecap="round" fill="none"/>
+      <ellipse cx="14" cy="33" rx="8" ry="7" fill="#C97D4E"/>
+      <path d="M87 76 Q104 67 110 54" stroke="#D4844A" stroke-width="13" stroke-linecap="round" fill="none"/>
+      <ellipse cx="100" cy="62" rx="9" ry="6" fill="#E89050" transform="rotate(40 100 62)"/>
+      <path d="M110 54 Q116 43 108 36" stroke="#C97D4E" stroke-width="10" stroke-linecap="round" fill="none"/>
+      <ellipse cx="108" cy="33" rx="8" ry="7" fill="#C97D4E"/>
+    </g>
+
+    <!-- POSE 1: Pointing right (one finger out, other arm relaxed) -->
+    <g id="ayman-pose-1" style="display:none">
+      <!-- Right arm pointing forward -->
+      <path d="M87 76 Q100 70 107 60" stroke="#D4844A" stroke-width="12" stroke-linecap="round" fill="none"/>
+      <ellipse cx="98" cy="65" rx="8" ry="5.5" fill="#E89050" transform="rotate(30 98 65)"/>
+      <path d="M107 60 Q116 52 112 46" stroke="#C97D4E" stroke-width="9" stroke-linecap="round" fill="none"/>
+      <!-- Pointing finger -->
+      <ellipse cx="111" cy="44" rx="5" ry="6" fill="#C97D4E"/>
+      <path d="M109 40 L113 36" stroke="#C97D4E" stroke-width="4" stroke-linecap="round"/>
+      <!-- Left arm relaxed down -->
+      <path d="M35 76 Q24 82 20 96" stroke="#D4844A" stroke-width="12" stroke-linecap="round" fill="none"/>
+      <ellipse cx="19" cy="100" rx="8" ry="7" fill="#C97D4E"/>
+    </g>
+
+    <!-- POSE 2: One arm up fist pump, other on hip -->
+    <g id="ayman-pose-2" style="display:none">
+      <!-- Left arm raised fist -->
+      <path d="M35 76 Q20 65 15 50" stroke="#D4844A" stroke-width="13" stroke-linecap="round" fill="none"/>
+      <ellipse cx="22" cy="60" rx="9" ry="6" fill="#E89050" transform="rotate(-35 22 60)"/>
+      <path d="M15 50 Q9 38 16 30" stroke="#C97D4E" stroke-width="10" stroke-linecap="round" fill="none"/>
+      <ellipse cx="16" cy="27" rx="8" ry="8" fill="#C97D4E"/>
+      <!-- Right arm on hip -->
+      <path d="M87 76 Q98 82 100 92" stroke="#D4844A" stroke-width="12" stroke-linecap="round" fill="none"/>
+      <path d="M100 92 Q104 100 96 104" stroke="#C97D4E" stroke-width="10" stroke-linecap="round" fill="none"/>
+      <ellipse cx="93" cy="105" rx="8" ry="6" fill="#C97D4E"/>
+    </g>
+
+    <!-- POSE 3: Arms crossed (cool relaxed pose) -->
+    <g id="ayman-pose-3" style="display:none">
+      <!-- Left arm across chest going right -->
+      <path d="M35 78 Q48 74 60 78" stroke="#D4844A" stroke-width="12" stroke-linecap="round" fill="none"/>
+      <ellipse cx="40" cy="76" rx="8" ry="5.5" fill="#E89050"/>
+      <path d="M60 78 Q72 74 76 80" stroke="#C97D4E" stroke-width="10" stroke-linecap="round" fill="none"/>
+      <ellipse cx="77" cy="81" rx="7" ry="6" fill="#C97D4E"/>
+      <!-- Right arm across chest going left -->
+      <path d="M87 78 Q74 72 62 76" stroke="#D4844A" stroke-width="11" stroke-linecap="round" fill="none"/>
+      <ellipse cx="82" cy="75" rx="8" ry="5.5" fill="#E89050"/>
+      <path d="M62 76 Q50 72 46 78" stroke="#C97D4E" stroke-width="9" stroke-linecap="round" fill="none"/>
+      <ellipse cx="44" cy="79" rx="7" ry="6" fill="#C97D4E"/>
+    </g>
+
+    <!-- POSE 4: Thumbs up both hands -->
+    <g id="ayman-pose-4" style="display:none">
+      <!-- Left arm down thumbs up -->
+      <path d="M35 78 Q22 84 18 98" stroke="#D4844A" stroke-width="13" stroke-linecap="round" fill="none"/>
+      <ellipse cx="22" cy="88" rx="8" ry="5.5" fill="#E89050" transform="rotate(-20 22 88)"/>
+      <path d="M18 98 Q14 108 18 114" stroke="#C97D4E" stroke-width="10" stroke-linecap="round" fill="none"/>
+      <ellipse cx="18" cy="116" rx="7" ry="7" fill="#C97D4E"/>
+      <path d="M16 110 L14 104" stroke="#C97D4E" stroke-width="4" stroke-linecap="round"/>
+      <!-- Right arm down thumbs up -->
+      <path d="M87 78 Q100 84 104 98" stroke="#D4844A" stroke-width="13" stroke-linecap="round" fill="none"/>
+      <ellipse cx="100" cy="88" rx="8" ry="5.5" fill="#E89050" transform="rotate(20 100 88)"/>
+      <path d="M104 98 Q108 108 104 114" stroke="#C97D4E" stroke-width="10" stroke-linecap="round" fill="none"/>
+      <ellipse cx="104" cy="116" rx="7" ry="7" fill="#C97D4E"/>
+      <path d="M106 110 L108 104" stroke="#C97D4E" stroke-width="4" stroke-linecap="round"/>
+    </g>
+
+    <!-- POSE 5: Side chest flex (turned slightly, one arm curled) -->
+    <g id="ayman-pose-5" style="display:none">
+      <!-- Left big bicep curl -->
+      <path d="M35 76 Q20 70 14 58" stroke="#D4844A" stroke-width="14" stroke-linecap="round" fill="none"/>
+      <ellipse cx="21" cy="65" rx="11" ry="7" fill="#E89050" transform="rotate(-40 21 65)"/>
+      <path d="M14 58 Q10 46 18 40" stroke="#C97D4E" stroke-width="11" stroke-linecap="round" fill="none"/>
+      <ellipse cx="19" cy="37" rx="9" ry="8" fill="#C97D4E"/>
+      <!-- Right arm relaxed at side -->
+      <path d="M87 76 Q98 80 100 96" stroke="#D4844A" stroke-width="12" stroke-linecap="round" fill="none"/>
+      <ellipse cx="100" cy="100" rx="8" ry="7" fill="#C97D4E"/>
+    </g>
   </svg>
 </div>
 
@@ -26422,7 +26579,7 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
 
     { section:'⚙️ Settings', navTo:'settings', target:'#page-settings',
       title:'✨ AI Smart Suggestions',
-      desc:'Connect your own Claude, Gemini, or ChatGPT API key and unlock AI-powered goal analysis. Flex will analyse your data and give you personalised recommendations!' },
+      desc:'Connect your own Claude, Gemini, or ChatGPT API key and unlock AI-powered goal analysis. Ayman will analyse your data and give you personalised recommendations!' },
 
     // ══ ACHIEVEMENTS ══
     { section:'🎖️ Achievements', navTo:'achievements', target:'#achievements-progress-bar-wrap',
@@ -26521,6 +26678,19 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
     if (typeof showToast === 'function') showToast('🎉 Tour complete! Go crush those goals, champ!', 'success');
   }
 
+  // Pose rotation — 6 distinct poses for Ayman
+  const POSES = ['ayman-pose-0','ayman-pose-1','ayman-pose-2','ayman-pose-3','ayman-pose-4','ayman-pose-5'];
+  // Pose schedule per step (cycles through varied poses)
+  function setPose(stepIdx) {
+    // Map steps to poses for variety — never same pose twice in a row
+    const schedule = [0,1,2,3,4,5,0,2,1,4,3,5,1,0,4,2,5,3,1,4,0,3,2,5,0,1,4,3,2,5,1,0,3,4,2,5,1,0,3,5];
+    const poseIdx = schedule[stepIdx % schedule.length];
+    POSES.forEach((id, i) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = i === poseIdx ? '' : 'none';
+    });
+  }
+
   function cheer() {
     const m = document.getElementById('tour-mascot-svg');
     m.classList.remove('mascot-cheer');
@@ -26549,6 +26719,7 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
     }
 
     setTimeout(() => {
+      setPose(idx);
       updateBubble(step, idx);
       updateHighlight(step.target);
     }, 160);
