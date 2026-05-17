@@ -14977,6 +14977,7 @@ function skipMissedWorkout() {
 // ═══════════════════════════════════════════════════════════════════
 function openAdjustMacrosModal() {
   window._amWeightBannerDismissed = false; // reset so banner re-evaluates each open
+  window._amActivePreset = null; // reset active preset each open
   const T = State.targets;
   document.getElementById('am-cal-slider').value = T.calories;
   document.getElementById('am-pro-slider').value = T.protein;
@@ -14994,8 +14995,13 @@ function openAdjustMacrosModal() {
 function amSelectActivity(val) {
   window._amActivityMultiplier = val;
   amHighlightActivity(val);
-  amUpdate();
   amPopulatePresetLabels();
+  // Re-apply the active preset so calories/macros sync immediately
+  if (window._amActivePreset) {
+    amApplyPreset(window._amActivePreset);
+  } else {
+    amUpdate();
+  }
 }
 
 function amHighlightActivity(val) {
@@ -15366,6 +15372,9 @@ function amApplyPreset(preset) {
     activeBtn.style.borderColor = 'var(--accent)';
     activeBtn.querySelector('div:first-child').style.color = 'var(--accent)';
   }
+
+  // Track which preset is active so activity changes can re-apply it
+  window._amActivePreset = preset;
 
   // Show 2026 evidence-based guidelines for this preset
   amShowGuidelines(preset);
