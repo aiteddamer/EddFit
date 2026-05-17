@@ -312,6 +312,9 @@
       });
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('app-wrapper').style.display = 'block';
+      // Show the sync loading screen immediately while data loads from Firestore
+      const _syncScreen = document.getElementById('sync-loading-screen');
+      if (_syncScreen) _syncScreen.style.display = 'flex';
       // Update user info in sidebar
       const nameEl   = document.getElementById('auth-user-name');
       const avatarEl = document.getElementById('auth-user-avatar');
@@ -2270,6 +2273,40 @@ html.dark .sgp-item.sgp-checked .sgp-checkbox::after { color:#111; }
 </div>
 
 <!-- ═══════════════════════ APP WRAPPER ═══════════════════════ -->
+<!-- ─── DATA SYNC LOADING SCREEN ─────────────────────────────────── -->
+<div id="sync-loading-screen" style="
+  display:none; align-items:center; justify-content:center; flex-direction:column;
+  position:fixed; inset:0; background:var(--bg-base); z-index:9998;
+  gap:20px; font-family:var(--font-body);
+">
+  <svg width="52" height="52" viewBox="0 0 40 40" fill="none">
+    <rect width="40" height="40" rx="12" fill="var(--accent)"/>
+    <path d="M5 20 L11 10 L17 26 L23 15 L29 20 L35 17" stroke="var(--bg-base)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="35" cy="17" r="3" fill="var(--bg-base)"/>
+  </svg>
+  <div style="font-family:var(--font-display);font-size:1.6rem;font-weight:800;letter-spacing:-0.5px">
+    Edd<span style="color:var(--accent)">Fit</span>
+  </div>
+  <div id="sync-loading-msg" style="font-size:0.82rem;color:var(--text-muted);letter-spacing:0.5px">Syncing your data…</div>
+  <!-- Animated dots -->
+  <div style="display:flex;gap:8px;margin-top:4px">
+    <div class="sync-dot"></div>
+    <div class="sync-dot" style="animation-delay:0.18s"></div>
+    <div class="sync-dot" style="animation-delay:0.36s"></div>
+  </div>
+</div>
+<style>
+  .sync-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); opacity: 0.25;
+    animation: syncPulse 0.9s ease-in-out infinite;
+  }
+  @keyframes syncPulse {
+    0%,100% { opacity:0.2; transform:scale(0.85); }
+    50%      { opacity:1;   transform:scale(1.15); }
+  }
+</style>
+
 <div id="app-wrapper" style="display:none">
 
 <!-- SPLASH SCREEN -->
@@ -5878,10 +5915,15 @@ function dismissSplash() {
 <div class="modal-overlay" id="modal-metrics">
   <div class="modal">
     <div class="modal-title">
-      Log Measurements
+      <span id="modal-metrics-title">Log Measurements</span>
       <button class="btn-icon" onclick="closeModal('modal-metrics')">✕</button>
     </div>
     <div class="form-grid" style="gap:12px">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="date" class="form-input" id="m-date" oninput="onMetricsDateChange(this.value)" style="cursor:pointer" />
+        <div id="m-date-hint" style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;display:none"></div>
+      </div>
       <div class="form-grid form-grid-2">
         <div class="form-group">
           <label class="form-label" id="m-weight-label">Weight (kg)</label>
@@ -5919,7 +5961,7 @@ function dismissSplash() {
     </div>
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="closeModal('modal-metrics')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveMetrics()">Log Measurements</button>
+      <button class="btn btn-primary" id="modal-metrics-save-btn" onclick="saveMetrics()">Log Measurements</button>
     </div>
   </div>
 </div>
@@ -6082,6 +6124,8 @@ window._loadFirestore = async function() {
       if (!State.customFoods) State.customFoods = [];
       if (!State.pantry)     State.pantry     = {};
       hideSyncStatus();
+      const _sl = document.getElementById('sync-loading-screen');
+      if (_sl) _sl.style.display = 'none';
       if (State.profile && State.profile.name) {
         startApp();
       } else {
@@ -6090,6 +6134,8 @@ window._loadFirestore = async function() {
     } else {
       // New user — show onboarding, make sure it's visible
       hideSyncStatus();
+      const _sl2 = document.getElementById('sync-loading-screen');
+      if (_sl2) _sl2.style.display = 'none';
       document.getElementById('onboarding').style.display = 'flex';
       const appEl = document.getElementById('app');
       if (appEl) { appEl.style.display = 'none'; appEl.classList.remove('visible'); }
@@ -6101,6 +6147,11 @@ window._loadFirestore = async function() {
     const _retryLoad = async (attempt) => {
       if (attempt > 3) {
         showSyncStatus('\u26a0 Could not load — tap to retry', 'var(--red)');
+        // Update sync loading screen to show error and make it tappable to retry
+        const _sle = document.getElementById('sync-loading-screen');
+        const _slMsg = document.getElementById('sync-loading-msg');
+        if (_slMsg) _slMsg.textContent = '⚠ Could not sync — tap to retry';
+        if (_sle) { _sle.style.cursor = 'pointer'; _sle.onclick = () => { _sle.style.cursor=''; _sle.onclick=null; if(_slMsg)_slMsg.textContent='Syncing your data…'; window._loadFirestore(); }; }
         const syncEl = document.getElementById('sync-status');
         if (syncEl) {
           syncEl.style.cursor = 'pointer';
@@ -6136,9 +6187,13 @@ window._loadFirestore = async function() {
             if (!State.recipes)    State.recipes    = [];
             if (!State.customFoods) State.customFoods = [];
             hideSyncStatus();
+            const _slr = document.getElementById('sync-loading-screen');
+            if (_slr) _slr.style.display = 'none';
             if (State.profile && State.profile.name) { startApp(); } else { updateDots(1); }
           } else {
             hideSyncStatus();
+            const _slr2 = document.getElementById('sync-loading-screen');
+            if (_slr2) _slr2.style.display = 'none';
             document.getElementById('onboarding').style.display = 'flex';
             const _appEl = document.getElementById('app');
             if (_appEl) { _appEl.style.display = 'none'; _appEl.classList.remove('visible'); }
@@ -7606,6 +7661,8 @@ launchApp = function() {
 // ═══════════════════════════════════════════════════════════════════
 function startApp() {
   document.getElementById('onboarding').style.display = 'none';
+  const _sls = document.getElementById('sync-loading-screen');
+  if (_sls) _sls.style.display = 'none';
   const app = document.getElementById('app');
   app.style.display = 'flex';
   app.classList.add('visible');
@@ -10111,27 +10168,85 @@ function hideChartTooltip() {
 // ═══════════════════════════════════════════════════════════════════
 //  MEASUREMENTS
 // ═══════════════════════════════════════════════════════════════════
-function openMetricsModal() {
-  const last = State.metrics[State.metrics.length-1]||{};
-  const imp = isImperial();
-  // Weight
-  const wEl = document.getElementById('m-weight');
-  if (wEl && last.weight) wEl.value = kgToDisplay(last.weight);
-  // Body fat unchanged
-  const bfEl = document.getElementById('m-bf');
-  if (bfEl && last.bf) bfEl.value = last.bf;
-  // Length measurements
-  ['chest','waist','hips','arms','thighs'].forEach(k => {
-    const el = document.getElementById('m-'+k);
-    if (el && last[k]) el.value = imp ? cmToDisplay(last[k]) : last[k];
-  });
+function openMetricsModal(prefillDate) {
+  const today = todayKey();
+  const selectedDate = prefillDate || today;
+
+  // Set date picker value
+  const dateEl = document.getElementById('m-date');
+  if (dateEl) {
+    dateEl.value = selectedDate;
+    dateEl.max = today; // can't log future dates
+  }
+
+  _fillMetricsForDate(selectedDate);
   applyUnitLabels();
   openModal('modal-metrics');
 }
 
+// Called when the user changes the date picker
+function onMetricsDateChange(dateVal) {
+  if (!dateVal) return;
+  _fillMetricsForDate(dateVal);
+}
+
+// Pre-fill modal fields from existing entry for a given date, and update title/button
+function _fillMetricsForDate(dateVal) {
+  const today = todayKey();
+  const existingEntry = State.metrics.find(m => m.date === dateVal) || {};
+  const imp = isImperial();
+
+  // Clear all fields first
+  ['weight','bf','chest','waist','hips','arms','thighs'].forEach(k => {
+    const el = document.getElementById('m-' + k);
+    if (el) el.value = '';
+  });
+
+  // Pre-fill with existing values for that date
+  const wEl = document.getElementById('m-weight');
+  if (wEl && existingEntry.weight) wEl.value = kgToDisplay(existingEntry.weight);
+  const bfEl = document.getElementById('m-bf');
+  if (bfEl && existingEntry.bf) bfEl.value = existingEntry.bf;
+  ['chest','waist','hips','arms','thighs'].forEach(k => {
+    const el = document.getElementById('m-' + k);
+    if (el && existingEntry[k]) el.value = imp ? cmToDisplay(existingEntry[k]) : existingEntry[k];
+  });
+
+  // Hint below date picker
+  const hintEl = document.getElementById('m-date-hint');
+  if (hintEl) {
+    if (dateVal === today) {
+      hintEl.style.display = 'none';
+      hintEl.textContent = '';
+    } else {
+      hintEl.style.display = '';
+      const label = new Date(dateVal + 'T12:00:00').toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric' });
+      hintEl.textContent = existingEntry.weight
+        ? `✏️ Editing entry for ${label}`
+        : `📅 Adding entry for ${label}`;
+    }
+  }
+
+  // Title & button
+  const titleEl  = document.getElementById('modal-metrics-title');
+  const saveBtnEl = document.getElementById('modal-metrics-save-btn');
+  const isUpdate = !!existingEntry.weight || !!(existingEntry.bf);
+  if (dateVal !== today) {
+    const shortLabel = new Date(dateVal + 'T12:00:00').toLocaleDateString(undefined, { month:'short', day:'numeric' });
+    if (titleEl)   titleEl.textContent  = isUpdate ? `Update ${shortLabel}` : `Log for ${shortLabel}`;
+    if (saveBtnEl) saveBtnEl.textContent = isUpdate ? 'Update Entry' : 'Save Entry';
+  } else {
+    if (titleEl)   titleEl.textContent  = isUpdate ? 'Update Today\'s Measurements' : 'Log Measurements';
+    if (saveBtnEl) saveBtnEl.textContent = isUpdate ? 'Update Measurements' : 'Log Measurements';
+  }
+}
+
 function saveMetrics() {
   const imp = isImperial();
-  const entry = { date: todayKey() };
+  // Use the date picker value; fall back to today if missing
+  const dateEl = document.getElementById('m-date');
+  const selectedDate = (dateEl && dateEl.value) ? dateEl.value : todayKey();
+  const entry = { date: selectedDate };
   const wRaw = +document.getElementById('m-weight').value;
   entry.weight = wRaw ? (imp ? displayToKg(wRaw) : wRaw) : null;
   entry.bf = +document.getElementById('m-bf').value || null;
@@ -10139,13 +10254,25 @@ function saveMetrics() {
     const v = +document.getElementById('m-'+k).value;
     entry[k] = v ? (imp ? displayToCm(v) : v) : null;
   });
-  State.metrics.push(entry);
-  if (entry.weight) State.profile.weight = entry.weight;
+  // Upsert: if an entry for the selected date already exists, update it
+  const existingIdx = State.metrics.findIndex(m => m.date === entry.date);
+  if (existingIdx !== -1) {
+    State.metrics[existingIdx] = Object.assign({}, State.metrics[existingIdx], entry);
+  } else {
+    State.metrics.push(entry);
+    // Keep metrics sorted by date so charts render correctly
+    State.metrics.sort((a, b) => (a.date > b.date ? 1 : -1));
+  }
+  // Only update profile weight if logging for today
+  if (entry.weight && entry.date === todayKey()) State.profile.weight = entry.weight;
   save();
   closeModal('modal-metrics');
   renderMeasurementsGrid();
   renderProgressCharts();
   refreshDashboard();
+  const label = entry.date === todayKey() ? 'today' :
+    new Date(entry.date + 'T12:00:00').toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  if (typeof showToast === 'function') showToast(`✅ Measurements saved for ${label}!`, 'success');
 }
 
 function renderMeasurementsGrid() {
