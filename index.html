@@ -336,6 +336,9 @@
       window._currentUser = null;
       // Clear Social profile so next user starts fresh
       if (window.Social) window.Social.myProfile = null;
+      // Stop challenge notifications and squad rank listeners
+      if (window._stopChallengeNotifListener) window._stopChallengeNotifListener();
+      if (window._squadRankTeardown) window._squadRankTeardown();
       document.getElementById('auth-screen').style.display = 'flex';
       document.getElementById('app-wrapper').style.display = 'none';
     }
@@ -4192,28 +4195,58 @@ function dismissSplash() {
           .participant-bubble:first-child { margin-left: 0; }
           .participant-bubble:hover { transform: scale(1.15); z-index: 2; }
 
+          /* ── Challenge Live Notification ─────────────────────────── */
+          #challenge-notif-banner {
+            position: fixed;
+            bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+            z-index: 9999;
+            min-width: 300px; max-width: 400px; width: calc(100% - 32px);
+            background: var(--bg-card);
+            border: 1.5px solid var(--accent);
+            border-radius: var(--radius);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+            padding: 0;
+            overflow: hidden;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.28s cubic-bezier(0.4,0,0.2,1), transform 0.28s cubic-bezier(0.4,0,0.2,1);
+          }
+          #challenge-notif-banner.visible {
+            opacity: 1; pointer-events: all;
+            transform: translateX(-50%) translateY(0);
+          }
+          .cnotif-accent-bar {
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent), var(--orange));
+          }
+          .cnotif-body {
+            display: flex; align-items: center; gap: 12px;
+            padding: 14px 16px;
+          }
+          .cnotif-icon {
+            font-size: 1.8rem; flex-shrink: 0;
+            animation: cnotifBounce 0.6s cubic-bezier(0.34,1.56,0.64,1) both;
+          }
+          @keyframes cnotifBounce {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+          }
+          .cnotif-text { flex: 1; min-width: 0; }
+          .cnotif-title {
+            font-family: var(--font-display);
+            font-size: 0.92rem; font-weight: 800;
+            color: var(--text-primary); margin-bottom: 2px;
+          }
+          .cnotif-sub {
+            font-size: 0.74rem; color: var(--text-secondary);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          }
+          .cnotif-actions {
+            display: flex; gap: 6px; padding: 0 16px 14px; justify-content: flex-end;
+          }
+
           /* Squad Rank live sync dot */
           .squad-rank-live-dot {
-            display: inline-block;
-            width: 7px; height: 7px;
-            border-radius: 50%;
-            background: var(--green);
-            margin-left: 5px;
-            vertical-align: middle;
-            animation: sqLivePulse 2s ease-in-out infinite;
-            flex-shrink: 0;
-          }
-          @keyframes sqLivePulse {
-            0%,100% { opacity: 1; transform: scale(1); }
-            50%      { opacity: 0.4; transform: scale(0.7); }
-          }
-          /* Hero stat Squad Rank tile loading shimmer */
-          .hero-stat-loading { opacity: 0.5; animation: sqShimmer 1.2s ease-in-out infinite; }
-          @keyframes sqShimmer { 0%,100%{opacity:0.5} 50%{opacity:0.9} }
-
-          /* Squad Train Together section */
-          #squad-train-section { margin-bottom: 20px; }
-          .squad-train-card {
             background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-elevated) 100%);
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
@@ -4360,7 +4393,7 @@ function dismissSplash() {
             </div>
             <div class="hero-stat">
               <div class="hero-stat-val" id="hero-squad-rank">—</div>
-              <div class="hero-stat-lbl" id="hero-squad-rank-lbl" style="display:flex;align-items:center;justify-content:center;gap:0">🏋️ Squad Rank<span class="squad-rank-live-dot" id="squad-rank-live-dot" style="display:none" title="Live — updates automatically"></span></div>
+              <div class="hero-stat-lbl" id="hero-squad-rank-lbl">🏋️ Squad Rank</div>
             </div>
           </div>
         </div>
@@ -4766,25 +4799,26 @@ function dismissSplash() {
             }
           }
 
-          // ── Squad Rank: handled by real-time _squadRankSync engine ─────────
-          // Just trigger a recompute with live data; the onSnapshot listeners
-          // keep it updated automatically from here on.
-          if (window._squadRankSync) {
-            window._squadRankSync();
-          } else {
-            // Fallback for first render before engine initialises
-            const elSR    = document.getElementById('hero-squad-rank');
-            const elSRLbl = document.getElementById('hero-squad-rank-lbl');
-            if (elSR) {
-              const allSquads = Social.squads || [];
-              const squadUids = new Set();
-              allSquads.forEach(sq => (sq.memberUids || []).forEach(uid => squadUids.add(uid)));
-              if (!me || squadUids.size === 0) {
-                elSR.textContent = '—';
-                if (elSRLbl) elSRLbl.innerHTML = '🏋️ Squad Rank';
-              } else {
-                elSR.textContent = '…';
-              }
+          // ── Squad Rank: rank among squad members only ──────────────────────
+          const elSR    = document.getElementById('hero-squad-rank');
+          const elSRLbl = document.getElementById('hero-squad-rank-lbl');
+          if (elSR) {
+            const metric = (Social.lbMetric) || 'workouts';
+            const metricLabelSq = metric === 'streak'   ? '🔥 Streak Rank'
+                                : metric === 'calories' ? '🎯 Cal Rank'
+                                : '💪 Sessions Rank';
+            if (elSRLbl) elSRLbl.textContent = '🏋️ Squad ' + (metric === 'streak' ? 'Streak' : metric === 'calories' ? 'Cal' : 'Rank');
+            const allSquads = Social.squads || [];
+            const squadUids = new Set();
+            allSquads.forEach(sq => (sq.memberUids || []).forEach(uid => squadUids.add(uid)));
+            if (!me || squadUids.size === 0) {
+              elSR.textContent = '—';
+              if (elSRLbl) elSRLbl.textContent = '🏋️ Squad Rank';
+            } else {
+              elSR.textContent = '…';
+              window._calcSquadRank(metric, me, [...squadUids])
+                .then(r => { elSR.textContent = r; })
+                .catch(() => { elSR.textContent = '—'; });
             }
           }
 
@@ -5039,165 +5073,40 @@ function dismissSplash() {
           }).join('<div style="border-top:1px solid var(--border)"></div>');
         };
 
-        // ─── Squad Rank Real-Time Sync Engine ───────────────────────────
-        // Keeps hero-squad-rank updated via Firestore onSnapshot listeners
-        // on each squad member's leaderboard doc. Re-wires itself whenever
-        // the squad composition or active metric changes.
-
-        let _squadRankUnsubs  = [];   // active onSnapshot unsubscribe fns
-        let _squadRankScores  = {};   // uid → score (live cache)
-        let _squadRankWatched = [];   // currently watched UIDs
-
-        // Unsubscribe all existing listeners
-        function _squadRankTeardown() {
-          _squadRankUnsubs.forEach(fn => { try { fn(); } catch(_) {} });
-          _squadRankUnsubs  = [];
-          _squadRankScores  = {};
-          _squadRankWatched = [];
-        }
-
-        // Recompute rank from live cache and write to DOM
-        function _squadRankRecompute() {
-          const me     = window._currentUser;
-          const elSR   = document.getElementById('hero-squad-rank');
-          const elSRLbl= document.getElementById('hero-squad-rank-lbl');
-          const liveDot= document.getElementById('squad-rank-live-dot');
-          const Social = window.Social || {};
-          const metric = Social.lbMetric || 'workouts';
-          const metricField = metric === 'streak' ? 'streak'
-                            : metric === 'calories' ? 'calGoalDays'
-                            : 'workouts';
-
-          // Update label
-          const labelBase = metric === 'streak' ? '🔥 Squad Streak'
-                          : metric === 'calories' ? '🎯 Squad Cal'
-                          : '🏋️ Squad Rank';
-
-          // Rebuild label element (keep live dot)
-          if (elSRLbl) {
-            elSRLbl.innerHTML = labelBase +
-              '<span class="squad-rank-live-dot" id="squad-rank-live-dot" ' +
-              'title="Live — updates automatically"></span>';
-          }
-
-          if (!me || !elSR) return;
-
-          const allSquads = Social.squads || [];
-          const squadUids = new Set();
-          allSquads.forEach(sq => (sq.memberUids || []).forEach(uid => squadUids.add(uid)));
-
-          if (squadUids.size === 0) {
-            elSR.textContent = '—';
-            elSR.classList.remove('hero-stat-loading');
-            const dot = document.getElementById('squad-rank-live-dot');
-            if (dot) dot.style.display = 'none';
-            return;
-          }
-
-          // Show live dot
-          const dot = document.getElementById('squad-rank-live-dot');
-          if (dot) dot.style.display = '';
-
-          // My live score
-          const myScores = (typeof calcAllLbScores === 'function') ? calcAllLbScores() : { workouts:0, streak:0, calGoalDays:0 };
-          const myScore  = myScores[metricField] || 0;
-
-          // Build sorted list: me + all squad members from live cache
-          const entries = [{ uid: me.uid, score: myScore }];
-          [...squadUids].forEach(uid => {
-            if (uid !== me.uid) {
-              entries.push({ uid, score: _squadRankScores[uid] || 0 });
-            }
-          });
-          entries.sort((a, b) => b.score - a.score);
-
-          const myIdx = entries.findIndex(e => e.uid === me.uid);
-          const rank  = myIdx >= 0 ? myIdx + 1 : entries.length;
-          elSR.textContent = '#' + rank + ' of ' + entries.length;
-          elSR.classList.remove('hero-stat-loading');
-        }
-
-        // Start/restart real-time listeners for the current squad UIDs
-        window._squadRankSync = function() {
-          const me     = window._currentUser;
-          const Social = window.Social || {};
-          const metric = Social.lbMetric || 'workouts';
-          const metricField = metric === 'streak' ? 'streak'
-                            : metric === 'calories' ? 'calGoalDays'
-                            : 'workouts';
-
-          const allSquads = Social.squads || [];
-          const squadUids = [...new Set(
-            allSquads.flatMap(sq => sq.memberUids || [])
-          )].filter(uid => uid !== (me && me.uid)); // exclude self (we compute live)
-
-          // If same UIDs already watched — just recompute
-          const same = squadUids.length === _squadRankWatched.length &&
-                       squadUids.every(uid => _squadRankWatched.includes(uid));
-          if (same && _squadRankUnsubs.length > 0) {
-            _squadRankRecompute();
-            return;
-          }
-
-          // Teardown old listeners and start fresh
-          _squadRankTeardown();
-          _squadRankWatched = [...squadUids];
-
-          if (!me || squadUids.length === 0) {
-            _squadRankRecompute();
-            return;
-          }
-
-          // Show loading shimmer
-          const elSR = document.getElementById('hero-squad-rank');
-          if (elSR) { elSR.textContent = '…'; elSR.classList.add('hero-stat-loading'); }
-
-          // Subscribe to each squad member's leaderboard doc
-          squadUids.forEach(uid => {
-            try {
-              const ref  = window._fbDoc(window._fbDb, 'leaderboard', uid);
-              const unsub = window._fbOnSnapshot(ref, snap => {
-                const data = snap.exists() ? snap.data() : {};
-                _squadRankScores[uid] = data[metricField] || 0;
-                _squadRankRecompute();
-              }, _err => {
-                // On permission error, score stays 0
-                _squadRankScores[uid] = 0;
-                _squadRankRecompute();
-              });
-              _squadRankUnsubs.push(unsub);
-            } catch(e) {
-              _squadRankScores[uid] = 0;
-            }
-          });
-
-          // Immediate first render with cached zeroes while listeners warm up
-          _squadRankRecompute();
-        };
-
-        // Also recalc when my own score changes (workout logged etc)
-        window._squadRankRefreshMyScore = function() {
-          if (_squadRankWatched.length > 0) _squadRankRecompute();
-        };
-
-        // Legacy one-shot helper kept for any external callers
+        // ─── Squad Rank Calculator ───────────────────────────────────────
+        // Fetches leaderboard docs for all squad member UIDs, adds the current
+        // user's live score, sorts by metric, and returns "#N of M" string.
         window._calcSquadRank = async function(metric, me, squadUids) {
           const metricField = metric === 'streak' ? 'streak'
                             : metric === 'calories' ? 'calGoalDays'
                             : 'workouts';
+
+          // My live score (never stale)
           const myScores = (typeof calcAllLbScores === 'function') ? calcAllLbScores() : { workouts:0, streak:0, calGoalDays:0 };
           const myScore  = myScores[metricField] || 0;
+
+          // Fetch each squad member's leaderboard doc in parallel
           const memberScores = await Promise.all(squadUids.map(async uid => {
             try {
               const snap = await window._fbGetDoc(window._fbDoc(window._fbDb, 'leaderboard', uid));
-              return { uid, score: snap.exists() ? (snap.data()[metricField] || 0) : 0 };
+              const score = snap.exists() ? (snap.data()[metricField] || 0) : 0;
+              return { uid, score };
             } catch(e) { return { uid, score: 0 }; }
           }));
+
+          // Build combined list: me + squad members (de-dupe in case me is in squad)
           const allEntries = [{ uid: me.uid, score: myScore }];
-          memberScores.forEach(m => { if (m.uid !== me.uid) allEntries.push(m); });
+          memberScores.forEach(m => {
+            if (m.uid !== me.uid) allEntries.push(m);
+          });
+
+          // Sort descending
           allEntries.sort((a, b) => b.score - a.score);
+
           const myIdx = allEntries.findIndex(e => e.uid === me.uid);
-          return '#' + (myIdx >= 0 ? myIdx + 1 : allEntries.length) + ' of ' + allEntries.length;
+          const rank  = myIdx >= 0 ? myIdx + 1 : allEntries.length;
+          const total = allEntries.length;
+          return '#' + rank + ' of ' + total;
         };
 
         // Hook into existing loadFriends if available
@@ -5205,31 +5114,6 @@ function dismissSplash() {
         window.renderSocialPage = async function() {
           if (typeof _origRSP === 'function') await _origRSP();
           window._updateSocialHeroStats();
-          // Start real-time squad rank sync whenever social page loads
-          window._squadRankSync();
-        };
-
-        // Re-sync when metric changes (leaderboard tab switches, etc.)
-        const _origSetLbMetric = window.setLbMetric;
-        if (typeof _origSetLbMetric === 'function') {
-          window.setLbMetric = function() {
-            _origSetLbMetric.apply(this, arguments);
-            window._squadRankSync();
-          };
-        }
-        const _origSetLbPeriod = window.setLbPeriod;
-        if (typeof _origSetLbPeriod === 'function') {
-          window.setLbPeriod = function() {
-            _origSetLbPeriod.apply(this, arguments);
-            window._squadRankSync();
-          };
-        }
-
-        // Teardown listeners on sign-out so they don't leak to next user
-        const _origFbSignOut = window._fbSignOut;
-        window._fbSignOut = async function() {
-          _squadRankTeardown();
-          if (typeof _origFbSignOut === 'function') return _origFbSignOut();
         };
         </script>
     </main>
@@ -7743,6 +7627,8 @@ function startApp() {
   }, 600);
   // Show weight reminder once per day if not yet logged
   setTimeout(checkWeightReminder, 2500);
+  // Start challenge notification listener
+  setTimeout(() => { if (window._startChallengeNotifListener) window._startChallengeNotifListener(); }, 1500);
 }
 
 function checkWeightReminder() {
@@ -9417,8 +9303,6 @@ function saveWorkout() {
   renderWorkoutPage();
   refreshDashboard();
   showToast('Workout saved! 💪', 'success');
-  // Refresh squad rank hero stat so my own score updates immediately
-  if (window._squadRankRefreshMyScore) window._squadRankRefreshMyScore();
 }
 
 function renderWorkoutHistory() {
@@ -18341,8 +18225,17 @@ function switchSocialTab(tab, btn) {
     if (el) el.style.display = t === tab ? '' : 'none';
   });
   if (tab === 'leaderboard') loadLeaderboard();
-  if (tab === 'challenges')  loadChallenges();
-  if (tab === 'squads')      { renderSquadsList(); if (window._squadRankSync) window._squadRankSync(); }
+  if (tab === 'challenges')  {
+    loadChallenges();
+    // Mark all current challenges seen and clear nav badge
+    setTimeout(() => {
+      (window.Social && window.Social.challenges || []).forEach(ch => {
+        if (typeof _cnotifMarkSeen === 'function') _cnotifMarkSeen(ch.id);
+      });
+      if (typeof _cnotifUpdateBadge === 'function') _cnotifUpdateBadge(0);
+    }, 500);
+  }
+  if (tab === 'squads')      renderSquadsList();
   if (tab === 'squad' && window._renderSquadProgressWall && window.Social) {
     const wallMembers = Social.squads.length
       ? Social.friends.filter(f => Social.squads[0].memberUids.includes(f.uid))
@@ -19039,10 +18932,16 @@ function renderSquadsList() {
         <div style="display:flex;gap:6px;flex-shrink:0">
           ${isOwner ? `<button class="btn btn-outline btn-sm" onclick="openEditSquad(${idx})">✏️</button>` : ''}
           <button class="btn btn-primary btn-sm" onclick="openChallengeForSquad(${idx})">🏆</button>
-          ${isOwner ? `<button onclick="deleteSquad(${idx})" title="Delete squad"
-            style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;padding:6px;border-radius:var(--radius-sm);line-height:1"
-            onmouseover="this.style.color='var(--red)';this.style.background='var(--red-dim)'"
-            onmouseout="this.style.color='var(--text-muted)';this.style.background='none'">🗑</button>` : ''}
+          ${isOwner
+            ? `<button onclick="deleteSquad(${idx})" title="Delete squad"
+                style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;padding:6px;border-radius:var(--radius-sm);line-height:1"
+                onmouseover="this.style.color='var(--red)';this.style.background='var(--red-dim)'"
+                onmouseout="this.style.color='var(--text-muted)';this.style.background='none'">🗑</button>`
+            : `<button onclick="leaveSquad('${sq.id}','${sq.name.replace(/'/g,"\\'")}')" title="Leave squad"
+                style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:0.78rem;font-weight:700;padding:6px 10px;border-radius:var(--radius-sm);line-height:1;border:1px solid var(--border)"
+                onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)';this.style.background='var(--red-dim)'"
+                onmouseout="this.style.color='var(--text-muted)';this.style.borderColor='var(--border)';this.style.background='none'">Leave</button>`
+          }
         </div>
       </div>
       ${memberRows ? `<div style="border-top:1px solid var(--border);padding-top:10px">${memberRows}</div>` : ''}
@@ -19144,6 +19043,49 @@ async function deleteSquad(idx) {
   renderSquadsList();
   renderFriendsList();
   showToast('Squad deleted', 'info');
+}
+
+// ── Leave a squad (non-owner only) ────────────────────────────────
+async function leaveSquad(squadId, squadName) {
+  const me = window._currentUser;
+  if (!me) return;
+  if (!confirm(`Leave squad "${squadName}"? You won't see it unless re-added.`)) return;
+
+  // Find the squad in local state
+  const idx = Social.squads.findIndex(sq => sq.id === squadId);
+  if (idx < 0) { showToast('Squad not found', 'warn'); return; }
+  const sq = Social.squads[idx];
+
+  // Safety: owners should delete, not leave
+  if (sq.ownerUid && sq.ownerUid === me.uid) {
+    showToast('You\'re the owner — delete the squad instead 🗑', 'warn');
+    return;
+  }
+
+  // Remove self from memberUids
+  const newUids = (sq.memberUids || []).filter(uid => uid !== me.uid);
+  try {
+    await window._fbSetDoc(
+      window._fbDoc(window._fbDb, 'squads', squadId),
+      { ...sq, memberUids: newUids, updatedAt: window._fbServerTs() }
+    );
+  } catch(e) {
+    console.warn('leaveSquad Firestore error', e);
+    showToast('Could not leave squad — check your connection', 'error');
+    return;
+  }
+
+  // Remove from local Social.squads
+  Social.squads.splice(idx, 1);
+  Social.squad = Social.squads.length ? _getSquadMemberProfiles(Social.squads[0]).filter(f => !f.isMe) : [];
+
+  // Tear down real-time sync so stale rank data is cleared
+  if (window._squadRankSync) window._squadRankSync();
+
+  renderSquadsList();
+  renderFriendsList();
+  updateChallengeInviteList();
+  showToast(`Left squad "${squadName}" 👋`, 'info');
 }
 
 // ── Open challenge modal pre-filled for a squad ───────────────────
@@ -19262,6 +19204,10 @@ async function createChallenge() {
       }
     );
     showToast(`Challenge "${name}" created! 🏆`, 'success');
+    // Mark as seen immediately for the creator so their own notif doesn't appear
+    if (typeof _cnotifMarkSeen === 'function') {
+      // We don't have the doc ID here; the listener will handle it via createdBy check
+    }
     closeModal('modal-create-challenge');
     document.getElementById('ch-name').value = '';
     switchSocialTab('challenges', document.querySelector('.social-tab[data-tab=challenges]'));
@@ -19271,6 +19217,158 @@ async function createChallenge() {
     showToast('Failed to create challenge', 'error');
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  CHALLENGE NOTIFICATION ENGINE
+//  • Real-time onSnapshot listener on challenges collection
+//  • Rich banner on new challenges (live + on first app open)
+//  • Persists "seen" IDs in localStorage so repeat opens don't re-notify
+// ═══════════════════════════════════════════════════════════════════
+
+let _challengeNotifUnsub = null;
+let _cnotifQueue         = [];
+let _cnotifShowing       = false;
+let _cnotifCurrentId     = null;
+
+function _cnotifSeenKey() {
+  const me = window._currentUser;
+  return me ? 'eddfit_seen_challenges_' + me.uid : null;
+}
+function _cnotifGetSeen() {
+  const k = _cnotifSeenKey();
+  if (!k) return new Set();
+  try { return new Set(JSON.parse(localStorage.getItem(k) || '[]')); } catch { return new Set(); }
+}
+function _cnotifMarkSeen(id) {
+  const k = _cnotifSeenKey();
+  if (!k) return;
+  try {
+    const seen = _cnotifGetSeen();
+    seen.add(id);
+    localStorage.setItem(k, JSON.stringify([...seen].slice(-200)));
+  } catch {}
+}
+
+function _cnotifShowNext() {
+  if (_cnotifShowing || !_cnotifQueue.length) return;
+  const ch = _cnotifQueue.shift();
+  _cnotifCurrentId = ch.id;
+  _cnotifMarkSeen(ch.id);
+
+  const banner = document.getElementById('challenge-notif-banner');
+  const iconEl = document.getElementById('cnotif-icon');
+  const titleEl= document.getElementById('cnotif-title');
+  const subEl  = document.getElementById('cnotif-sub');
+  if (!banner) return;
+
+  const typeIcons = { most_workouts:'💪', calorie_streak:'🔥', most_steps:'🏃', hiit_hero:'⚡' };
+  const icon = typeIcons[ch.type] || '🏆';
+  const creatorName = ch.createdByName || 'Someone';
+  const daysLeft = ch.end ? Math.max(0, Math.ceil((new Date(ch.end) - new Date()) / 86400000)) : null;
+
+  if (iconEl)  iconEl.textContent  = icon;
+  if (titleEl) titleEl.textContent = `${creatorName} challenged you! 🏆`;
+  if (subEl)   subEl.textContent   = `"${ch.name}"${daysLeft !== null ? ` · ${daysLeft} day${daysLeft!==1?'s':''} to go` : ''}`;
+
+  _cnotifShowing = true;
+  banner.classList.add('visible');
+  window._cnotifAutoDismiss = setTimeout(() => _cnotifDismiss(), 8000);
+}
+
+window._cnotifDismiss = function() {
+  const banner = document.getElementById('challenge-notif-banner');
+  if (banner) banner.classList.remove('visible');
+  clearTimeout(window._cnotifAutoDismiss);
+  _cnotifShowing   = false;
+  _cnotifCurrentId = null;
+  setTimeout(_cnotifShowNext, 600);
+};
+
+window._cnotifViewChallenge = function() {
+  _cnotifDismiss();
+  const navItem = document.querySelector('.nav-item[onclick*="social"]');
+  if (navItem) navItem.click();
+  setTimeout(() => {
+    const btn = document.querySelector('.social-tab[data-tab="challenges"]');
+    if (btn) btn.click();
+  }, 200);
+  if (typeof loadChallenges === 'function') setTimeout(loadChallenges, 400);
+};
+
+function _cnotifEnqueue(ch) {
+  const seen = _cnotifGetSeen();
+  if (seen.has(ch.id)) return;
+  const me = window._currentUser;
+  if (me && ch.createdBy === me.uid) { _cnotifMarkSeen(ch.id); return; }
+  _cnotifQueue.push(ch);
+  _cnotifShowNext();
+}
+
+function _cnotifUpdateBadge(count) {
+  const badge = document.getElementById('social-invite-badge');
+  if (badge) {
+    if (count > 0) { badge.textContent = count > 9 ? '9+' : count; badge.style.display = ''; }
+    else           { badge.style.display = 'none'; }
+  }
+}
+
+function _startChallengeNotifListener() {
+  const me = window._currentUser;
+  if (!me || !window._fbOnSnapshot || !window._fbCollection || !window._fbQuery || !window._fbWhere) return;
+  if (_challengeNotifUnsub) { try { _challengeNotifUnsub(); } catch {} _challengeNotifUnsub = null; }
+
+  try {
+    const q = window._fbQuery(
+      window._fbCollection(window._fbDb, 'challenges'),
+      window._fbWhere('participants', 'array-contains', me.uid)
+    );
+
+    let _firstSnap = true;
+
+    _challengeNotifUnsub = window._fbOnSnapshot(q, snap => {
+      snap.docChanges().forEach(change => {
+        if (change.type === 'added') {
+          const ch = { id: change.doc.id, ...change.doc.data() };
+          // On first snapshot: show for unseen (app open check)
+          // On subsequent: show immediately (live notification)
+          _cnotifEnqueue(ch);
+        }
+      });
+
+      if (_firstSnap) {
+        // Count truly unseen challenges for nav badge
+        const unseen = snap.docs.filter(d => {
+          const ch = { id: d.id, ...d.data() };
+          return !_cnotifGetSeen().has(ch.id) && ch.createdBy !== me.uid;
+        }).length;
+        _cnotifUpdateBadge(unseen);
+        _firstSnap = false;
+      }
+    }, err => console.warn('[ChallengeNotif] listener error', err));
+  } catch(e) {
+    console.warn('[ChallengeNotif] could not start listener', e);
+  }
+}
+
+function _stopChallengeNotifListener() {
+  if (_challengeNotifUnsub) { try { _challengeNotifUnsub(); } catch {} _challengeNotifUnsub = null; }
+  _cnotifQueue   = [];
+  _cnotifShowing = false;
+}
+
+window._startChallengeNotifListener = _startChallengeNotifListener;
+window._stopChallengeNotifListener  = _stopChallengeNotifListener;
+
+// ── Also mark challenges as seen when user opens the challenges tab ──
+(function() {
+  const _origSwitchSocialTab = window.switchSocialTab;
+  // Will be re-patched below after switchSocialTab is defined
+  // Use a document-level hook instead
+  document.addEventListener('_challengeTabOpen', () => {
+    (Social.challenges || []).forEach(ch => _cnotifMarkSeen(ch.id));
+    _cnotifUpdateBadge(0);
+  });
+})();
 
 async function loadChallenges() {
   const me = window._currentUser;
@@ -25804,7 +25902,23 @@ window.addEventListener('load', () => {
   _waitForState(25);
 });
 
-console.log('[DeloadSystem] EddFit Deload Week Engine v2 loaded — 10-signal detection, score-scaled formula, safety interlocks active.');
-})();
-</script>
+<!-- ── Challenge Live Notification Banner ── -->
+<div id="challenge-notif-banner" role="alert" aria-live="polite">
+  <div class="cnotif-accent-bar"></div>
+  <div class="cnotif-body">
+    <div class="cnotif-icon" id="cnotif-icon">🏆</div>
+    <div class="cnotif-text">
+      <div class="cnotif-title" id="cnotif-title">New Challenge!</div>
+      <div class="cnotif-sub"  id="cnotif-sub">Someone challenged you</div>
+    </div>
+    <button onclick="_cnotifDismiss()" aria-label="Dismiss"
+      style="background:none;border:none;font-size:1.1rem;cursor:pointer;color:var(--text-muted);padding:4px;border-radius:4px;flex-shrink:0;line-height:1"
+      onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
+  </div>
+  <div class="cnotif-actions">
+    <button onclick="_cnotifDismiss()" class="btn btn-ghost btn-sm" style="font-size:0.78rem">Later</button>
+    <button onclick="_cnotifViewChallenge()" class="btn btn-primary btn-sm" style="font-size:0.78rem">View Challenge 🏆</button>
+  </div>
+</div>
+
 </body>
