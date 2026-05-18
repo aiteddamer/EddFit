@@ -9168,6 +9168,26 @@ function removeSet(ei, si) {
   else { wdAutoSave(); renderWorkoutPage(); }
 }
 
+function copyLastSession(ei) {
+  const exs = wdGetActiveExercises();
+  const ex = exs[ei];
+  if (!ex) return;
+  const currentDate = (typeof currentDateKey !== 'undefined' && currentDateKey) || todayKey();
+  const past = (State.workouts || []).filter(w => w.date < currentDate);
+  past.sort((a, b) => b.date.localeCompare(a.date));
+  for (const w of past) {
+    const match = (w.exercises || []).find(e => e.name && e.name.toLowerCase() === ex.name.toLowerCase());
+    if (match && match.sets && match.sets.length) {
+      exs[ei].sets = match.sets.map(s => ({ ...s, done: false }));
+      wdAutoSave();
+      renderWorkoutPage();
+      showToast('Last session sets copied! 💪', 'success');
+      return;
+    }
+  }
+  showToast('No previous session found.', 'info');
+}
+
 function removeExercise(ei) {
   const exs = wdGetActiveExercises();
   exs.splice(ei,1);
@@ -16429,12 +16449,43 @@ function _enhancedRenderWorkoutPage() {
   document.getElementById('workout-summary-stats').textContent = `${currentExercises.length} exercises · ${doneSets}/${totalSets} sets done`;
   
   const muscles = [...new Set(currentExercises.map(e=>e.muscle))];
+  // ── Last Session helper ────────────────────────────────────────────────────
+  function getLastSessionForExercise(exName) {
+    const currentDate = currentDateKey || todayKey();
+    const past = (State.workouts || []).filter(w => w.date < currentDate);
+    past.sort((a, b) => b.date.localeCompare(a.date));
+    for (const w of past) {
+      const match = (w.exercises || []).find(e => e.name && e.name.toLowerCase() === exName.toLowerCase());
+      if (match && match.sets && match.sets.length) {
+        const dateLabel = new Date(w.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const setsText = match.sets.map(s => {
+          const wt = s.weight ? `${s.weight}${s.weightUnit || weightUnit()}` : '';
+          const rp = s.reps ? `×${s.reps}` : '';
+          return wt + rp;
+        }).filter(Boolean).join(' · ');
+        return { dateLabel, setsText, sets: match.sets };
+      }
+    }
+    return null;
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
   if (list) list.innerHTML = currentExercises.map((ex,ei) => {
     const done = ex.sets.filter(s=>s.done).length;
     const vol = (ex.sets||[]).reduce((s,set)=>s+setWeightKg(set)*(set.reps||0),0);
+    const lastSession = getLastSessionForExercise(ex.name);
+    const lastSessionHTML = lastSession
+      ? `<div style="display:flex;align-items:center;gap:8px;background:var(--bg-elevated);border-radius:var(--radius-sm);padding:7px 10px;margin-bottom:10px;flex-wrap:wrap">
+           <span style="font-size:0.68rem;color:var(--text-muted);white-space:nowrap">🕒 ${lastSession.dateLabel}</span>
+           <span style="font-size:0.72rem;color:var(--text-secondary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${lastSession.setsText}</span>
+           <button onclick="copyLastSession(${ei})" style="font-size:0.68rem;padding:3px 9px;border-radius:10px;border:1px solid var(--border);background:var(--accent-dim);color:var(--accent);cursor:pointer;white-space:nowrap;font-weight:700;flex-shrink:0">↙ Copy sets</button>
+         </div>`
+      : `<div style="display:flex;align-items:center;gap:6px;background:var(--bg-elevated);border-radius:var(--radius-sm);padding:7px 10px;margin-bottom:10px">
+           <span style="font-size:0.72rem;color:var(--text-muted)">💪 First time doing this — go crush it!</span>
+         </div>`;
     return `
       <div style="background:var(--bg-card);border:1px solid ${done===ex.sets.length&&done>0?'rgba(74,222,128,0.25)':'var(--border)'};border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;transition:border-color 0.2s">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <div>
             <div style="font-size:0.92rem;font-weight:700">${ex.name}</div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
@@ -16451,6 +16502,7 @@ function _enhancedRenderWorkoutPage() {
             <button class="btn-icon" onclick="removeExercise(${ei})" style="padding:6px 8px;font-size:0.75rem;color:var(--red);border-color:rgba(255,71,87,0.2)">✕</button>
           </div>
         </div>
+        ${lastSessionHTML}
         <table style="width:100%;border-collapse:collapse">
           <thead><tr>
             <th style="text-align:left;font-size:0.65rem;color:var(--text-muted);padding:0 8px 8px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;width:30px">#</th>
