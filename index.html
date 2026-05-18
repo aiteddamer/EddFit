@@ -20886,20 +20886,28 @@ function _bdgPRExercises() {
 }
 function _bdgCalHitDays(pctLow, pctHigh) {
   let hits = 0;
-  const goal = (State.targets||{}).calories || 2000;
-  Object.values(State.logs||{}).forEach(d => {
+  Object.entries(State.logs||{}).forEach(([dateKey, d]) => {
     let cal = 0;
     Object.values(d.meals||{}).forEach(m => m.forEach(f => cal += (f.cal||0)));
+    // Use that day's own target snapshot — never today's mutable target
+    const dayT = (typeof getTargetsForDay === 'function')
+      ? getTargetsForDay(dateKey)
+      : (State.targets || {});
+    const goal = (dayT.calories) || 2000;
     if (cal >= goal * pctLow && cal <= goal * pctHigh) hits++;
   });
   return hits;
 }
 function _bdgProteinHitDays(pctLow) {
   let hits = 0;
-  const goal = (State.targets||{}).protein || 150;
-  Object.values(State.logs||{}).forEach(d => {
+  Object.entries(State.logs||{}).forEach(([dateKey, d]) => {
     let p = 0;
     Object.values(d.meals||{}).forEach(m => m.forEach(f => p += (f.protein||0)));
+    // Use that day's own protein target snapshot
+    const dayT = (typeof getTargetsForDay === 'function')
+      ? getTargetsForDay(dateKey)
+      : (State.targets || {});
+    const goal = (dayT.protein) || 150;
     if (p >= goal * pctLow) hits++;
   });
   return hits;
@@ -26289,84 +26297,248 @@ window.addEventListener('load', () => {
   60%{transform:scale(1.1) rotate(8deg)}
   100%{transform:scale(1) rotate(0); animation-name:mascotIdle}
 }
-/* ── Welcome Screen ── */
+/* ── Welcome Screen — REBUILT ── */
 #tour-welcome {
   display:none; position:fixed; inset:0; z-index:9020;
-  background:var(--bg-base,#0a0b0f);
+  background:#07080d;
   flex-direction:column; align-items:center; justify-content:center;
-  animation:fadeInUp 0.5s ease both; padding:24px;
+  padding:28px 20px; overflow:hidden;
 }
 #tour-welcome.show { display:flex; }
-@keyframes fadeInUp {
-  from{opacity:0;transform:translateY(24px)}
-  to{opacity:1;transform:translateY(0)}
+
+/* Animated background grid */
+#tw-bg-grid {
+  position:absolute; inset:0; pointer-events:none; z-index:0;
+  background-image:
+    linear-gradient(rgba(232,255,71,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232,255,71,0.04) 1px, transparent 1px);
+  background-size:44px 44px;
+  animation:twGridScroll 18s linear infinite;
 }
+@keyframes twGridScroll {
+  from { background-position: 0 0; }
+  to   { background-position: 44px 44px; }
+}
+
+/* Glow orbs */
+#tw-orb-1 {
+  position:absolute; width:340px; height:340px; border-radius:50%;
+  background:radial-gradient(circle, rgba(232,255,71,0.12) 0%, transparent 70%);
+  top:-80px; left:50%; transform:translateX(-50%);
+  animation:twOrb1 6s ease-in-out infinite alternate; pointer-events:none; z-index:0;
+}
+#tw-orb-2 {
+  position:absolute; width:200px; height:200px; border-radius:50%;
+  background:radial-gradient(circle, rgba(139,92,246,0.14) 0%, transparent 70%);
+  bottom:40px; right:-40px;
+  animation:twOrb2 8s ease-in-out infinite alternate; pointer-events:none; z-index:0;
+}
+@keyframes twOrb1 { from{opacity:0.6;transform:translateX(-50%) scale(1)} to{opacity:1;transform:translateX(-50%) scale(1.15)} }
+@keyframes twOrb2 { from{opacity:0.4} to{opacity:0.9; transform:scale(1.2)} }
+
+/* Floating particles */
+.tw-particle {
+  position:absolute; border-radius:50%;
+  background:var(--accent,#e8ff47);
+  pointer-events:none; z-index:0; opacity:0;
+  animation:twFloat linear infinite;
+}
+@keyframes twFloat {
+  0%   { opacity:0;   transform:translateY(0)   scale(0.5); }
+  15%  { opacity:0.7; }
+  85%  { opacity:0.5; }
+  100% { opacity:0;   transform:translateY(-160px) scale(1.2); }
+}
+
+/* Content wrapper */
+#tw-content {
+  position:relative; z-index:1;
+  display:flex; flex-direction:column; align-items:center;
+  width:100%; max-width:380px;
+}
+
+/* Card */
+#tw-card {
+  background:rgba(255,255,255,0.038);
+  border:1px solid rgba(232,255,71,0.14);
+  border-radius:28px;
+  padding:32px 28px 26px;
+  width:100%;
+  backdrop-filter:blur(20px);
+  box-shadow:0 0 0 1px rgba(255,255,255,0.04) inset, 0 32px 80px rgba(0,0,0,0.6);
+  text-align:center;
+  animation:twCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes twCardIn {
+  from { opacity:0; transform:translateY(32px) scale(0.94); }
+  to   { opacity:1; transform:translateY(0)    scale(1); }
+}
+
+/* Badge chip */
+#tw-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  background:rgba(232,255,71,0.1);
+  border:1px solid rgba(232,255,71,0.25);
+  border-radius:20px; padding:5px 14px;
+  font-size:0.62rem; font-weight:800; letter-spacing:1.2px;
+  text-transform:uppercase; color:#e8ff47;
+  margin-bottom:20px;
+  animation:twCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) 0.1s both;
+}
+
+/* Mascot */
 .tw-mascot-big {
-  width:120px; height:150px;
+  width:130px; height:162px;
   animation:mascotIdle 3s ease-in-out infinite;
-  transform-origin:center bottom; margin-bottom:10px;
-  filter:drop-shadow(0 8px 24px rgba(232,255,71,0.3));
+  transform-origin:center bottom;
+  filter:drop-shadow(0 10px 28px rgba(232,255,71,0.35));
+  margin-bottom:6px;
+  animation:twMascotBounce 0.7s cubic-bezier(0.34,1.56,0.64,1) 0.2s both, mascotIdle 3s ease-in-out 1s infinite;
 }
+@keyframes twMascotBounce {
+  from { opacity:0; transform:translateY(20px) scale(0.85); }
+  to   { opacity:1; transform:translateY(0)    scale(1); }
+}
+
+/* Name tag under mascot */
+#tw-nametag {
+  display:inline-block;
+  background:rgba(232,255,71,0.12);
+  border:1px solid rgba(232,255,71,0.3);
+  border-radius:12px; padding:4px 14px;
+  font-size:0.72rem; font-weight:700;
+  color:#e8ff47; letter-spacing:0.5px;
+  margin-bottom:18px;
+  animation:twCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) 0.3s both;
+}
+
+/* Title */
 .tw-title {
   font-family:var(--font-display,'Syne',sans-serif);
-  font-size:1.9rem; font-weight:800; color:var(--text-primary,#fff);
-  margin-bottom:6px; text-align:center;
+  font-size:1.75rem; font-weight:800;
+  color:#fff; line-height:1.1;
+  margin-bottom:8px;
+  animation:twCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) 0.35s both;
 }
-.tw-title span { color:var(--accent,#e8ff47); }
+.tw-title span { color:#e8ff47; }
+
+/* Subtitle */
 .tw-sub {
-  font-size:0.88rem; color:var(--text-secondary,#888);
-  text-align:center; max-width:310px; line-height:1.65;
-  margin-bottom:26px;
+  font-size:0.83rem; color:rgba(255,255,255,0.52);
+  line-height:1.7; margin-bottom:24px;
+  animation:twCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) 0.4s both;
 }
+
+/* Feature pills */
+#tw-pills {
+  display:flex; gap:7px; flex-wrap:wrap; justify-content:center;
+  margin-bottom:24px;
+  animation:twCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) 0.45s both;
+}
+.tw-pill {
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:20px; padding:5px 12px;
+  font-size:0.67rem; font-weight:600;
+  color:rgba(255,255,255,0.65); white-space:nowrap;
+}
+
+/* CTA Button */
 .tw-start-btn {
   font-family:var(--font-display,'Syne',sans-serif);
-  font-size:1rem; font-weight:800;
-  background:var(--accent,#e8ff47); color:#111;
-  border:none; border-radius:30px; padding:14px 38px;
-  cursor:pointer; box-shadow:0 4px 24px rgba(232,255,71,0.3);
-  transition:transform 0.2s,box-shadow 0.2s; margin-bottom:12px;
+  font-size:0.95rem; font-weight:800;
+  background:#e8ff47; color:#0d0e12;
+  border:none; border-radius:50px;
+  padding:15px 0; width:100%;
+  cursor:pointer;
+  box-shadow:0 0 0 0 rgba(232,255,71,0.4);
+  transition:transform 0.18s, box-shadow 0.18s;
+  position:relative; overflow:hidden;
+  animation:twCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) 0.5s both;
+  letter-spacing:0.3px;
 }
-.tw-start-btn:hover { transform:translateY(-2px) scale(1.04); box-shadow:0 8px 32px rgba(232,255,71,0.4); }
+.tw-start-btn::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
+  transform:translateX(-100%);
+  transition:transform 0.5s;
+}
+.tw-start-btn:hover { transform:translateY(-2px) scale(1.02); box-shadow:0 8px 32px rgba(232,255,71,0.45); }
+.tw-start-btn:hover::after { transform:translateX(100%); }
+.tw-start-btn:active { transform:scale(0.97); }
+
+/* Skip link */
 .tw-skip-link {
-  font-size:0.76rem; color:var(--text-muted,#4a5168);
+  font-size:0.72rem; color:rgba(255,255,255,0.28);
   background:none; border:none; cursor:pointer;
-  text-decoration:underline; transition:color 0.2s;
+  margin-top:14px; transition:color 0.2s;
+  font-family:var(--font-body,sans-serif);
+  animation:twCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) 0.55s both;
 }
-.tw-skip-link:hover { color:var(--text-secondary,#888); }
-/* Light mode */
+.tw-skip-link:hover { color:rgba(255,255,255,0.55); }
+
+/* Light mode adjustments */
 html:not(.dark) #tour-bubble::after { border-top-color:#fff; }
 html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
+html:not(.dark) #tour-welcome { background:#f0f1f5; }
+html:not(.dark) #tw-bg-grid {
+  background-image:
+    linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px);
+}
+html:not(.dark) #tw-card {
+  background:rgba(255,255,255,0.85);
+  border-color:rgba(0,0,0,0.08);
+  box-shadow:0 32px 80px rgba(0,0,0,0.12);
+}
+html:not(.dark) .tw-title { color:#0d0e12; }
+html:not(.dark) .tw-sub { color:rgba(0,0,0,0.52); }
+html:not(.dark) .tw-pill { background:rgba(0,0,0,0.04); border-color:rgba(0,0,0,0.08); color:rgba(0,0,0,0.6); }
+html:not(.dark) .tw-skip-link { color:rgba(0,0,0,0.32); }
+html:not(.dark) #tw-orb-1 { background:radial-gradient(circle, rgba(232,255,71,0.2) 0%, transparent 70%); }
 </style>
 
-<!-- Welcome screen -->
+<!-- Welcome screen — REBUILT -->
 <div id="tour-welcome">
-  <svg class="tw-mascot-big" viewBox="0 0 140 178" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <radialGradient id="skinG" cx="50%" cy="40%" r="60%">
-        <stop offset="0%" stop-color="#E8936A"/>
-        <stop offset="100%" stop-color="#C4693A"/>
-      </radialGradient>
-      <radialGradient id="skinDarkG" cx="50%" cy="50%" r="60%">
-        <stop offset="0%" stop-color="#D07848"/>
-        <stop offset="100%" stop-color="#A85530"/>
-      </radialGradient>
-      <radialGradient id="torsoG" cx="50%" cy="30%" r="70%">
-        <stop offset="0%" stop-color="#E0804A"/>
-        <stop offset="100%" stop-color="#B55E2A"/>
-      </radialGradient>
-      <linearGradient id="shortG" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stop-color="#8B5CF6"/>
-        <stop offset="100%" stop-color="#5B21B6"/>
-      </linearGradient>
-      <linearGradient id="shoeG" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stop-color="#2D2D2D"/>
-        <stop offset="100%" stop-color="#111"/>
-      </linearGradient>
-      <filter id="glow">
-        <feGaussianBlur stdDeviation="2.5" result="blur"/>
-        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-      </filter>
-    </defs>
+  <!-- Background layers -->
+  <div id="tw-bg-grid"></div>
+  <div id="tw-orb-1"></div>
+  <div id="tw-orb-2"></div>
+  <!-- Floating particles (injected by JS) -->
+
+  <div id="tw-content">
+    <!-- Top badge -->
+    <div id="tw-badge">⚡ EddFit Coach</div>
+
+    <div id="tw-card">
+      <!-- Mascot SVG — big version -->
+      <svg class="tw-mascot-big" viewBox="0 0 140 178" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="skinG" cx="50%" cy="40%" r="60%">
+            <stop offset="0%" stop-color="#E8936A"/>
+            <stop offset="100%" stop-color="#C4693A"/>
+          </radialGradient>
+          <radialGradient id="skinDarkG" cx="50%" cy="50%" r="60%">
+            <stop offset="0%" stop-color="#D07848"/>
+            <stop offset="100%" stop-color="#A85530"/>
+          </radialGradient>
+          <radialGradient id="torsoG" cx="50%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#E0804A"/>
+            <stop offset="100%" stop-color="#B55E2A"/>
+          </radialGradient>
+          <linearGradient id="shortG" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#8B5CF6"/>
+            <stop offset="100%" stop-color="#5B21B6"/>
+          </linearGradient>
+          <linearGradient id="shoeG" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#2D2D2D"/>
+            <stop offset="100%" stop-color="#111"/>
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
 
     <!-- ── SHOES (Nike-style) ── -->
     <ellipse cx="55" cy="174" rx="16" ry="6" fill="url(#shoeG)"/>
@@ -26523,11 +26695,31 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
       <path d="M110 2 L111 0 L112 2 L114 3 L112 4 L111 6 L110 4 L108 3 Z" fill="#E8FF47" opacity="0.7"/>
       <path d="M18 8 L19 5 L20 8 L23 9 L20 10 L19 13 L18 10 L15 9 Z" fill="#E8FF47" opacity="0.65"/>
     </g>
-  </svg>
-  <div class="tw-title">Hey, I'm <span>Ayman!</span> 💪</div>
-  <div class="tw-sub">I'm your personal EddFit coach. Let me walk you through every feature so you can crush your goals from day one!</div>
-  <button class="tw-start-btn" onclick="tourStart()">Show Me Around! 🚀</button>
-  <button class="tw-skip-link" onclick="tourSkip()">Skip — I'll explore myself</button>
+      </svg>
+
+      <!-- Name tag -->
+      <div id="tw-nametag">👋 Hey, I'm Ayman!</div>
+
+      <!-- Title -->
+      <div class="tw-title">Your Personal <span>EddFit</span> Coach</div>
+      <div class="tw-sub">I'll walk you through every feature in 2 minutes — so you can start crushing your goals today.</div>
+
+      <!-- Feature pills -->
+      <div id="tw-pills">
+        <span class="tw-pill">🍽️ Nutrition</span>
+        <span class="tw-pill">💪 Workouts</span>
+        <span class="tw-pill">📈 Progress</span>
+        <span class="tw-pill">🏆 Challenges</span>
+        <span class="tw-pill">🎖️ Badges</span>
+        <span class="tw-pill">👥 Social</span>
+      </div>
+
+      <!-- CTA -->
+      <button class="tw-start-btn" onclick="tourStart()">Show Me Around! 🚀</button>
+    </div><!-- /#tw-card -->
+
+    <button class="tw-skip-link" onclick="tourSkip()">Skip — I'll explore on my own</button>
+  </div><!-- /#tw-content -->
 </div>
 
 <!-- Overlay: backdrop + highlight box -->
@@ -26962,12 +27154,35 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
   let highlightEl = null;
   let _resizeTimer = null;
 
+  // ── Particle spawner ────────────────────────────────────────────────
+  function spawnParticles() {
+    const welcome = document.getElementById('tour-welcome');
+    if (!welcome) return;
+    // Remove old particles
+    welcome.querySelectorAll('.tw-particle').forEach(p => p.remove());
+    const count = 14;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'tw-particle';
+      const size = Math.random() * 4 + 2;
+      p.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${Math.random() * 100}%;
+        bottom:${Math.random() * 30}%;
+        animation-duration:${3 + Math.random() * 4}s;
+        animation-delay:${Math.random() * 4}s;
+        opacity:0;
+      `;
+      welcome.appendChild(p);
+    }
+  }
+
   // ── Public API ──────────────────────────────────────────────────────
   window.tourMaybeShow = function() {
     if (localStorage.getItem(TOUR_KEY)) return;
     setTimeout(() => {
       const w = document.getElementById('tour-welcome');
-      if (w) w.classList.add('show');
+      if (w) { w.classList.add('show'); spawnParticles(); }
     }, 900);
   };
 
@@ -27160,7 +27375,14 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
   window.restartTour = function() {
     localStorage.removeItem(TOUR_KEY);
     currentStep = 0;
-    window.tourMaybeShow();
+    if (typeof navigate === 'function') {
+      const dashNav = document.querySelector('.nav-item[onclick*="dashboard"]');
+      navigate('dashboard', dashNav || document.querySelector('.nav-item'));
+    }
+    setTimeout(() => {
+      const w = document.getElementById('tour-welcome');
+      if (w) { w.classList.add('show'); spawnParticles(); }
+    }, 350);
   };
 
 })();
