@@ -3853,7 +3853,7 @@ function dismissSplash() {
         </div>
 
         <div style="font-size:0.7rem;color:var(--text-muted);text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-          Only users who opt in are shown · Scores update on each visit · Top 50 shown · Resets monthly
+          Only users who opt in are shown · Scores update on each visit · Top 50 shown · All-time totals · Never resets
         </div>
       </div>
 
@@ -10060,14 +10060,43 @@ let progressRange = 'week';
 
 function setProgressRange(range, btn) {
   progressRange = range;
-  document.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));
+  // Only reset buttons that are siblings of this button (progress section only)
+  const parent = btn.closest('div');
+  if (parent) {
+    parent.querySelectorAll('.toggle-btn').forEach(b => {
+      b.classList.remove('active');
+      b.style.borderColor = 'var(--border)';
+      b.style.background = 'var(--bg-elevated)';
+      b.style.color = 'var(--text-secondary)';
+    });
+  }
   btn.classList.add('active');
+  btn.style.borderColor = 'var(--accent)';
+  btn.style.background = 'var(--accent-dim)';
+  btn.style.color = 'var(--accent)';
   renderProgressCharts();
+  if (typeof renderBfChart === 'function') renderBfChart();
 }
 
 function renderProgressCharts() {
   const wU = weightUnit();
-  // Stats
+
+  // ── Date cutoff based on selected range ──────────────────────────
+  const now = new Date();
+  let cutoff = null;
+  if (progressRange === 'week') {
+    cutoff = new Date(now); cutoff.setDate(now.getDate() - 7);
+  } else if (progressRange === 'month') {
+    cutoff = new Date(now); cutoff.setDate(now.getDate() - 30);
+  }
+  // 'all' => cutoff stays null (no filtering)
+
+  function inRange(dateStr) {
+    if (!cutoff) return true;
+    return new Date(dateStr) >= cutoff;
+  }
+
+  // Stats — always show all-time totals for the summary cards
   const allMetrics = State.metrics.filter(m=>m.weight);
   if (allMetrics.length) {
     const startKg = allMetrics[0].weight;
@@ -10082,18 +10111,26 @@ function renderProgressCharts() {
     safeText('prog-change-pct', (change<=0?'lost':'gained') + ' ' + wU);
     safeStyle('prog-change', 'color', change<=0?'var(--green)':'var(--red)');
   }
-  document.getElementById('prog-workouts-total').textContent = State.workouts.length;
 
-  // Weight chart — convert to display unit
-  const weightData = State.metrics.filter(m=>m.weight).map(m=>({
-    date: m.date, weight: kgToDisplay(m.weight)
-  }));
+  // Workouts count filtered by range
+  const filteredWorkouts = State.workouts.filter(w => inRange(w.date || w.createdAt || ''));
+  const wEl = document.getElementById('prog-workouts-total');
+  if (wEl) wEl.textContent = progressRange === 'all' ? State.workouts.length : filteredWorkouts.length;
+
+  // Weight chart — filtered by range
+  const weightData = State.metrics
+    .filter(m => m.weight && inRange(m.date))
+    .map(m => ({ date: m.date, weight: kgToDisplay(m.weight) }));
   renderLineChart('weight-chart', weightData, 'weight', '#00e5ff', 'wGrad');
 
-  // Calorie chart
-  const calData = Object.entries(State.logs).map(([date,log]) => ({
-    date, value: Object.values(log.meals).flat().reduce((s,f)=>s+f.cal,0)
-  })).filter(d=>d.value>0).slice(-14);
+  // Calorie chart — filtered by range
+  const calData = Object.entries(State.logs)
+    .filter(([date]) => inRange(date))
+    .map(([date, log]) => ({
+      date, value: Object.values(log.meals||{}).flat().reduce((s,f)=>s+(f.cal||0), 0)
+    }))
+    .filter(d => d.value > 0)
+    .sort((a,b) => a.date.localeCompare(b.date));
   renderLineChart('cal-chart', calData, 'value', '#3d8bff', 'calGrad');
 }
 
@@ -10663,10 +10700,14 @@ function saveLeaderboardPrivacy(isPublic) {
     const listEl = document.getElementById('glb-leaderboard-list');
     if (listEl) loadGlobalLeaderboard();
   }
-  // If they opted out, remove their entry from Firestore
+  // If they opted out, remove their entry from Firestore (alltime collection)
   if (!isPublic) {
     const me = window._currentUser;
     if (me) {
+      try {
+        window._fbDeleteDoc(window._fbDoc(window._fbDb, 'leaderboard_alltime', me.uid));
+      } catch(e) {}
+      // Also clean up old monthly collection entry if it exists
       try {
         window._fbDeleteDoc(window._fbDoc(window._fbDb, 'leaderboard', me.uid));
       } catch(e) {}
@@ -12684,10 +12725,16 @@ function renderRecordsPage() {
 //  BODY COMPOSITION CHART
 // ═══════════════════════════════════════════════════════════════════
 function renderBfChart() {
-  const bfData = State.metrics.filter(m=>m.bf!=null && m.bf>0).map(m=>({date:m.date,val:+m.bf}));
+  const now = new Date();
+  let cutoff = null;
+  if (progressRange === 'week')  { cutoff = new Date(now); cutoff.setDate(now.getDate() - 7); }
+  if (progressRange === 'month') { cutoff = new Date(now); cutoff.setDate(now.getDate() - 30); }
+
+  const bfData = State.metrics
+    .filter(m => m.bf != null && m.bf > 0 && (!cutoff || new Date(m.date) >= cutoff))
+    .map(m => ({ date: m.date, value: +m.bf }));
   if (bfData.length < 2) return;
-  renderLineChart('bf-chart','bf-chart-grid','bf-chart-area','bf-chart-line','bf-chart-dots','bf-chart-labels',
-    bfData, 'bfGrad', 'var(--purple)', 'val', d=>d.val+'%');
+  renderLineChart('bf-chart', bfData, 'value', 'var(--purple)', 'bfGrad');
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -22709,6 +22756,22 @@ async function _loadTrophyCase() {
   }
 }
 
+// ── All-time score calculator (no date range filter) ─────────────────────────
+function calcAllTimeScores() {
+  // Total workouts ever logged (with at least one exercise)
+  const workouts = (State.workouts || []).filter(w => w.exercises?.length > 0).length;
+  // Current streak (already global)
+  const streak = State.streak || 0;
+  // Calorie goal days — across ALL logged days ever
+  let calGoalDays = 0;
+  for (const [k, log] of Object.entries(State.logs || {})) {
+    const cal = Object.values(log.meals || {}).flat().reduce((s, f) => s + (f.cal || 0), 0);
+    const dayT = (typeof getTargetsForDay === 'function') ? getTargetsForDay(k) : (State.targets || {});
+    if (cal >= (dayT.calories || 2000) * 0.9) calGoalDays++;
+  }
+  return { workouts, streak, calGoalDays };
+}
+
 // ── Main load function ───────────────────────────────────────────────────────
 window.loadGlobalLeaderboard = async function() {
   const list = document.getElementById('glb-leaderboard-list');
@@ -22723,7 +22786,11 @@ window.loadGlobalLeaderboard = async function() {
   if (_lbGlbEl)  _lbGlbEl.checked  = _lbPub;
   _syncLeaderboardPrivacyUI(_lbPub);
 
-  _updateSeasonUI(); // Always runs synchronously — season label never stays stuck
+  // Update header to say "All Time" (not a monthly season)
+  const labelEl = document.getElementById('glb-season-label');
+  const countdownEl = document.getElementById('glb-season-countdown');
+  if (labelEl) labelEl.textContent = '🏆 All Time Global Rankings';
+  if (countdownEl) countdownEl.textContent = 'Never resets';
 
   const me = window._currentUser;
   if (!me) {
@@ -22734,16 +22801,14 @@ window.loadGlobalLeaderboard = async function() {
   list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-size:0.85rem"><div style="font-size:2rem;margin-bottom:8px">⏳</div>Loading leaderboard…</div>';
   if (myRankCard) myRankCard.style.display = 'none';
 
-  // Check & handle monthly reset — wrapped in try/catch so a blocked leaderboard_meta never stalls the page
-  try { await _checkAndHandleSeasonReset(); } catch(e) { console.warn('season reset skipped:', e); }
-
-  // Push own score for this season — only if user opted in
+  // Push own ALL-TIME score — only if user opted in
+  // Uses 'leaderboard_alltime' collection so monthly season resets never wipe it
   const _lbPublic = !!(State.prefs && State.prefs.leaderboardPublic);
   if (_lbPublic) {
     try {
-      const myScores = (typeof calcAllLbScores === 'function') ? calcAllLbScores() : { workouts:0, streak:0, calGoalDays:0 };
+      const myScores = calcAllTimeScores();
       await window._fbSetDoc(
-        window._fbDoc(window._fbDb, 'leaderboard', me.uid),
+        window._fbDoc(window._fbDb, 'leaderboard_alltime', me.uid),
         {
           uid:         me.uid,
           name:        me.displayName || me.email || 'Anonymous',
@@ -22751,7 +22816,6 @@ window.loadGlobalLeaderboard = async function() {
           workouts:    myScores.workouts,
           streak:      myScores.streak,
           calGoalDays: myScores.calGoalDays,
-          season:      _currentSeasonKey(),
           updatedAt:   window._fbServerTs(),
           public:      true,
         },
@@ -22760,13 +22824,13 @@ window.loadGlobalLeaderboard = async function() {
     } catch(e) { console.warn('glb score push error', e); }
   }
 
-  // Fetch current season scores
+  // Fetch all-time scores from the permanent collection
   try {
     const _lbTimeout = (promise, ms) => Promise.race([
       promise,
       new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), {code:'timeout'})), ms))
     ]);
-    const snap = await _lbTimeout(window._fbGetDocs(window._fbCollection(window._fbDb, 'leaderboard')), 8000);
+    const snap = await _lbTimeout(window._fbGetDocs(window._fbCollection(window._fbDb, 'leaderboard_alltime')), 8000);
 
     if (snap.empty) {
       list.innerHTML = `<div class="empty-state"><div class="es-icon">📭</div><div class="es-text">No users on the leaderboard yet — be the first!<br><span style="font-size:0.78rem;color:var(--text-muted)">Enable 'Global Leaderboard' in Settings to appear here.</span></div></div>`;
@@ -22788,7 +22852,6 @@ window.loadGlobalLeaderboard = async function() {
           public:      !!data.public,
         };
       })
-      // Only show users who opted in (public: true)
       .filter(e => e.public);
 
     window._glbCache = allEntries;
@@ -22806,7 +22869,7 @@ window.loadGlobalLeaderboard = async function() {
     let icon = '⚠️', msg = '';
     if (code === 'permission-denied') {
       icon = '🔒';
-      msg = 'Firestore rules are blocking the leaderboard. Ask your admin to allow reads on the <code>leaderboard</code> collection.';
+      msg = 'Firestore rules are blocking the leaderboard. Allow reads on the <code>leaderboard_alltime</code> collection.';
     } else if (code === 'timeout') {
       icon = '⏱️';
       msg = 'Leaderboard took too long to load. Check your connection and try refreshing.';
@@ -22842,7 +22905,7 @@ function _renderGlobalLeaderboard(allEntries) {
       document.getElementById('glb-my-rank-medal').textContent =
         rankNum === 1 ? '🥇' : rankNum === 2 ? '🥈' : rankNum === 3 ? '🥉' : `#${rankNum}`;
       document.getElementById('glb-my-rank-name').textContent = myEntry.name + ' (you)';
-      document.getElementById('glb-my-rank-sub').textContent  = `Ranked ${rankNum} of ${allEntries.length} · ${_seasonLabel(_currentSeasonKey())} season`;
+      document.getElementById('glb-my-rank-sub').textContent  = `Ranked #${rankNum} of ${allEntries.length} · All Time`;
       document.getElementById('glb-my-rank-score').textContent = myEntry[metric] || 0;
       document.getElementById('glb-my-rank-unit').textContent  = unit;
     }
@@ -26477,11 +26540,6 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
     <path d="M42 24 Q70 19 98 24 Q97 29 70 27 Q43 29 42 24 Z" fill="url(#headbandG)" opacity="0.92"/>
     <path d="M43 24 Q70 20 97 24" fill="none" stroke="#00E5FF" stroke-width="1" opacity="0.6"/>
 
-    <!-- ── BEARD (clean fade) ── -->
-    <path d="M49 50 Q70 63 91 50 Q89 59 79 64 Q70 67 61 64 Q51 59 49 50 Z" fill="#1C0F05" opacity="0.5"/>
-    <!-- Mustache -->
-    <path d="M59 47 Q65 51 70 50 Q75 51 81 47" fill="none" stroke="#1C0F05" stroke-width="2.8" stroke-linecap="round" opacity="0.65"/>
-
     <!-- ── EYES ── -->
     <ellipse cx="56" cy="33" rx="7.5" ry="6" fill="white"/>
     <ellipse cx="84" cy="33" rx="7.5" ry="6" fill="white"/>
@@ -26504,12 +26562,14 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
     <ellipse cx="66.5" cy="44" rx="2.8" ry="2" fill="#C8723E" opacity="0.28"/>
     <ellipse cx="73.5" cy="44" rx="2.8" ry="2" fill="#C8723E" opacity="0.28"/>
 
-    <!-- ── MOUTH (big confident smile) ── -->
-    <path d="M57 51 Q70 63 83 51" fill="#1C0F05"/>
-    <path d="M60 52 Q70 61 80 52 L80 56 Q70 65 60 56 Z" fill="white"/>
+    <!-- ── MOUTH (big clean smile) ── -->
+    <path d="M58 48 Q70 58 82 48" fill="#1C0F05"/>
+    <path d="M61 49 Q70 57 79 49 L79 53 Q70 61 61 53 Z" fill="white"/>
+    <!-- Upper lip line -->
+    <path d="M62 48 Q66 46 70 47 Q74 46 78 48" fill="none" stroke="#C8723E" stroke-width="1.2" opacity="0.4" stroke-linecap="round"/>
     <!-- Smile dimples -->
-    <circle cx="57" cy="52" r="2" fill="#C8723E" opacity="0.3"/>
-    <circle cx="83" cy="52" r="2" fill="#C8723E" opacity="0.3"/>
+    <circle cx="58" cy="49" r="2" fill="#C8723E" opacity="0.28"/>
+    <circle cx="82" cy="49" r="2" fill="#C8723E" opacity="0.28"/>
 
     <!-- ── SPARKLES (cyan) ── -->
     <g filter="url(#glow)">
@@ -26633,11 +26693,6 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
     <!-- HEADBAND (cyan) -->
     <path d="M32 20 Q55 15 78 20 Q77 25 55 23 Q33 25 32 20 Z" fill="url(#tHbG)" opacity="0.9"/>
 
-    <!-- Beard -->
-    <path d="M37 41 Q55 52 73 41 Q71 48 62 52 Q55 54 48 52 Q39 48 37 41 Z" fill="#1C0F05" opacity="0.48"/>
-    <!-- Mustache -->
-    <path d="M46 38 Q51 42 55 41 Q59 42 64 38" fill="none" stroke="#1C0F05" stroke-width="2.2" stroke-linecap="round" opacity="0.62"/>
-
     <!-- Eyes -->
     <ellipse cx="44" cy="27" rx="6" ry="5" fill="white"/>
     <ellipse cx="66" cy="27" rx="6" ry="5" fill="white"/>
@@ -26659,11 +26714,13 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
     <ellipse cx="52.5" cy="35.5" rx="2.2" ry="1.5" fill="#C8723E" opacity="0.26"/>
     <ellipse cx="57.5" cy="35.5" rx="2.2" ry="1.5" fill="#C8723E" opacity="0.26"/>
 
-    <!-- Mouth — big friendly smile -->
-    <path d="M45 42 Q55 52 65 42" fill="#1C0F05"/>
-    <path d="M48 43 Q55 50 62 43 L62 46 Q55 53 48 46 Z" fill="white"/>
-    <circle cx="45" cy="42" r="1.8" fill="#C8723E" opacity="0.28"/>
-    <circle cx="65" cy="42" r="1.8" fill="#C8723E" opacity="0.28"/>
+    <!-- Mouth — clean big smile -->
+    <path d="M46 39 Q55 48 64 39" fill="#1C0F05"/>
+    <path d="M49 40 Q55 47 61 40 L61 43 Q55 50 49 43 Z" fill="white"/>
+    <!-- Upper lip -->
+    <path d="M50 39 Q53 37 55 38 Q57 37 60 39" fill="none" stroke="#C8723E" stroke-width="1" opacity="0.38" stroke-linecap="round"/>
+    <circle cx="46" cy="40" r="1.5" fill="#C8723E" opacity="0.25"/>
+    <circle cx="64" cy="40" r="1.5" fill="#C8723E" opacity="0.25"/>
 
     <!-- ══ POSE GROUPS ══ -->
 
