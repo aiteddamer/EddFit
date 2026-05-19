@@ -308,6 +308,7 @@
         profile:{}, targets:{calories:2000,protein:150,carbs:225,fat:67},
         logs:{}, workouts:[], metrics:[], goals:[], recipes:[],
         customFoods:[], mealPlan:{}, currentWorkout:[], streak:0,
+        freezes:4, freezeMonth:new Date().getMonth(),
         prefs:{reminders:false,macros:true}, pantry:{}
       });
       document.getElementById('auth-screen').style.display = 'none';
@@ -6123,6 +6124,9 @@ window._loadFirestore = async function() {
       if (!State.recipes)  State.recipes  = [];
       if (!State.customFoods) State.customFoods = [];
       if (!State.pantry)     State.pantry     = {};
+      if (!State.frozenDays) State.frozenDays = [];
+      if (!('freezes' in State)) State.freezes = 4;
+      if (!('freezeMonth' in State)) State.freezeMonth = new Date().getMonth();
       hideSyncStatus();
       const _sl = document.getElementById('sync-loading-screen');
       if (_sl) _sl.style.display = 'none';
@@ -7672,7 +7676,7 @@ function startApp() {
   if (typeof migrateTargetHistory === 'function') migrateTargetHistory();
   navigate('dashboard', document.querySelector('.nav-item'));
   calcStreak();
-  // Force reflow so the browser commits display:block before we paint values.
+  setTimeout(checkFreezePrompt, 800); // slight delay so dashboard is painted first
   const _appEl2 = document.getElementById('page-dashboard');
   if (_appEl2) void _appEl2.offsetHeight;
   const _ring0 = document.getElementById('calorie-ring-fill');
@@ -7972,6 +7976,8 @@ function refreshDashboard() {
 
   // Streak
   document.getElementById('streak-count').textContent = State.streak;
+  updateStreakBadge();
+  checkFreezePrompt();
   // Macro warnings on dashboard
   renderMacroWarnings(totals, T);
 
@@ -8046,24 +8052,115 @@ function renderWeightMiniChart() {
 //  STREAK
 // ═══════════════════════════════════════════════════════════════════
 function calcStreak() {
+  // Reset freezes if we've rolled into a new month
+  const thisMonth = new Date().getMonth();
+  if (!('freezeMonth' in State) || State.freezeMonth !== thisMonth) {
+    State.freezes = 4;
+    State.freezeMonth = thisMonth;
+  }
+  if (!('freezes' in State)) State.freezes = 4;
+
   let streak = 0;
+  let lastWasFrozen = false; // max 1 consecutive freeze day
   const today = new Date();
-  for (let i=0; i<365; i++) {
-    const d = new Date(today); d.setDate(today.getDate()-i);
-    const k = localDateKey(d.getFullYear(),d.getMonth(),d.getDate());
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today); d.setDate(today.getDate() - i);
+    const k = localDateKey(d.getFullYear(), d.getMonth(), d.getDate());
     const log = State.logs[k];
-    const hasActivity = (log && Object.values(log.meals).some(m=>m.length>0)) ||
-      State.workouts.some(w=>w.date===k);
+    const hasActivity = (log && Object.values(log.meals).some(m => m.length > 0)) ||
+      State.workouts.some(w => w.date === k);
+
     if (hasActivity) {
       streak++;
+      lastWasFrozen = false;
     } else if (i === 0) {
-      // Today has no log yet — don't break, just skip today
+      // Today not logged yet — grace, skip without breaking
       continue;
+    } else if (i === 1 && !lastWasFrozen) {
+      // Yesterday missed — prompt for freeze (only if we haven't just used one)
+      const frozenDays = State.frozenDays || [];
+      if (frozenDays.includes(k)) {
+        // Already frozen this day — count it
+        streak++;
+        lastWasFrozen = true;
+      } else {
+        // Will prompt after loop — stop counting here for now
+        State._pendingFreezeDate = k;
+        break;
+      }
     } else {
       break;
     }
   }
   State.streak = streak;
+}
+
+function checkFreezePrompt() {
+  if (!State._pendingFreezeDate) return;
+  const missedDate = State._pendingFreezeDate;
+  const missedLabel = new Date(missedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const remaining = State.freezes || 0;
+  State._pendingFreezeDate = null;
+
+  if (remaining <= 0) {
+    // No freezes left — streak breaks naturally, nothing to prompt
+    return;
+  }
+
+  // Build modal
+  const existing = document.getElementById('freeze-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'freeze-modal';
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;`;
+  modal.innerHTML = `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px 24px;max-width:340px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
+      <div style="font-size:2.4rem;margin-bottom:8px">🧊</div>
+      <div style="font-size:1rem;font-weight:700;margin-bottom:6px">You missed ${missedLabel}</div>
+      <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:20px;line-height:1.5">
+        Use a <strong>Streak Freeze</strong> to protect your 🔥 streak?<br>
+        You have <strong>${remaining} freeze${remaining !== 1 ? 's' : ''}</strong> left this month.
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button onclick="applyStreakFreeze('${missedDate}')" style="flex:1;padding:11px;border-radius:var(--radius-sm);border:none;background:var(--accent);color:#fff;font-size:0.88rem;font-weight:700;cursor:pointer">🧊 Use Freeze</button>
+        <button onclick="dismissStreakFreeze()" style="flex:1;padding:11px;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:0.88rem;cursor:pointer">Let it break</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function applyStreakFreeze(dateKey) {
+  if (!State.frozenDays) State.frozenDays = [];
+  State.frozenDays.push(dateKey);
+  State.freezes = Math.max(0, (State.freezes || 0) - 1);
+  document.getElementById('freeze-modal')?.remove();
+  calcStreak();
+  updateStreakBadge();
+  save();
+  showToast('Streak protected! 🧊 ' + (State.freezes) + ' freeze' + (State.freezes !== 1 ? 's' : '') + ' left this month.', 'success');
+}
+
+function dismissStreakFreeze() {
+  document.getElementById('freeze-modal')?.remove();
+  showToast('Streak reset. You got this — start fresh! 💪', 'info');
+}
+
+function updateStreakBadge() {
+  const sc = document.getElementById('streak-count');
+  if (sc) sc.textContent = State.streak;
+  const badge = document.getElementById('streak-badge');
+  if (!badge) return;
+  const freezes = State.freezes ?? 4;
+  const label = `🧊 ${freezes} freeze${freezes !== 1 ? 's' : ''}`;
+  let pill = document.getElementById('streak-freeze-badge');
+  if (!pill) {
+    pill = document.createElement('div');
+    pill.id = 'streak-freeze-badge';
+    pill.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:0.72rem;background:rgba(99,179,237,0.15);color:#63b3ed;border:1px solid rgba(99,179,237,0.3);border-radius:20px;padding:3px 9px;white-space:nowrap;cursor:default;';
+    badge.insertAdjacentElement('afterend', pill);
+  }
+  pill.textContent = label;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -9166,26 +9263,6 @@ function removeSet(ei, si) {
   exs[ei].sets.splice(si,1);
   if (!exs[ei].sets.length) removeExercise(ei);
   else { wdAutoSave(); renderWorkoutPage(); }
-}
-
-function copyLastSession(ei) {
-  const exs = wdGetActiveExercises();
-  const ex = exs[ei];
-  if (!ex) return;
-  const currentDate = (typeof currentDateKey !== 'undefined' && currentDateKey) || todayKey();
-  const past = (State.workouts || []).filter(w => w.date < currentDate);
-  past.sort((a, b) => b.date.localeCompare(a.date));
-  for (const w of past) {
-    const match = (w.exercises || []).find(e => e.name && e.name.toLowerCase() === ex.name.toLowerCase());
-    if (match && match.sets && match.sets.length) {
-      exs[ei].sets = match.sets.map(s => ({ ...s, done: false }));
-      wdAutoSave();
-      renderWorkoutPage();
-      showToast('Last session sets copied! 💪', 'success');
-      return;
-    }
-  }
-  showToast('No previous session found.', 'info');
 }
 
 function removeExercise(ei) {
@@ -16449,43 +16526,12 @@ function _enhancedRenderWorkoutPage() {
   document.getElementById('workout-summary-stats').textContent = `${currentExercises.length} exercises · ${doneSets}/${totalSets} sets done`;
   
   const muscles = [...new Set(currentExercises.map(e=>e.muscle))];
-  // ── Last Session helper ────────────────────────────────────────────────────
-  function getLastSessionForExercise(exName) {
-    const currentDate = currentDateKey || todayKey();
-    const past = (State.workouts || []).filter(w => w.date < currentDate);
-    past.sort((a, b) => b.date.localeCompare(a.date));
-    for (const w of past) {
-      const match = (w.exercises || []).find(e => e.name && e.name.toLowerCase() === exName.toLowerCase());
-      if (match && match.sets && match.sets.length) {
-        const dateLabel = new Date(w.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const setsText = match.sets.map(s => {
-          const wt = s.weight ? `${s.weight}${s.weightUnit || weightUnit()}` : '';
-          const rp = s.reps ? `×${s.reps}` : '';
-          return wt + rp;
-        }).filter(Boolean).join(' · ');
-        return { dateLabel, setsText, sets: match.sets };
-      }
-    }
-    return null;
-  }
-  // ──────────────────────────────────────────────────────────────────────────
-
   if (list) list.innerHTML = currentExercises.map((ex,ei) => {
     const done = ex.sets.filter(s=>s.done).length;
     const vol = (ex.sets||[]).reduce((s,set)=>s+setWeightKg(set)*(set.reps||0),0);
-    const lastSession = getLastSessionForExercise(ex.name);
-    const lastSessionHTML = lastSession
-      ? `<div style="display:flex;align-items:center;gap:8px;background:var(--bg-elevated);border-radius:var(--radius-sm);padding:7px 10px;margin-bottom:10px;flex-wrap:wrap">
-           <span style="font-size:0.68rem;color:var(--text-muted);white-space:nowrap">🕒 ${lastSession.dateLabel}</span>
-           <span style="font-size:0.72rem;color:var(--text-secondary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${lastSession.setsText}</span>
-           <button onclick="copyLastSession(${ei})" style="font-size:0.68rem;padding:3px 9px;border-radius:10px;border:1px solid var(--border);background:var(--accent-dim);color:var(--accent);cursor:pointer;white-space:nowrap;font-weight:700;flex-shrink:0">↙ Copy sets</button>
-         </div>`
-      : `<div style="display:flex;align-items:center;gap:6px;background:var(--bg-elevated);border-radius:var(--radius-sm);padding:7px 10px;margin-bottom:10px">
-           <span style="font-size:0.72rem;color:var(--text-muted)">💪 First time doing this — go crush it!</span>
-         </div>`;
     return `
       <div style="background:var(--bg-card);border:1px solid ${done===ex.sets.length&&done>0?'rgba(74,222,128,0.25)':'var(--border)'};border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;transition:border-color 0.2s">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <div>
             <div style="font-size:0.92rem;font-weight:700">${ex.name}</div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
@@ -16502,7 +16548,6 @@ function _enhancedRenderWorkoutPage() {
             <button class="btn-icon" onclick="removeExercise(${ei})" style="padding:6px 8px;font-size:0.75rem;color:var(--red);border-color:rgba(255,71,87,0.2)">✕</button>
           </div>
         </div>
-        ${lastSessionHTML}
         <table style="width:100%;border-collapse:collapse">
           <thead><tr>
             <th style="text-align:left;font-size:0.65rem;color:var(--text-muted);padding:0 8px 8px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;width:30px">#</th>
