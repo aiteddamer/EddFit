@@ -5184,10 +5184,27 @@ function dismissSplash() {
         <option value="snacks">🍎 Snacks</option>
       </select>
     </div>
-    <div class="search-wrap" style="margin-bottom:8px">
-      <span class="search-icon">🔍</span>
-      <input type="text" class="search-input" id="food-search" placeholder="Search food database…" oninput="searchFood(this.value)" />
-      <div class="search-results" id="food-search-results"></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-start">
+      <div class="search-wrap" style="flex:1;margin-bottom:0">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" id="food-search" placeholder="Search food database or scan barcode…" oninput="searchFood(this.value)" />
+        <div class="search-results" id="food-search-results"></div>
+      </div>
+      <button type="button" id="barcode-scan-btn" onclick="openBarcodeScanner()"
+        title="Scan barcode"
+        style="flex-shrink:0;width:44px;height:44px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:1.25rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background var(--transition)">
+        📷
+      </button>
+    </div>
+    <!-- Barcode scanner overlay -->
+    <div id="barcode-scanner-wrap" style="display:none;margin-bottom:12px;border-radius:var(--radius-sm);overflow:hidden;position:relative;background:#000">
+      <video id="barcode-video" autoplay playsinline muted style="width:100%;max-height:200px;display:block;object-fit:cover"></video>
+      <canvas id="barcode-canvas" style="display:none"></canvas>
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+        <div style="border:2px solid rgba(0,229,255,0.8);border-radius:8px;width:70%;height:60%;box-shadow:0 0 0 9999px rgba(0,0,0,0.45)"></div>
+      </div>
+      <button type="button" onclick="closeBarcodeScanner()" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.6);border:none;color:#fff;border-radius:50%;width:30px;height:30px;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+      <div id="barcode-status" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);color:#fff;font-size:0.75rem;padding:3px 10px;border-radius:20px;white-space:nowrap">Point at a barcode</div>
     </div>
     <div id="selected-food-preview" style="display:none">
       <div class="divider"></div>
@@ -8986,28 +9003,138 @@ function openQuickLog(meal) {
   openModal('modal-food');
 }
 
-function searchFood(q) {
-  const results = document.getElementById('food-search-results');
-  if (!q || q.trim().length < 2) { results.classList.remove('open'); return; }
-  const query = q.toLowerCase();
-  // Search built-in DB + custom foods
-  const builtIn = FOOD_DB.filter(f => f.name.toLowerCase().includes(query));
-  const custom = (State.customFoods||[]).filter(f => f.name.toLowerCase().includes(query))
-    .map(f => ({...f, _custom: true}));
-  const matches = [...custom, ...builtIn].slice(0, 10);
-  if (!matches.length) {
-    results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted);cursor:default">No results found</div>';
-    results.classList.add('open');
-    return;
+// ── OpenFoodFacts helpers ────────────────────────────────────────────────
+let _offSearchTimer = null;
+
+function _offNutriments(n) {
+  // Prefer per-100g values from OFF nutriments object
+  return {
+    cal:     Math.round(n['energy-kcal_100g'] || n['energy_100g'] / 4.184 || 0),
+    protein: Math.round((n['proteins_100g'] || 0) * 10) / 10,
+    carbs:   Math.round((n['carbohydrates_100g'] || 0) * 10) / 10,
+    fat:     Math.round((n['fat_100g'] || 0) * 10) / 10,
+  };
+}
+
+function _offProductToFood(p) {
+  const n = p.nutriments || {};
+  const macros = _offNutriments(n);
+  return {
+    id: 'off_' + (p.id || p.code || Math.random()),
+    name: p.product_name_en || p.product_name || p.abbreviated_product_name || 'Unknown product',
+    serving: '100g',
+    ...macros,
+    _off: true,
+    _brands: p.brands || '',
+  };
+}
+
+async function _searchOffApi(query) {
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=8&fields=id,code,product_name,product_name_en,abbreviated_product_name,brands,nutriments`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('OFF request failed');
+  const data = await res.json();
+  return (data.products || [])
+    .filter(p => p.product_name || p.product_name_en)
+    .map(_offProductToFood)
+    .filter(f => f.cal > 0); // skip entries with no calorie data
+}
+
+async function _lookupOffBarcode(barcode) {
+  const url = `https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=product_name,product_name_en,brands,nutriments,serving_size`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('OFF barcode lookup failed');
+  const data = await res.json();
+  if (data.status !== 1 || !data.product) return null;
+  return _offProductToFood({ ...data.product, id: barcode });
+}
+
+function selectOffFood(encodedFood) {
+  const f = JSON.parse(decodeURIComponent(encodedFood));
+  selectedFood = {
+    id: f.id, name: f.name + (f._brands ? ` (${f._brands})` : ''),
+    cal: f.cal, protein: f.protein, carbs: f.carbs, fat: f.fat,
+    serving: '100g', servingType: 'gram'
+  };
+  document.getElementById('food-search').value = selectedFood.name;
+  document.getElementById('food-search-results').classList.remove('open');
+
+  const unitSelect = document.getElementById('food-unit');
+  if (unitSelect) {
+    unitSelect.innerHTML = '<option value="100g">Per 100g</option><option value="gram">Custom grams</option>';
+    unitSelect.value = '100g';
   }
-  results.innerHTML = matches.map(f => `
+  selectedFood._baseServingSize = null;
+  const qtyEl = document.getElementById('food-qty');
+  if (qtyEl) qtyEl.value = 1;
+  const gramInput = document.getElementById('food-gram-input');
+  if (gramInput) gramInput.style.display = 'none';
+  _showGram100Mode();
+  updateFoodPreview();
+  safeStyle('selected-food-preview','display','block');
+}
+
+function _renderFoodResults(matches, resultsEl, offItems) {
+  let html = matches.map(f => `
     <div class="search-result-item" onclick="${f._custom ? `selectCustomFood(${f.id})` : `selectFood(${f.id})`}">
       <div class="sri-name">${f.name}${f._custom ? ' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>' : ''}</div>
       <div class="sri-info">${f.serving}</div>
       <div class="sri-cal">${f.cal} kcal</div>
     </div>
   `).join('');
-  results.classList.add('open');
+  if (offItems && offItems.length) {
+    if (matches.length) html += `<div class="search-result-item" style="color:var(--text-muted);font-size:0.72rem;cursor:default;padding:4px 12px;border-top:1px solid var(--border)">🌐 Online results</div>`;
+    html += offItems.map(f => {
+      const enc = encodeURIComponent(JSON.stringify(f));
+      return `
+        <div class="search-result-item" onclick="selectOffFood('${enc}')">
+          <div class="sri-name">${f.name}${f._brands ? ` <span style="font-size:0.7em;color:var(--text-muted)">${f._brands}</span>` : ''} <span class="tag" style="font-size:0.55rem;padding:1px 4px;background:var(--green-dim);color:var(--green);border-radius:20px">OFF</span></div>
+          <div class="sri-info">per 100g</div>
+          <div class="sri-cal">${f.cal} kcal</div>
+        </div>
+      `;
+    }).join('');
+  }
+  resultsEl.innerHTML = html;
+  resultsEl.classList.add('open');
+}
+
+function searchFood(q) {
+  const results = document.getElementById('food-search-results');
+  clearTimeout(_offSearchTimer);
+  if (!q || q.trim().length < 2) { results.classList.remove('open'); return; }
+  const query = q.toLowerCase();
+  // Search built-in DB + custom foods
+  const builtIn = FOOD_DB.filter(f => f.name.toLowerCase().includes(query));
+  const custom = (State.customFoods||[]).filter(f => f.name.toLowerCase().includes(query))
+    .map(f => ({...f, _custom: true}));
+  const matches = [...custom, ...builtIn].slice(0, 8);
+
+  // Show local results immediately
+  if (matches.length) {
+    _renderFoodResults(matches, results, null);
+    // Append an "Searching online…" footer while OFF fetches
+    results.insertAdjacentHTML('beforeend', `<div id="off-loading-row" class="search-result-item" style="color:var(--text-muted);font-size:0.72rem;cursor:default;padding:4px 12px;border-top:1px solid var(--border)">🌐 Searching online…</div>`);
+  } else {
+    results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted);cursor:default;padding:8px 14px">🌐 Searching online…</div>';
+    results.classList.add('open');
+  }
+
+  _offSearchTimer = setTimeout(async () => {
+    try {
+      const offItems = await _searchOffApi(q.trim());
+      // Remove loading row
+      const loadRow = document.getElementById('off-loading-row');
+      if (loadRow) loadRow.remove();
+      _renderFoodResults(matches, results, offItems.slice(0, 6));
+    } catch(e) {
+      const loadRow = document.getElementById('off-loading-row');
+      if (loadRow) loadRow.remove();
+      if (!matches.length) {
+        results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted);cursor:default">No results found</div>';
+      }
+    }
+  }, 500);
 }
 
 function selectCustomFood(id) {
@@ -11335,21 +11462,54 @@ function editRecipe(i) {
   openModal('modal-recipe');
 }
 
+let _offRecipeTimer = null;
 function searchFoodForRecipe(q) {
   const el = document.getElementById('recipe-food-results');
+  clearTimeout(_offRecipeTimer);
   if (!q.trim()) { el.classList.remove('open'); return; }
   const all = [...FOOD_DB, ...State.customFoods.map(cf=>({
     name:cf.name, cal:cf.cal, protein:cf.protein, carbs:cf.carbs, fat:cf.fat,
     serving:'100g', id:'cf_'+cf.id
   }))];
-  const results = all.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())).slice(0,8);
-  if (!results.length) { el.classList.remove('open'); return; }
-  el.innerHTML = results.map((f,i)=>`
-    <div class="search-result-item" onclick="addRecipeIngredientFromDB(${JSON.stringify(f).split('"').join("'")})" style="cursor:pointer">
-      <div class="sri-name">${f.name}</div>
-      <div class="sri-macros" style="font-size:0.72rem;color:var(--text-secondary)">${f.cal} kcal · ${f.protein}g P · ${f.carbs}g C · ${f.fat}g F <span style="color:var(--text-muted)">per 100g</span></div>
-    </div>`).join('');
-  el.classList.add('open');
+  const localResults = all.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())).slice(0,6);
+
+  function renderRecipeResults(local, offItems) {
+    let html = local.map(f=>`
+      <div class="search-result-item" onclick="addRecipeIngredientFromDB(${JSON.stringify(f).split('"').join("'")})" style="cursor:pointer">
+        <div class="sri-name">${f.name}</div>
+        <div class="sri-macros" style="font-size:0.72rem;color:var(--text-secondary)">${f.cal} kcal · ${f.protein}g P · ${f.carbs}g C · ${f.fat}g F <span style="color:var(--text-muted)">per 100g</span></div>
+      </div>`).join('');
+    if (offItems && offItems.length) {
+      if (local.length) html += '<div class="search-result-item" style="color:var(--text-muted);font-size:0.72rem;cursor:default;padding:4px 12px;border-top:1px solid var(--border)">🌐 Online results</div>';
+      html += offItems.map(f=>{
+        const plain = { name: f.name+(f._brands?' ('+f._brands+')':''), cal:f.cal, protein:f.protein, carbs:f.carbs, fat:f.fat, serving:'100g', id:f.id };
+        return '<div class="search-result-item" onclick="addRecipeIngredientFromDB('+JSON.stringify(plain).split('"').join("'")+')" style="cursor:pointer"><div class="sri-name">'+plain.name+' <span class="tag" style="font-size:0.55rem;padding:1px 4px;background:var(--green-dim);color:var(--green);border-radius:20px">OFF</span></div><div class="sri-macros" style="font-size:0.72rem;color:var(--text-secondary)">'+plain.cal+' kcal · '+plain.protein+'g P · '+plain.carbs+'g C · '+plain.fat+'g F <span style="color:var(--text-muted)">per 100g</span></div></div>';
+      }).join('');
+    }
+    el.innerHTML = html;
+    el.classList.add('open');
+  }
+
+  if (localResults.length) {
+    renderRecipeResults(localResults, null);
+    el.insertAdjacentHTML('beforeend', '<div id="off-recipe-loading" class="search-result-item" style="color:var(--text-muted);font-size:0.72rem;cursor:default;padding:4px 12px;border-top:1px solid var(--border)">🌐 Searching online…</div>');
+  } else {
+    el.innerHTML = '<div class="search-result-item" style="color:var(--text-muted);cursor:default;padding:8px 14px">🌐 Searching online…</div>';
+    el.classList.add('open');
+  }
+
+  _offRecipeTimer = setTimeout(async () => {
+    try {
+      const offItems = await _searchOffApi(q.trim());
+      const loadRow = document.getElementById('off-recipe-loading');
+      if (loadRow) loadRow.remove();
+      renderRecipeResults(localResults, offItems.slice(0, 5));
+    } catch(e) {
+      const loadRow = document.getElementById('off-recipe-loading');
+      if (loadRow) loadRow.remove();
+      if (!localResults.length) el.classList.remove('open');
+    }
+  }, 500);
 }
 
 function addRecipeIngredientFromDB(f) {
@@ -27505,6 +27665,134 @@ html:not(.dark) #tour-bubble::before { border-top-color:rgba(0,0,0,0.08); }
   };
 
 })();
+// ── Barcode Scanner (ZXing via CDN) ────────────────────────────────────────
+let _barcodeStream = null;
+let _barcodeAnimFrame = null;
+let _barcodeReady = false;
+
+async function openBarcodeScanner() {
+  const wrap = document.getElementById('barcode-scanner-wrap');
+  const video = document.getElementById('barcode-video');
+  const status = document.getElementById('barcode-status');
+  wrap.style.display = 'block';
+  status.textContent = 'Starting camera…';
+
+  // Load ZXing lazily
+  if (!window.ZXing) {
+    try {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    } catch(e) {
+      status.textContent = '⚠️ Could not load barcode library';
+      return;
+    }
+  }
+
+  try {
+    _barcodeStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
+    });
+    video.srcObject = _barcodeStream;
+    await video.play();
+    status.textContent = 'Point at a barcode';
+    _startBarcodeScan();
+  } catch(e) {
+    status.textContent = '⚠️ Camera access denied';
+  }
+}
+
+function _startBarcodeScan() {
+  const video   = document.getElementById('barcode-video');
+  const canvas  = document.getElementById('barcode-canvas');
+  const status  = document.getElementById('barcode-status');
+  const ctx     = canvas.getContext('2d', { willReadFrequently: true });
+  let scanning  = true;
+
+  const hints = new Map();
+  hints.set(2 /* DecodeHintType.TRY_HARDER */, true);
+  const reader = new ZXing.BrowserMultiFormatReader(hints);
+
+  async function tick() {
+    if (!scanning) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      try {
+        const luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+        const binaryBitmap    = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
+        const result = reader.decodeBitmap(binaryBitmap);
+        if (result) {
+          scanning = false;
+          status.textContent = '✅ Found: ' + result.getText();
+          await _handleBarcodeResult(result.getText());
+          return;
+        }
+      } catch(_) { /* no code found yet */ }
+    }
+    _barcodeAnimFrame = requestAnimationFrame(tick);
+  }
+  _barcodeAnimFrame = requestAnimationFrame(tick);
+}
+
+async function _handleBarcodeResult(code) {
+  const status = document.getElementById('barcode-status');
+  status.textContent = '🔍 Looking up product…';
+  try {
+    const food = await _lookupOffBarcode(code);
+    closeBarcodeScanner();
+    if (!food || food.cal === 0) {
+      if (typeof showToast === 'function') showToast('⚠️ Product not found in database', 'error');
+      return;
+    }
+    // Fill in the search field and select the food
+    const inp = document.getElementById('food-search');
+    if (inp) inp.value = food.name + (food._brands ? ` (${food._brands})` : '');
+    selectedFood = {
+      id: food.id, name: inp ? inp.value : food.name,
+      cal: food.cal, protein: food.protein, carbs: food.carbs, fat: food.fat,
+      serving: '100g', servingType: 'gram'
+    };
+    const unitSelect = document.getElementById('food-unit');
+    if (unitSelect) {
+      unitSelect.innerHTML = '<option value="100g">Per 100g</option><option value="gram">Custom grams</option>';
+      unitSelect.value = '100g';
+    }
+    const qtyEl = document.getElementById('food-qty');
+    if (qtyEl) qtyEl.value = 1;
+    const gramInput = document.getElementById('food-gram-input');
+    if (gramInput) gramInput.style.display = 'none';
+    _showGram100Mode();
+    updateFoodPreview();
+    safeStyle('selected-food-preview','display','block');
+    if (typeof showToast === 'function') showToast('✅ Product found: ' + food.name, 'success');
+  } catch(e) {
+    closeBarcodeScanner();
+    if (typeof showToast === 'function') showToast('⚠️ Lookup failed — try again', 'error');
+  }
+}
+
+function closeBarcodeScanner() {
+  const wrap = document.getElementById('barcode-scanner-wrap');
+  if (wrap) wrap.style.display = 'none';
+  if (_barcodeAnimFrame) cancelAnimationFrame(_barcodeAnimFrame);
+  if (_barcodeStream) { _barcodeStream.getTracks().forEach(t => t.stop()); _barcodeStream = null; }
+}
+
+// Auto-close scanner if the modal closes
+const _origCloseModal = window.closeModal;
+if (typeof _origCloseModal === 'function') {
+  window.closeModal = function(id) {
+    if (id === 'modal-food') closeBarcodeScanner();
+    _origCloseModal.apply(this, arguments);
+  };
+}
+
 </script>
 
 </body>
