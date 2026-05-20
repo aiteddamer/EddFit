@@ -5290,6 +5290,61 @@ function dismissSplash() {
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════
+     LOG RECIPE MODAL — log a recipe with per-ingredient gram editing
+     ══════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-log-recipe">
+  <div class="modal" style="max-width:480px;max-height:88vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+    <!-- Header -->
+    <div style="padding:18px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:1rem;font-weight:700;color:var(--text-primary)" id="lr-recipe-name">Recipe</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px">Adjust grams per ingredient, then log</div>
+      </div>
+      <button class="btn-icon" onclick="closeModal('modal-log-recipe')">✕</button>
+    </div>
+    <!-- Meal selector -->
+    <div style="padding:12px 20px 0;flex-shrink:0">
+      <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px">Log to meal</label>
+      <select class="form-select" id="lr-meal-select" style="margin-bottom:0">
+        <option value="breakfast">🌅 Breakfast</option>
+        <option value="lunch" selected>☀️ Lunch</option>
+        <option value="dinner">🌙 Dinner</option>
+        <option value="snacks">🍎 Snacks</option>
+      </select>
+    </div>
+    <!-- Ingredients list (scrollable) -->
+    <div style="flex:1;overflow-y:auto;padding:12px 20px" id="lr-ingredients-list"></div>
+    <!-- Live totals -->
+    <div style="flex-shrink:0;border-top:1px solid var(--border);padding:12px 20px">
+      <div style="font-size:0.68rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Totals</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div style="text-align:center;background:var(--bg-card);border-radius:var(--radius-sm);padding:8px 4px">
+          <div style="font-size:0.6rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:2px">Cal</div>
+          <div style="font-size:0.95rem;font-weight:800;color:var(--accent)" id="lr-tot-cal">—</div>
+        </div>
+        <div style="text-align:center;background:var(--bg-card);border-radius:var(--radius-sm);padding:8px 4px">
+          <div style="font-size:0.6rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:2px">Protein</div>
+          <div style="font-size:0.95rem;font-weight:800;color:var(--blue)" id="lr-tot-pro">—</div>
+        </div>
+        <div style="text-align:center;background:var(--bg-card);border-radius:var(--radius-sm);padding:8px 4px">
+          <div style="font-size:0.6rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:2px">Carbs</div>
+          <div style="font-size:0.95rem;font-weight:800;color:var(--orange)" id="lr-tot-crb">—</div>
+        </div>
+        <div style="text-align:center;background:var(--bg-card);border-radius:var(--radius-sm);padding:8px 4px">
+          <div style="font-size:0.6rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;margin-bottom:2px">Fat</div>
+          <div style="font-size:0.95rem;font-weight:800;color:var(--red)" id="lr-tot-fat">—</div>
+        </div>
+      </div>
+    </div>
+    <!-- Actions -->
+    <div class="btn-row" style="padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0">
+      <button class="btn btn-ghost" onclick="closeModal('modal-log-recipe')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmLogRecipe()">🍽️ Log Meal</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add Exercise Modal — muscle browser -->
 <div class="modal-overlay" id="modal-exercise">
   <div class="modal" style="max-width:640px;max-height:92vh;padding:0;overflow:hidden;display:flex;flex-direction:column">
@@ -8575,14 +8630,21 @@ function renderMealLog() {
     const mealProtein = items.reduce((s,f)=>s+(f.protein||0),0);
     const mealCarbs   = items.reduce((s,f)=>s+(f.carbs||0),0);
     const mealFat     = items.reduce((s,f)=>s+(f.fat||0),0);
-    const itemsHtml = items.length ? items.map((f,i) => `
+    const itemsHtml = items.length ? items.map((f,i) => {
+      const ingBlock = f._recipeId != null && f._ingredients?.length
+        ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:3px;line-height:1.5">${f._ingredients.slice(0,4).map(ri=>`${ri.food?.name || ri.food} ${ri.grams}g`).join(' · ')}${f._ingredients.length>4?'…':''}</div>`
+        : '';
+      const recipeTag = f._recipeId != null
+        ? `<span style="font-size:0.58rem;font-weight:700;background:var(--accent-dim);color:var(--accent);border-radius:20px;padding:1px 6px;margin-left:5px;vertical-align:middle">Recipe</span>`
+        : '';
+      return `
       <div class="food-item"
            draggable="true"
            data-meal="${m.key}"
            data-index="${i}"
            data-date="${k}">
         <span class="food-drag-handle" title="Drag to reorder or move">⠿</span>
-        <div class="food-name">${f.name}</div>
+        <div class="food-name">${f.name}${recipeTag}${ingBlock}</div>
         <div class="food-macros">
           <div class="food-macro-val"><span>${f.protein}g</span> P</div>
           <div class="food-macro-val"><span>${f.carbs}g</span> C</div>
@@ -8592,7 +8654,7 @@ function renderMealLog() {
         <button class="btn-icon" style="padding:4px 6px;font-size:0.75rem;color:var(--accent)" onclick="openEditFood('${m.key}',${i},'${k}')" title="Edit">✏️</button>
         <button class="btn-icon" style="padding:4px 6px;font-size:0.75rem" onclick="removeFood('${m.key}',${i},'${k}')">✕</button>
       </div>
-    `).join('') : '<div class="meal-drop-zone meal-empty-drop" data-drop-meal="' + m.key + '" data-drop-date="' + k + '" style="padding:12px 14px;font-size:0.8rem;color:var(--text-muted);text-align:center;min-height:40px;display:flex;align-items:center;justify-content:center">Drop food here or add one ↑</div>';
+    `}).join('') : '<div class="meal-drop-zone meal-empty-drop" data-drop-meal="' + m.key + '" data-drop-date="' + k + '" style="padding:12px 14px;font-size:0.8rem;color:var(--text-muted);text-align:center;min-height:40px;display:flex;align-items:center;justify-content:center">Drop food here or add one ↑</div>';
     return `
       <div class="card meal-section">
         <div class="meal-header">
@@ -8725,6 +8787,34 @@ function openEditFood(meal, idx, dateKey) {
   _editFoodDate = dateKey;
   const f = State.logs[dateKey].meals[meal][idx];
   if (!f) return;
+
+  // ── Recipe entry: open Log Recipe modal pre-filled ────────────────
+  if (f._recipeId != null) {
+    const recipeIdx = State.recipes.findIndex(r => r.id === f._recipeId);
+    if (recipeIdx >= 0) {
+      _lrRecipeIdx = recipeIdx;
+      const r = State.recipes[recipeIdx];
+      // Use saved ingredient grams if present, otherwise fall back to recipe defaults
+      if (f._ingredients && f._ingredients.length === r.ingredients.length) {
+        _lrGrams = f._ingredients.map(ri => ri.grams);
+      } else {
+        _lrGrams = r.ingredients.map(ri => ri.grams);
+      }
+      document.getElementById('lr-recipe-name').textContent = '✏️ ' + r.name;
+      // Pre-select the right meal
+      const mealSel = document.getElementById('lr-meal-select');
+      if (mealSel) mealSel.value = meal;
+      _renderLrIngredients();
+      _updateLrTotals();
+      // Override confirm to UPDATE the existing entry instead of appending
+      window._lrEditMode = { meal, idx, dateKey };
+      openModal('modal-log-recipe');
+      return;
+    }
+  }
+
+  // ── Regular food entry ────────────────────────────────────────────
+  window._lrEditMode = null;
 
   // Try to extract grams from name label e.g. "Chicken Breast (250g)"
   const gramMatch = f.name && f.name.match(/\((\d+(?:\.\d+)?)g\)$/);
@@ -11386,15 +11476,140 @@ function renderRecipesPage() {
     </div>`).join('');
 }
 
+// ── Log Recipe via modal (gram-editable per ingredient) ─────────────────────
+let _lrRecipeIdx = -1;
+let _lrGrams = []; // working copy of grams per ingredient
+
 function logRecipeAsFood(idx) {
   const r = State.recipes[idx];
-  const meal = 'lunch';
-  const key = todayKey();
-  if (!State.logs[key]) State.logs[key] = { meals:{breakfast:[],lunch:[],dinner:[],snacks:[]}, water:0 };
-  State.logs[key].meals[meal].push({ name:r.name, ...r.totals, qty:1, unit:'serving' });
-  save();
-  refreshDashboard();
-  showToast(`${r.name} logged to ${meal}! 🍽️`, 'success');
+  if (!r) return;
+  _lrRecipeIdx = idx;
+  window._lrEditMode = null;
+  // Clone ingredient grams from recipe
+  _lrGrams = r.ingredients.map(ri => ri.grams);
+  // Pre-select meal by time of day
+  const h = new Date().getHours();
+  const autoMeal = h < 10 ? 'breakfast' : h < 15 ? 'lunch' : h < 20 ? 'dinner' : 'snacks';
+  const mealSel = document.getElementById('lr-meal-select');
+  if (mealSel) mealSel.value = autoMeal;
+  // Populate modal
+  document.getElementById('lr-recipe-name').textContent = '🍽️ ' + r.name;
+  _renderLrIngredients();
+  _updateLrTotals();
+  openModal('modal-log-recipe');
+}
+
+function _renderLrIngredients() {
+  const r = State.recipes[_lrRecipeIdx];
+  if (!r) return;
+  const el = document.getElementById('lr-ingredients-list');
+  el.innerHTML = r.ingredients.map((ri, i) => {
+    const cal     = Math.round(ri.food.cal     * _lrGrams[i] / 100);
+    const protein = (ri.food.protein * _lrGrams[i] / 100).toFixed(1);
+    const carbs   = (ri.food.carbs   * _lrGrams[i] / 100).toFixed(1);
+    const fat     = (ri.food.fat     * _lrGrams[i] / 100).toFixed(1);
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-subtle)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.85rem;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ri.food.name}</div>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:1px" id="lr-ing-meta-${i}">${cal} kcal · ${protein}g P · ${carbs}g C · ${fat}g F</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+          <input type="number" min="1" step="1" value="${_lrGrams[i]}"
+            style="width:64px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);font-size:0.88rem;font-weight:700;text-align:right"
+            oninput="_lrGrams[${i}]=+this.value||0;_updateLrIngMeta(${i});_updateLrTotals()" />
+          <span style="font-size:0.75rem;color:var(--text-muted);font-weight:600">g</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function _updateLrIngMeta(i) {
+  const r = State.recipes[_lrRecipeIdx];
+  if (!r) return;
+  const ri = r.ingredients[i];
+  const g  = _lrGrams[i] || 0;
+  const el = document.getElementById('lr-ing-meta-' + i);
+  if (!el) return;
+  const cal     = Math.round(ri.food.cal     * g / 100);
+  const protein = (ri.food.protein * g / 100).toFixed(1);
+  const carbs   = (ri.food.carbs   * g / 100).toFixed(1);
+  const fat     = (ri.food.fat     * g / 100).toFixed(1);
+  el.textContent = `${cal} kcal · ${protein}g P · ${carbs}g C · ${fat}g F`;
+}
+
+function _updateLrTotals() {
+  const r = State.recipes[_lrRecipeIdx];
+  if (!r) return;
+  const t = r.ingredients.reduce((acc, ri, i) => {
+    const g = _lrGrams[i] || 0;
+    return {
+      cal:     acc.cal     + ri.food.cal     * g / 100,
+      protein: acc.protein + ri.food.protein * g / 100,
+      carbs:   acc.carbs   + ri.food.carbs   * g / 100,
+      fat:     acc.fat     + ri.food.fat     * g / 100,
+    };
+  }, {cal:0,protein:0,carbs:0,fat:0});
+  document.getElementById('lr-tot-cal').textContent = Math.round(t.cal);
+  document.getElementById('lr-tot-pro').textContent = t.protein.toFixed(1) + 'g';
+  document.getElementById('lr-tot-crb').textContent = t.carbs.toFixed(1) + 'g';
+  document.getElementById('lr-tot-fat').textContent = t.fat.toFixed(1) + 'g';
+}
+
+function confirmLogRecipe() {
+  const r = State.recipes[_lrRecipeIdx];
+  if (!r) return;
+
+  // Build ingredient snapshot with actual grams used
+  const usedIngredients = r.ingredients.map((ri, i) => ({
+    food: ri.food,
+    grams: _lrGrams[i] || 0
+  }));
+
+  const t = usedIngredients.reduce((acc, ri) => ({
+    cal:     acc.cal     + ri.food.cal     * ri.grams / 100,
+    protein: acc.protein + ri.food.protein * ri.grams / 100,
+    carbs:   acc.carbs   + ri.food.carbs   * ri.grams / 100,
+    fat:     acc.fat     + ri.food.fat     * ri.grams / 100,
+  }), {cal:0,protein:0,carbs:0,fat:0});
+
+  const entry = {
+    name:        r.name,
+    cal:         Math.round(t.cal),
+    protein:     Math.round(t.protein * 10) / 10,
+    carbs:       Math.round(t.carbs   * 10) / 10,
+    fat:         Math.round(t.fat     * 10) / 10,
+    qty:         1,
+    unit:        'serving',
+    _recipeId:   r.id,
+    _ingredients: usedIngredients  // snapshot of grams used
+  };
+
+  const editMode = window._lrEditMode;
+  if (editMode) {
+    // Update in place
+    const { meal, idx, dateKey } = editMode;
+    State.logs[dateKey].meals[meal][idx] = entry;
+    window._lrEditMode = null;
+    save();
+    closeModal('modal-log-recipe');
+    renderMealLog();
+    refreshNutritionPage();
+    refreshDashboard();
+    showToast(`${r.name} updated ✏️`, 'success');
+  } else {
+    // New log entry
+    const meal = document.getElementById('lr-meal-select').value;
+    const key  = nutritionDate || todayKey();
+    if (!State.logs[key]) State.logs[key] = { meals:{breakfast:[],lunch:[],dinner:[],snacks:[]}, water:0 };
+    State.logs[key].meals[meal].push(entry);
+    save();
+    closeModal('modal-log-recipe');
+    renderMealLog();
+    refreshNutritionPage();
+    refreshDashboard();
+    showToast(`${r.name} logged to ${meal}! 🍽️`, 'success');
+  }
 }
 
 function deleteRecipe(i) {
