@@ -5186,7 +5186,8 @@ function dismissSplash() {
     </div>
     <div class="search-wrap" style="margin-bottom:8px">
       <span class="search-icon">🔍</span>
-      <input type="text" class="search-input" id="food-search" placeholder="Search food database…" oninput="searchFood(this.value)" />
+      <input type="text" class="search-input" id="food-search" placeholder="Search foods + Open Food Facts…" oninput="searchFood(this.value)" />
+      <div id="food-search-off-badge" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:0.65rem;font-weight:700;color:var(--accent);background:var(--accent-dim);border-radius:20px;padding:2px 7px;pointer-events:none;z-index:2">🌍 OFF</div>
       <div class="search-results" id="food-search-results"></div>
     </div>
     <div id="selected-food-preview" style="display:none">
@@ -8986,28 +8987,121 @@ function openQuickLog(meal) {
   openModal('modal-food');
 }
 
-function searchFood(q) {
+// ── Open Food Facts integration ─────────────────────────────────────────────
+let _offSearchTimer = null;
+let _offCache = {};
+// Temp storage for OFF results (keyed by barcode/id string)
+window._offFoods = window._offFoods || {};
+
+function _renderFoodResults(localMatches, offItems) {
   const results = document.getElementById('food-search-results');
-  if (!q || q.trim().length < 2) { results.classList.remove('open'); return; }
-  const query = q.toLowerCase();
-  // Search built-in DB + custom foods
-  const builtIn = FOOD_DB.filter(f => f.name.toLowerCase().includes(query));
-  const custom = (State.customFoods||[]).filter(f => f.name.toLowerCase().includes(query))
-    .map(f => ({...f, _custom: true}));
-  const matches = [...custom, ...builtIn].slice(0, 10);
-  if (!matches.length) {
+  const badge = document.getElementById('food-search-off-badge');
+  const allItems = [...localMatches, ...offItems];
+  if (!allItems.length) {
     results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted);cursor:default">No results found</div>';
     results.classList.add('open');
+    if (badge) badge.style.display = 'none';
     return;
   }
-  results.innerHTML = matches.map(f => `
-    <div class="search-result-item" onclick="${f._custom ? `selectCustomFood(${f.id})` : `selectFood(${f.id})`}">
+  if (badge) badge.style.display = offItems.length ? '' : 'none';
+  results.innerHTML = allItems.map(f => {
+    if (f._off) {
+      const key = 'off_' + f._offId;
+      return `<div class="search-result-item" onclick="selectOffFood('${key}')">
+        <div class="sri-name">${f.name} <span class="tag" style="font-size:0.6rem;padding:1px 5px;background:var(--accent-dim);color:var(--accent);border-radius:20px">🌍 OFF</span></div>
+        <div class="sri-info">${f.serving}</div>
+        <div class="sri-cal">${f.cal} kcal</div>
+      </div>`;
+    }
+    return `<div class="search-result-item" onclick="${f._custom ? `selectCustomFood(${f.id})` : `selectFood(${f.id})`}">
       <div class="sri-name">${f.name}${f._custom ? ' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>' : ''}</div>
       <div class="sri-info">${f.serving}</div>
       <div class="sri-cal">${f.cal} kcal</div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
   results.classList.add('open');
+}
+
+async function _fetchOffResults(q) {
+  if (_offCache[q]) return _offCache[q];
+  try {
+    const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=8&fields=id,product_name,nutriments,serving_size,quantity,brands`;
+    const resp = await fetch(url);
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const items = (data.products || []).filter(p => {
+      const n = p.nutriments;
+      return p.product_name && n && (n['energy-kcal_100g'] || n['energy-kcal']);
+    }).map(p => {
+      const n = p.nutriments;
+      const cal     = Math.round(n['energy-kcal_100g'] || (n['energy-kcal'] || 0));
+      const protein = Math.round((n['proteins_100g']       || 0) * 10) / 10;
+      const carbs   = Math.round((n['carbohydrates_100g']  || 0) * 10) / 10;
+      const fat     = Math.round((n['fat_100g']            || 0) * 10) / 10;
+      const brand   = p.brands ? ` (${p.brands.split(',')[0].trim()})` : '';
+      const name    = (p.product_name + brand).slice(0, 60);
+      const key     = 'off_' + p.id;
+      const food    = { id: key, name, cal, protein, carbs, fat, serving: '100g', _off: true, _offId: p.id };
+      window._offFoods[key] = food;
+      return food;
+    }).slice(0, 6);
+    _offCache[q] = items;
+    return items;
+  } catch(e) { return []; }
+}
+
+function selectOffFood(key) {
+  const f = window._offFoods[key];
+  if (!f) return;
+  selectedFood = { id: key, name: f.name, cal: f.cal, protein: f.protein, carbs: f.carbs, fat: f.fat, serving: '100g' };
+  document.getElementById('food-search').value = f.name;
+  document.getElementById('food-search-results').classList.remove('open');
+  document.getElementById('food-search-off-badge').style.display = 'none';
+  // Default to custom grams mode
+  document.getElementById('food-gram-val').value = 100;
+  document.getElementById('food-unit').value = 'gram';
+  _showCustomGramMode();
+  updateFoodPreview();
+  safeStyle('selected-food-preview', 'display', 'block');
+}
+
+function searchFood(q) {
+  const results = document.getElementById('food-search-results');
+  const badge = document.getElementById('food-search-off-badge');
+  clearTimeout(_offSearchTimer);
+  if (!q || q.trim().length < 2) {
+    results.classList.remove('open');
+    if (badge) badge.style.display = 'none';
+    return;
+  }
+  const query = q.toLowerCase();
+  // Immediate local results
+  const builtIn = FOOD_DB.filter(f => f.name.toLowerCase().includes(query));
+  const custom = (State.customFoods||[]).filter(f => f.name.toLowerCase().includes(query))
+    .map(f => ({...f, _custom: true}));
+  const localMatches = [...custom, ...builtIn].slice(0, 7);
+  _renderFoodResults(localMatches, []);
+
+  // Show loading hint after short delay
+  _offSearchTimer = setTimeout(async () => {
+    // Add a "Searching Open Food Facts…" indicator
+    const existing = results.querySelectorAll('.search-result-item');
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'search-result-item';
+    loadingDiv.id = 'off-loading-hint';
+    loadingDiv.style.cssText = 'color:var(--text-muted);cursor:default;font-size:0.8rem;display:flex;align-items:center;gap:6px';
+    loadingDiv.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block">🌍</span> Searching Open Food Facts…';
+    results.appendChild(loadingDiv);
+    if (!document.getElementById('off-spin-style')) {
+      const st = document.createElement('style');
+      st.id = 'off-spin-style';
+      st.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(st);
+    }
+
+    const offItems = await _fetchOffResults(q.trim());
+    _renderFoodResults(localMatches, offItems);
+  }, 400);
 }
 
 function selectCustomFood(id) {
@@ -11335,21 +11429,43 @@ function editRecipe(i) {
   openModal('modal-recipe');
 }
 
+let _offRecipeTimer = null;
+
+function _renderRecipeFoodResults(localResults, offItems) {
+  const el = document.getElementById('recipe-food-results');
+  const all = [...localResults, ...offItems];
+  if (!all.length) { el.classList.remove('open'); return; }
+  el.innerHTML = all.map(f => {
+    const safeF = JSON.stringify(f).split('"').join("'");
+    const offBadge = f._off ? ` <span style="font-size:0.6rem;padding:1px 5px;background:var(--accent-dim);color:var(--accent);border-radius:20px">🌍 OFF</span>` : '';
+    return `<div class="search-result-item" onclick="addRecipeIngredientFromDB(${safeF})" style="cursor:pointer">
+      <div class="sri-name">${f.name}${offBadge}</div>
+      <div class="sri-macros" style="font-size:0.72rem;color:var(--text-secondary)">${f.cal} kcal · ${f.protein}g P · ${f.carbs}g C · ${f.fat}g F <span style="color:var(--text-muted)">per 100g</span></div>
+    </div>`;
+  }).join('');
+  el.classList.add('open');
+}
+
 function searchFoodForRecipe(q) {
   const el = document.getElementById('recipe-food-results');
+  clearTimeout(_offRecipeTimer);
   if (!q.trim()) { el.classList.remove('open'); return; }
   const all = [...FOOD_DB, ...State.customFoods.map(cf=>({
     name:cf.name, cal:cf.cal, protein:cf.protein, carbs:cf.carbs, fat:cf.fat,
     serving:'100g', id:'cf_'+cf.id
   }))];
-  const results = all.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())).slice(0,8);
-  if (!results.length) { el.classList.remove('open'); return; }
-  el.innerHTML = results.map((f,i)=>`
-    <div class="search-result-item" onclick="addRecipeIngredientFromDB(${JSON.stringify(f).split('"').join("'")})" style="cursor:pointer">
-      <div class="sri-name">${f.name}</div>
-      <div class="sri-macros" style="font-size:0.72rem;color:var(--text-secondary)">${f.cal} kcal · ${f.protein}g P · ${f.carbs}g C · ${f.fat}g F <span style="color:var(--text-muted)">per 100g</span></div>
-    </div>`).join('');
-  el.classList.add('open');
+  const localResults = all.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 6);
+  _renderRecipeFoodResults(localResults, []);
+
+  _offRecipeTimer = setTimeout(async () => {
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'search-result-item';
+    loadingDiv.style.cssText = 'color:var(--text-muted);cursor:default;font-size:0.8rem';
+    loadingDiv.innerHTML = '🌍 Searching Open Food Facts…';
+    el.appendChild(loadingDiv);
+    const offItems = await _fetchOffResults(q.trim());
+    _renderRecipeFoodResults(localResults, offItems.map(f => ({...f, _off: true})));
+  }, 400);
 }
 
 function addRecipeIngredientFromDB(f) {
@@ -16340,10 +16456,12 @@ function renderMpWeekSummary() {
   `;
 }
 
-// Fix searchMpCell — includes built-in foods, custom foods, and recipes
+// Fix searchMpCell — includes built-in foods, custom foods, recipes, and Open Food Facts
 const _origSearchMpCell = searchMpCell;
+let _offMpTimer = null;
 searchMpCell = function(q) {
   const results = document.getElementById('mpcell-results');
+  clearTimeout(_offMpTimer);
   if (!q.trim()) { results.classList.remove('open'); return; }
   const lq = q.toLowerCase();
   const foodMatches   = FOOD_DB.filter(f=>f.name.toLowerCase().includes(lq)).slice(0,4)
@@ -16357,15 +16475,37 @@ searchMpCell = function(q) {
                             carbs:(r.totals||{}).carbs||0, fat:(r.totals||{}).fat||0,
                             _mpType:'recipe', servingType:'unit'
                           }));
-  const all = [...customMatches, ...foodMatches, ...recipeMatches];
-  if (!all.length) { results.classList.remove('open'); return; }
-  results.innerHTML = all.map(f=>`
-    <div class="search-result-item" onclick="selectMpFood(${JSON.stringify(f).replace(/"/g,'&quot;')})">
-      <div class="sri-name">${f.name}${f._mpType==='custom'?' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>':f._mpType==='recipe'?'':''}</div>
-      <div class="sri-info">${f.serving||'100g'} · ${f._mpType==='custom'&&f.servingType==='unit'?'unit':'per 100g'}</div>
-      <div class="sri-cal">${f.cal} kcal</div>
-    </div>`).join('');
-  results.classList.add('open');
+  const localAll = [...customMatches, ...foodMatches, ...recipeMatches];
+
+  function renderMp(localItems, offItems) {
+    const all = [...localItems, ...offItems];
+    if (!all.length) { results.classList.remove('open'); return; }
+    results.innerHTML = all.map(f=>{
+      const offBadge = f._mpType==='off' ? ` <span style="font-size:0.6rem;padding:1px 5px;background:var(--accent-dim);color:var(--accent);border-radius:20px">🌍 OFF</span>` : '';
+      return `<div class="search-result-item" onclick="selectMpFood(${JSON.stringify(f).replace(/"/g,'&quot;')})">
+        <div class="sri-name">${f.name}${f._mpType==='custom'?' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>':''}${offBadge}</div>
+        <div class="sri-info">${f.serving||'100g'} · ${f._mpType==='custom'&&f.servingType==='unit'?'unit':'per 100g'}</div>
+        <div class="sri-cal">${f.cal} kcal</div>
+      </div>`;
+    }).join('');
+    results.classList.add('open');
+  }
+
+  renderMp(localAll, []);
+
+  _offMpTimer = setTimeout(async () => {
+    const loading = document.createElement('div');
+    loading.className = 'search-result-item';
+    loading.style.cssText = 'color:var(--text-muted);cursor:default;font-size:0.8rem';
+    loading.innerHTML = '🌍 Searching Open Food Facts…';
+    results.appendChild(loading);
+    const offRaw = await _fetchOffResults(q.trim());
+    const offMapped = offRaw.map(f => ({
+      id: f.id, name: f.name, serving: '100g', cal: f.cal,
+      protein: f.protein, carbs: f.carbs, fat: f.fat, _mpType: 'off'
+    }));
+    renderMp(localAll, offMapped);
+  }, 400);
 };
 
 function selectMpFood(f) {
