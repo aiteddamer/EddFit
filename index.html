@@ -9099,7 +9099,7 @@ function _renderFoodResults(localMatches, offItems) {
   const badge = document.getElementById('food-search-off-badge');
   const allItems = [...localMatches, ...offItems];
   if (!allItems.length) {
-    results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted);cursor:default">No results found</div>';
+    results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted);cursor:default">No results found — try a different spelling or shorter query</div>';
     results.classList.add('open');
     if (badge) badge.style.display = 'none';
     return;
@@ -9171,26 +9171,31 @@ function _parseOffProducts(products) {
 async function _fetchOffResults(q) {
   if (_offCache[q]) return _offCache[q];
   const fields = 'id,product_name,nutriments,serving_size,serving_quantity,quantity,brands,product_quantity_unit';
-  const baseParams = `search_simple=1&action=process&json=1&fields=${fields}&page_size=24`;
-  try {
-    // Run Morocco-filtered + global search in parallel for maximum coverage
-    const maUrl    = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&tagtype_0=countries&tag_contains_0=contains&tag_0=morocco&${baseParams}`;
-    const worldUrl = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&${baseParams}`;
-    const [maResp, worldResp] = await Promise.all([fetch(maUrl), fetch(worldUrl)]);
-    const [maData, worldData] = await Promise.all([
-      maResp.ok ? maResp.json() : { products: [] },
-      worldResp.ok ? worldResp.json() : { products: [] },
-    ]);
-    // Merge: Morocco results first, then global, deduplicated
-    const seen = new Set();
-    const merged = [];
-    for (const p of [...(maData.products || []), ...(worldData.products || [])]) {
-      if (p.id && !seen.has(p.id)) { seen.add(p.id); merged.push(p); }
-    }
-    const items = _parseOffProducts(merged).slice(0, 20);
-    _offCache[q] = items;
-    return items;
-  } catch(e) { return []; }
+  // Use OFF v2 search API — better CORS support, JSON-first
+  const v2Url = `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(q)}&fields=${fields}&page_size=24`;
+  const maV2Url = `https://ma.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(q)}&fields=${fields}&page_size=24`;
+
+  const tryFetch = async (url) => {
+    try {
+      const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!r.ok) return [];
+      const d = await r.json();
+      return d.products || [];
+    } catch(e) { return []; }
+  };
+
+  const [maProds, worldProds] = await Promise.all([tryFetch(maV2Url), tryFetch(v2Url)]);
+
+  // Merge: Morocco first, then global, deduplicated
+  const seen = new Set();
+  const merged = [];
+  for (const p of [...maProds, ...worldProds]) {
+    if (p.id && !seen.has(p.id)) { seen.add(p.id); merged.push(p); }
+  }
+
+  const items = _parseOffProducts(merged).slice(0, 20);
+  _offCache[q] = items;
+  return items;
 }
 
 function selectOffFood(key) {
@@ -9237,28 +9242,29 @@ function searchFood(q) {
   const localMatches = [...custom, ...builtIn].slice(0, 10);
   _renderFoodResults(localMatches, []);
 
-  // Show loading hint after short delay
+  // Show loading hint then fire OFF search
   _offSearchTimer = setTimeout(async () => {
-    const badge = document.getElementById('food-search-off-badge');
-    if (badge) badge.style.display = '';
-    // Add a "Searching Open Food Facts…" indicator inside results too
-    const existing = results.querySelectorAll('.search-result-item');
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'search-result-item';
-    loadingDiv.id = 'off-loading-hint';
-    loadingDiv.style.cssText = 'color:var(--text-muted);cursor:default;font-size:0.8rem;display:flex;align-items:center;gap:6px';
-    loadingDiv.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block">🌍</span> Searching Open Food Facts…';
-    results.appendChild(loadingDiv);
-    if (!document.getElementById('off-spin-style')) {
+    // Append a loading row at the bottom of current results
+    const hint = document.createElement('div');
+    hint.id = 'off-loading-hint';
+    hint.style.cssText = 'padding:8px 14px;font-size:0.78rem;color:var(--text-muted);display:flex;align-items:center;gap:6px;cursor:default';
+    hint.innerHTML = '<span style="display:inline-block;animation:_offSpin 0.9s linear infinite">🌍</span> Searching Open Food Facts…';
+    if (!document.getElementById('_off-spin-style')) {
       const st = document.createElement('style');
-      st.id = 'off-spin-style';
-      st.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+      st.id = '_off-spin-style';
+      st.textContent = '@keyframes _offSpin{to{transform:rotate(360deg)}}';
       document.head.appendChild(st);
     }
+    const old = document.getElementById('off-loading-hint');
+    if (old) old.remove();
+    results.appendChild(hint);
+    results.classList.add('open');
 
     const offItems = await _fetchOffResults(q.trim());
+    const hintEl = document.getElementById('off-loading-hint');
+    if (hintEl) hintEl.remove();
     _renderFoodResults(localMatches, offItems);
-  }, 400);
+  }, 350);
 }
 
 function selectCustomFood(id) {
