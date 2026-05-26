@@ -5186,8 +5186,7 @@ function dismissSplash() {
     </div>
     <div class="search-wrap" style="margin-bottom:8px">
       <span class="search-icon">🔍</span>
-      <input type="text" class="search-input" id="food-search" placeholder="Search foods + Open Food Facts…" oninput="searchFood(this.value)" />
-      <div id="food-search-off-badge" style="display:none;position:absolute;right:8px;bottom:-18px;font-size:0.62rem;font-weight:700;color:var(--accent);background:var(--accent-dim);border-radius:20px;padding:1px 7px;pointer-events:none;z-index:2;white-space:nowrap">🌍 Fetching Open Food Facts…</div>
+      <input type="text" class="search-input" id="food-search" placeholder="Search food database…" oninput="searchFood(this.value)" />
       <div class="search-results" id="food-search-results"></div>
     </div>
     <div id="selected-food-preview" style="display:none">
@@ -5229,27 +5228,8 @@ function dismissSplash() {
       </div>
       <div id="food-gram-input" style="display:none;margin-top:8px">
         <div class="form-group">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-            <label class="form-label" id="food-gram-label" style="margin-bottom:0">Amount</label>
-            <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
-              <button type="button" id="food-unit-g-btn" onclick="setFoodAmountUnit('g')"
-                style="padding:3px 10px;font-size:0.72rem;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:var(--accent);color:#fff">g</button>
-              <button type="button" id="food-unit-ml-btn" onclick="setFoodAmountUnit('ml')"
-                style="padding:3px 10px;font-size:0.72rem;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:var(--bg-elevated);color:var(--text-secondary)">ml</button>
-              <button type="button" id="food-unit-oz-btn" onclick="setFoodAmountUnit('oz')"
-                style="padding:3px 10px;font-size:0.72rem;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:var(--bg-elevated);color:var(--text-secondary)">oz</button>
-              <button type="button" id="food-unit-tbsp-btn" onclick="setFoodAmountUnit('tbsp')"
-                style="padding:3px 10px;font-size:0.72rem;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:var(--bg-elevated);color:var(--text-secondary)">tbsp</button>
-              <button type="button" id="food-unit-tsp-btn" onclick="setFoodAmountUnit('tsp')"
-                style="padding:3px 10px;font-size:0.72rem;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:var(--bg-elevated);color:var(--text-secondary)">tsp</button>
-            </div>
-          </div>
-          <div style="position:relative">
-            <input type="number" class="form-input" id="food-gram-val" value="100" min="0.1" step="1" oninput="updateFoodPreview()"
-              style="padding-right:42px" />
-            <span id="food-gram-unit-suffix" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:0.8rem;font-weight:700;color:var(--text-secondary);pointer-events:none">g</span>
-          </div>
-          <div id="food-amount-density-hint" style="display:none;font-size:0.71rem;color:var(--text-muted);margin-top:4px"></div>
+          <label class="form-label" id="food-gram-label">Grams</label>
+          <input type="number" class="form-input" id="food-gram-val" value="100" min="1" step="1" oninput="updateFoodPreview()" />
         </div>
         <div style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap">
           <button type="button" id="food-back-to-100g" onclick="switchTo100gMode()" style="font-size:0.72rem;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;display:none">&#8617; Back to per 100g</button>
@@ -9006,280 +8986,28 @@ function openQuickLog(meal) {
   openModal('modal-food');
 }
 
-// ── Multi-unit amount system (g, ml, oz, tbsp, tsp) ─────────────────────────
-// Conversion TO grams. For ml we need density; default 1 g/ml (water).
-// OFF foods expose `product.nutriments['energy-kcal_100g']` which is per 100g equivalent.
-// If the product is liquid (OFF `quantity` contains ml), we store `_density`.
-window._foodAmountUnit = 'g'; // current active unit in the gram-input section
-
-const _UNIT_TO_G = {
-  g:    1,
-  ml:   1,      // treated as density-aware: actual factor = density (default 1.0)
-  oz:   28.3495,
-  tbsp: 14.787,  // 1 US tablespoon = ~14.79ml / 14.79g (water)
-  tsp:  4.929,   // 1 US teaspoon  = ~4.93ml  / 4.93g
-};
-
-function _amountToGrams(amount, unit, density) {
-  const d = density || 1.0;
-  if (unit === 'ml') return amount * d;
-  if (unit === 'tbsp') return amount * 14.787 * d;
-  if (unit === 'tsp')  return amount * 4.929  * d;
-  if (unit === 'oz')   return amount * 28.3495;
-  return amount; // g
-}
-
-function setFoodAmountUnit(unit) {
-  if (!selectedFood) { window._foodAmountUnit = unit; _updateUnitBtnStyles(unit); return; }
-  // Convert current value from old unit → new unit
-  const oldVal  = parseFloat(document.getElementById('food-gram-val').value) || 100;
-  const density = selectedFood._density || 1.0;
-  const grams   = _amountToGrams(oldVal, window._foodAmountUnit, density);
-  let newVal;
-  if (unit === 'g')    newVal = Math.round(grams * 10) / 10;
-  else if (unit === 'ml')   newVal = Math.round((grams / density) * 10) / 10;
-  else if (unit === 'oz')   newVal = Math.round((grams / 28.3495) * 100) / 100;
-  else if (unit === 'tbsp') newVal = Math.round((grams / (14.787 * density)) * 10) / 10;
-  else if (unit === 'tsp')  newVal = Math.round((grams / (4.929  * density)) * 10) / 10;
-  else newVal = grams;
-  window._foodAmountUnit = unit;
-  document.getElementById('food-gram-val').value = newVal;
-  _updateUnitBtnStyles(unit);
-  _updateUnitSuffix(unit);
-  _updateDensityHint(unit, density);
-  updateFoodPreview();
-}
-
-function _updateUnitBtnStyles(unit) {
-  ['g','ml','oz','tbsp','tsp'].forEach(u => {
-    const btn = document.getElementById('food-unit-' + u + '-btn');
-    if (!btn) return;
-    if (u === unit) {
-      btn.style.background = 'var(--accent)';
-      btn.style.color = '#fff';
-    } else {
-      btn.style.background = 'var(--bg-elevated)';
-      btn.style.color = 'var(--text-secondary)';
-    }
-  });
-}
-
-function _updateUnitSuffix(unit) {
-  const el = document.getElementById('food-gram-unit-suffix');
-  if (el) el.textContent = unit;
-}
-
-function _updateDensityHint(unit, density) {
-  const el = document.getElementById('food-amount-density-hint');
-  if (!el) return;
-  if ((unit === 'ml' || unit === 'tbsp' || unit === 'tsp') && density !== 1.0) {
-    el.style.display = '';
-    el.textContent = `Density: ${density} g/ml — macros computed accordingly`;
-  } else if (unit === 'ml' || unit === 'tbsp' || unit === 'tsp') {
-    el.style.display = '';
-    el.textContent = `Assuming density 1 g/ml (water). For oils/syrup results may vary.`;
-  } else {
-    el.style.display = 'none';
-  }
-}
-
-function _initAmountUnit(preferredUnit, density) {
-  window._foodAmountUnit = preferredUnit || 'g';
-  _updateUnitBtnStyles(window._foodAmountUnit);
-  _updateUnitSuffix(window._foodAmountUnit);
-  _updateDensityHint(window._foodAmountUnit, density || 1.0);
-}
-let _offSearchTimer = null;
-let _offCache = {};
-// Temp storage for OFF results (keyed by barcode/id string)
-window._offFoods = window._offFoods || {};
-
-function _renderFoodResults(localMatches, offItems) {
-  const results = document.getElementById('food-search-results');
-  const badge = document.getElementById('food-search-off-badge');
-  const allItems = [...localMatches, ...offItems];
-  if (!allItems.length) {
-    results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted);cursor:default">No results found — try a different spelling or shorter query</div>';
-    results.classList.add('open');
-    if (badge) badge.style.display = 'none';
-    return;
-  }
-  if (badge) badge.style.display = 'none';
-  // Make dropdown scrollable when many results
-  results.style.maxHeight = '320px';
-  results.style.overflowY = 'auto';
-  results.innerHTML = allItems.map(f => {
-    if (f._off) {
-      const key = 'off_' + f._offId;
-      return `<div class="search-result-item" onclick="selectOffFood('${key}')">
-        <div class="sri-name">${f.name} <span class="tag" style="font-size:0.6rem;padding:1px 5px;background:var(--accent-dim);color:var(--accent);border-radius:20px">🌍 OFF</span></div>
-        <div class="sri-info">${f.serving}</div>
-        <div class="sri-cal">${f.cal} kcal</div>
-      </div>`;
-    }
-    return `<div class="search-result-item" onclick="${f._custom ? `selectCustomFood(${f.id})` : `selectFood(${f.id})`}">
-      <div class="sri-name">${f.name}${f._custom ? ' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>' : ''}</div>
-      <div class="sri-info">${f.serving}</div>
-      <div class="sri-cal">${f.cal} kcal</div>
-    </div>`;
-  }).join('');
-  results.classList.add('open');
-}
-
-function _parseOffProducts(products) {
-  return products.filter(p => {
-    const n = p.nutriments;
-    // Accept products with any calorie field; skip if no name or no nutrition
-    const pid = p.id || p.code || p._id;
-    return p.product_name && pid && n && (
-      n['energy-kcal_100g'] != null ||
-      n['energy-kcal']      != null ||
-      n['energy_100g']      != null
-    );
-  }).map(p => {
-    const n   = p.nutriments;
-    const pid = String(p.id || p.code || p._id);
-    // Calories: prefer per-100g, fallback to total energy converted from kJ
-    let cal = n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0;
-    if (!cal && n['energy_100g']) cal = Math.round(n['energy_100g'] / 4.184);
-    cal = Math.round(cal);
-    const protein = Math.round((n['proteins_100g']       || 0) * 10) / 10;
-    const carbs   = Math.round((n['carbohydrates_100g']  || 0) * 10) / 10;
-    const fat     = Math.round((n['fat_100g']            || 0) * 10) / 10;
-    const brand   = p.brands ? ` (${p.brands.split(',')[0].trim()})` : '';
-    const name    = (p.product_name + brand).slice(0, 60);
-    const key     = 'off_' + pid;
-    const qtyStr  = (p.quantity || p.serving_size || '').toLowerCase();
-    const isLiquid = /ml/.test(qtyStr) || p.product_quantity_unit === 'ml';
-    let density = 1.0;
-    const servingMlMatch = (p.serving_size || '').match(/(\d+(?:\.\d+)?)\s*ml/i);
-    const servingGrams   = parseFloat(p.serving_quantity) || 0;
-    if (servingMlMatch && servingGrams > 0) {
-      const servingMl = parseFloat(servingMlMatch[1]);
-      if (servingMl > 0) density = Math.round((servingGrams / servingMl) * 1000) / 1000;
-    }
-    let serving = isLiquid ? '100ml' : '100g';
-    if (p.serving_size) serving = p.serving_size.replace(/\s+/g, ' ').trim().slice(0, 30);
-    const food = {
-      id: key, name, cal, protein, carbs, fat,
-      serving,
-      _off: true, _offId: pid,
-      _isLiquid: isLiquid,
-      _density: density,
-      _servingSize: servingGrams || null,
-      _servingUnit: isLiquid ? 'ml' : 'g',
-    };
-    window._offFoods[key] = food;
-    return food;
-  });
-}
-
-async function _fetchOffResults(q) {
-  if (_offCache[q]) return _offCache[q];
-  const fields = 'id,product_name,nutriments,serving_size,serving_quantity,quantity,brands,product_quantity_unit';
-
-  const tryFetch = async (url) => {
-    try {
-      const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!r.ok) { console.warn('[OFF] HTTP', r.status, url); return []; }
-      const d = await r.json();
-      console.log('[OFF]', url, '->', (d.products||[]).length, 'products');
-      return d.products || [];
-    } catch(e) { console.error('[OFF] fetch error', e, url); return []; }
-  };
-
-  const enc = encodeURIComponent(q);
-
-  // Strategy 1: v2 search_terms (exact phrase match across name/brand)
-  const s1 = tryFetch(`https://world.openfoodfacts.org/api/v2/search?search_terms=${enc}&fields=${fields}&page_size=30`);
-  // Strategy 2: Morocco-specific domain
-  const s2 = tryFetch(`https://ma.openfoodfacts.org/api/v2/search?search_terms=${enc}&fields=${fields}&page_size=30`);
-  // Strategy 3: legacy CGI search (searches more fields including brands/categories)
-  const s3 = tryFetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${enc}&search_simple=1&action=process&json=1&page_size=30&fields=${fields}`);
-
-  const [r1, r2, r3] = await Promise.all([s1, s2, s3]);
-
-  // Deduplicate: Morocco first, then world v2, then CGI
-  const seen = new Set();
-  const merged = [];
-  for (const p of [...r2, ...r1, ...r3]) {
-    const key = String(p.id || p.code || '');
-    if (key && !seen.has(key)) { seen.add(key); merged.push(p); }
-  }
-
-  console.log('[OFF] merged total:', merged.length);
-  const items = _parseOffProducts(merged).slice(0, 25);
-  _offCache[q] = items;
-  return items;
-}
-
-function selectOffFood(key) {
-  const f = window._offFoods[key];
-  if (!f) return;
-  selectedFood = {
-    id: key, name: f.name, cal: f.cal, protein: f.protein, carbs: f.carbs, fat: f.fat,
-    serving: f.serving,
-    _density: f._density || 1.0,
-    _isLiquid: f._isLiquid || false,
-    _servingUnit: f._servingUnit || 'g',
-    _servingSize: f._servingSize || null,
-  };
-  document.getElementById('food-search').value = f.name;
-  document.getElementById('food-search-results').classList.remove('open');
-  const badge = document.getElementById('food-search-off-badge');
-  if (badge) badge.style.display = 'none';
-
-  // Pick default amount: use serving size if available, else 100
-  const defaultAmt = f._servingSize || 100;
-  const defaultUnit = f._servingUnit || (f._isLiquid ? 'ml' : 'g');
-  document.getElementById('food-gram-val').value = defaultAmt;
-  document.getElementById('food-unit').value = 'gram';
-  _showCustomGramMode();
-  _initAmountUnit(defaultUnit, f._density || 1.0);
-  updateFoodPreview();
-  safeStyle('selected-food-preview', 'display', 'block');
-}
-
 function searchFood(q) {
   const results = document.getElementById('food-search-results');
-  const badge = document.getElementById('food-search-off-badge');
-  clearTimeout(_offSearchTimer);
-  if (!q || q.trim().length < 2) {
-    results.classList.remove('open');
-    if (badge) badge.style.display = 'none';
-    return;
-  }
+  if (!q || q.trim().length < 2) { results.classList.remove('open'); return; }
   const query = q.toLowerCase();
-  // Immediate local results
+  // Search built-in DB + custom foods
   const builtIn = FOOD_DB.filter(f => f.name.toLowerCase().includes(query));
   const custom = (State.customFoods||[]).filter(f => f.name.toLowerCase().includes(query))
     .map(f => ({...f, _custom: true}));
-  const localMatches = [...custom, ...builtIn].slice(0, 10);
-  _renderFoodResults(localMatches, []);
-
-  // Show loading hint then fire OFF search
-  _offSearchTimer = setTimeout(async () => {
-    // Append a loading row at the bottom of current results
-    const hint = document.createElement('div');
-    hint.id = 'off-loading-hint';
-    hint.style.cssText = 'padding:8px 14px;font-size:0.78rem;color:var(--text-muted);display:flex;align-items:center;gap:6px;cursor:default';
-    hint.innerHTML = '<span style="display:inline-block;animation:_offSpin 0.9s linear infinite">🌍</span> Searching Open Food Facts…';
-    if (!document.getElementById('_off-spin-style')) {
-      const st = document.createElement('style');
-      st.id = '_off-spin-style';
-      st.textContent = '@keyframes _offSpin{to{transform:rotate(360deg)}}';
-      document.head.appendChild(st);
-    }
-    const old = document.getElementById('off-loading-hint');
-    if (old) old.remove();
-    results.appendChild(hint);
+  const matches = [...custom, ...builtIn].slice(0, 10);
+  if (!matches.length) {
+    results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted);cursor:default">No results found</div>';
     results.classList.add('open');
-
-    const offItems = await _fetchOffResults(q.trim());
-    const hintEl = document.getElementById('off-loading-hint');
-    if (hintEl) hintEl.remove();
-    _renderFoodResults(localMatches, offItems);
-  }, 350);
+    return;
+  }
+  results.innerHTML = matches.map(f => `
+    <div class="search-result-item" onclick="${f._custom ? `selectCustomFood(${f.id})` : `selectFood(${f.id})`}">
+      <div class="sri-name">${f.name}${f._custom ? ' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>' : ''}</div>
+      <div class="sri-info">${f.serving}</div>
+      <div class="sri-cal">${f.cal} kcal</div>
+    </div>
+  `).join('');
+  results.classList.add('open');
 }
 
 function selectCustomFood(id) {
@@ -9312,7 +9040,6 @@ function selectCustomFood(id) {
   if (gramInput) { gramInput.style.display = 'none'; }
   const gramVal = document.getElementById('food-gram-val');
   if (gramVal && cf.servingSize) gramVal.value = cf.servingSize;
-  _initAmountUnit('g', 1.0);
 
   updateFoodPreview();
   safeStyle('selected-food-preview','display','block');
@@ -9427,7 +9154,6 @@ function selectFood(id) {
     document.getElementById('food-gram-val').value = 100;
     document.getElementById('food-unit').value = 'gram';
     _showCustomGramMode();
-    _initAmountUnit('g', 1.0);
   }
 
   updateFoodPreview();
@@ -9435,8 +9161,39 @@ function selectFood(id) {
 }
 
 function updateFoodPreview() {
-  // Delegated to the improved override below (line ~16334)
-  // This stub is replaced by the override; keeping it so references don't break before it loads.
+  if (!selectedFood) return;
+  const f = selectedFood;
+  let ratio = 1;
+
+  // Detect which mode we're in
+  const gramInput = document.getElementById('food-gram-input');
+  const gramVisible = gramInput && gramInput.style.display !== 'none';
+  const unitVal = document.getElementById('food-unit') ? document.getElementById('food-unit').value : '';
+
+  if (gramVisible || unitVal === 'gram') {
+    // Custom grams mode
+    const inputG = parseFloat(document.getElementById('food-gram-val').value) || 0;
+    if (f.servingType === 'gram' || f._baseServingSize == null) {
+      // Per-100g food: ratio = grams / 100
+      ratio = inputG / 100;
+    } else {
+      // Unit food with known serving size: ratio = inputG / servingSize
+      ratio = inputG / (f._baseServingSize || 100);
+    }
+  } else if (unitVal === '100g') {
+    const qty = +document.getElementById('food-qty').value || 1;
+    ratio = qty;
+  } else {
+    // serving mode (qty servings)
+    const qty = +document.getElementById('food-qty').value || 1;
+    ratio = qty;
+  }
+
+  document.getElementById('sfp-name').textContent = f.name;
+  document.getElementById('sfp-cal').textContent = Math.round(f.cal * ratio) + ' kcal';
+  document.getElementById('sfp-pro').textContent = Math.round(f.protein * ratio) + 'g protein';
+  document.getElementById('sfp-carb').textContent = Math.round(f.carbs * ratio) + 'g carbs';
+  document.getElementById('sfp-fat').textContent = Math.round(f.fat * ratio) + 'g fat';
 }
 
 function logSelectedFood() {
@@ -9451,14 +9208,11 @@ function logSelectedFood() {
   const unitVal = document.getElementById('food-unit') ? document.getElementById('food-unit').value : '';
 
   if (gramVisible || unitVal === 'gram') {
-    const rawAmt  = parseFloat(document.getElementById('food-gram-val').value) || 0;
-    const unit    = window._foodAmountUnit || 'g';
-    const density = f._density || 1.0;
-    const grams   = _amountToGrams(rawAmt, unit, density);
+    const inputG = parseFloat(document.getElementById('food-gram-val').value) || 0;
     if (f.servingType === 'gram' || f._baseServingSize == null) {
-      ratio = grams / 100;
+      ratio = inputG / 100;
     } else {
-      ratio = grams / (f._baseServingSize || 100);
+      ratio = inputG / (f._baseServingSize || 100);
     }
   } else if (unitVal === '100g') {
     ratio = +document.getElementById('food-qty').value || 1;
@@ -11581,43 +11335,21 @@ function editRecipe(i) {
   openModal('modal-recipe');
 }
 
-let _offRecipeTimer = null;
-
-function _renderRecipeFoodResults(localResults, offItems) {
-  const el = document.getElementById('recipe-food-results');
-  const all = [...localResults, ...offItems];
-  if (!all.length) { el.classList.remove('open'); return; }
-  el.innerHTML = all.map(f => {
-    const safeF = JSON.stringify(f).split('"').join("'");
-    const offBadge = f._off ? ` <span style="font-size:0.6rem;padding:1px 5px;background:var(--accent-dim);color:var(--accent);border-radius:20px">🌍 OFF</span>` : '';
-    return `<div class="search-result-item" onclick="addRecipeIngredientFromDB(${safeF})" style="cursor:pointer">
-      <div class="sri-name">${f.name}${offBadge}</div>
-      <div class="sri-macros" style="font-size:0.72rem;color:var(--text-secondary)">${f.cal} kcal · ${f.protein}g P · ${f.carbs}g C · ${f.fat}g F <span style="color:var(--text-muted)">per 100g</span></div>
-    </div>`;
-  }).join('');
-  el.classList.add('open');
-}
-
 function searchFoodForRecipe(q) {
   const el = document.getElementById('recipe-food-results');
-  clearTimeout(_offRecipeTimer);
   if (!q.trim()) { el.classList.remove('open'); return; }
   const all = [...FOOD_DB, ...State.customFoods.map(cf=>({
     name:cf.name, cal:cf.cal, protein:cf.protein, carbs:cf.carbs, fat:cf.fat,
     serving:'100g', id:'cf_'+cf.id
   }))];
-  const localResults = all.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 6);
-  _renderRecipeFoodResults(localResults, []);
-
-  _offRecipeTimer = setTimeout(async () => {
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'search-result-item';
-    loadingDiv.style.cssText = 'color:var(--text-muted);cursor:default;font-size:0.8rem';
-    loadingDiv.innerHTML = '🌍 Searching Open Food Facts…';
-    el.appendChild(loadingDiv);
-    const offItems = await _fetchOffResults(q.trim());
-    _renderRecipeFoodResults(localResults, offItems.map(f => ({...f, _off: true})));
-  }, 400);
+  const results = all.filter(f=>f.name.toLowerCase().includes(q.toLowerCase())).slice(0,8);
+  if (!results.length) { el.classList.remove('open'); return; }
+  el.innerHTML = results.map((f,i)=>`
+    <div class="search-result-item" onclick="addRecipeIngredientFromDB(${JSON.stringify(f).split('"').join("'")})" style="cursor:pointer">
+      <div class="sri-name">${f.name}</div>
+      <div class="sri-macros" style="font-size:0.72rem;color:var(--text-secondary)">${f.cal} kcal · ${f.protein}g P · ${f.carbs}g C · ${f.fat}g F <span style="color:var(--text-muted)">per 100g</span></div>
+    </div>`).join('');
+  el.classList.add('open');
 }
 
 function addRecipeIngredientFromDB(f) {
@@ -16326,7 +16058,7 @@ function updateMpPreview() {
   `;
 }
 
-// Improved updateFoodPreview — scoop / serving / 100g / custom grams / multi-unit (ml, oz, tbsp, tsp)
+// Improved updateFoodPreview — scoop / serving / 100g / custom grams
 const _origUpdateFoodPreview = updateFoodPreview;
 updateFoodPreview = function() {
   if (!selectedFood) return;
@@ -16344,28 +16076,21 @@ updateFoodPreview = function() {
 
   if (inScoopMode) {
     const scoops = parseFloat(document.getElementById('food-scoop-val').value) || 1;
-    multiplier = scoops;
+    multiplier = scoops;  // DB values are already per 1 serving/scoop
     const totalG = Math.round(scoops * servingGrams);
     hint = scoops + ' ' + (scoops === 1 ? servingName : servingName + 's') + ' · ' + totalG + 'g';
+    // Keep gram hint next to +/- buttons in sync
     const ghint = document.getElementById('food-scoop-g-hint');
     if (ghint) ghint.textContent = '1 ' + servingName + ' = ' + servingGrams + 'g';
   } else if (inCustomGram) {
-    // ── Multi-unit aware ──────────────────────────────────────────
-    const rawAmt  = parseFloat(document.getElementById('food-gram-val').value) || 0;
-    const unit    = window._foodAmountUnit || 'g';
-    const density = f._density || 1.0;
-    const grams   = _amountToGrams(rawAmt, unit, density);
-    multiplier    = hasNamedServing ? grams / servingGrams : grams / 100;
-    // Build a human-readable hint
-    const unitLabel = unit !== 'g' ? rawAmt + unit + ' · ' + Math.round(grams) + 'g' : rawAmt + 'g';
+    const grams = parseFloat(document.getElementById('food-gram-val').value) || servingGrams;
+    multiplier  = hasNamedServing ? grams / servingGrams : grams / 100;
     if (hasNamedServing) {
       const n = grams / servingGrams;
-      hint = unitLabel + (Number.isFinite(n) ? ' (' + (+n.toFixed(1)) + ' ' + servingName + (n !== 1 ? 's' : '') + ')' : '');
+      hint = grams + 'g' + (Number.isFinite(n) ? ' (' + (+n.toFixed(1)) + ' ' + servingName + (n !== 1 ? 's' : '') + ')' : '');
     } else {
-      hint = unitLabel;
+      hint = grams + 'g';
     }
-    // Update density note
-    if (typeof _updateDensityHint === 'function') _updateDensityHint(unit, density);
   } else {
     // 100g mode
     const qty = parseFloat(document.getElementById('food-qty').value) || 1;
@@ -16383,7 +16108,7 @@ updateFoodPreview = function() {
   if (hintEl) hintEl.textContent = hint || '';
 };
 
-// Better logSelectedFood — scoop / serving / 100g / custom grams / multi-unit
+// Better logSelectedFood — scoop / serving / 100g / custom grams
 const _origLogSelectedFood = logSelectedFood;
 logSelectedFood = function() {
   if (!selectedFood) return;
@@ -16401,20 +16126,15 @@ logSelectedFood = function() {
   if (inScoopMode) {
     const scoops  = parseFloat(document.getElementById('food-scoop-val').value) || 1;
     qty           = scoops;
-    multiplier    = scoops;
+    multiplier    = scoops;  // DB values are already per 1 serving/scoop
     const totalG  = Math.round(scoops * servingGrams);
     const sLabel  = scoops === 1 ? servingName : servingName + 's';
     nameLabel     = f.name + ` (${scoops} ${sLabel} · ${totalG}g)`;
   } else if (inCustomGram) {
-    // ── Multi-unit aware ──────────────────────────────────────────
-    const rawAmt  = parseFloat(document.getElementById('food-gram-val').value) || 0;
-    const unit    = window._foodAmountUnit || 'g';
-    const density = f._density || 1.0;
-    const grams   = _amountToGrams(rawAmt, unit, density);
-    qty           = grams;
-    multiplier    = hasNamedServing ? grams / servingGrams : grams / 100;
-    const unitLabel = unit !== 'g' ? `${rawAmt}${unit} · ${Math.round(grams)}g` : `${Math.round(grams)}g`;
-    nameLabel     = f.name + ` (${unitLabel})`;
+    const grams  = parseFloat(document.getElementById('food-gram-val').value) || servingGrams;
+    qty          = grams;
+    multiplier   = hasNamedServing ? grams / servingGrams : grams / 100;
+    nameLabel    = f.name + ` (${grams}g)`;
   } else {
     qty        = parseFloat(document.getElementById('food-qty').value) || 1;
     multiplier = qty;
@@ -16620,12 +16340,10 @@ function renderMpWeekSummary() {
   `;
 }
 
-// Fix searchMpCell — includes built-in foods, custom foods, recipes, and Open Food Facts
+// Fix searchMpCell — includes built-in foods, custom foods, and recipes
 const _origSearchMpCell = searchMpCell;
-let _offMpTimer = null;
 searchMpCell = function(q) {
   const results = document.getElementById('mpcell-results');
-  clearTimeout(_offMpTimer);
   if (!q.trim()) { results.classList.remove('open'); return; }
   const lq = q.toLowerCase();
   const foodMatches   = FOOD_DB.filter(f=>f.name.toLowerCase().includes(lq)).slice(0,4)
@@ -16639,37 +16357,15 @@ searchMpCell = function(q) {
                             carbs:(r.totals||{}).carbs||0, fat:(r.totals||{}).fat||0,
                             _mpType:'recipe', servingType:'unit'
                           }));
-  const localAll = [...customMatches, ...foodMatches, ...recipeMatches];
-
-  function renderMp(localItems, offItems) {
-    const all = [...localItems, ...offItems];
-    if (!all.length) { results.classList.remove('open'); return; }
-    results.innerHTML = all.map(f=>{
-      const offBadge = f._mpType==='off' ? ` <span style="font-size:0.6rem;padding:1px 5px;background:var(--accent-dim);color:var(--accent);border-radius:20px">🌍 OFF</span>` : '';
-      return `<div class="search-result-item" onclick="selectMpFood(${JSON.stringify(f).replace(/"/g,'&quot;')})">
-        <div class="sri-name">${f.name}${f._mpType==='custom'?' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>':''}${offBadge}</div>
-        <div class="sri-info">${f.serving||'100g'} · ${f._mpType==='custom'&&f.servingType==='unit'?'unit':'per 100g'}</div>
-        <div class="sri-cal">${f.cal} kcal</div>
-      </div>`;
-    }).join('');
-    results.classList.add('open');
-  }
-
-  renderMp(localAll, []);
-
-  _offMpTimer = setTimeout(async () => {
-    const loading = document.createElement('div');
-    loading.className = 'search-result-item';
-    loading.style.cssText = 'color:var(--text-muted);cursor:default;font-size:0.8rem';
-    loading.innerHTML = '🌍 Searching Open Food Facts…';
-    results.appendChild(loading);
-    const offRaw = await _fetchOffResults(q.trim());
-    const offMapped = offRaw.map(f => ({
-      id: f.id, name: f.name, serving: '100g', cal: f.cal,
-      protein: f.protein, carbs: f.carbs, fat: f.fat, _mpType: 'off'
-    }));
-    renderMp(localAll, offMapped);
-  }, 400);
+  const all = [...customMatches, ...foodMatches, ...recipeMatches];
+  if (!all.length) { results.classList.remove('open'); return; }
+  results.innerHTML = all.map(f=>`
+    <div class="search-result-item" onclick="selectMpFood(${JSON.stringify(f).replace(/"/g,'&quot;')})">
+      <div class="sri-name">${f.name}${f._mpType==='custom'?' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>':f._mpType==='recipe'?'':''}</div>
+      <div class="sri-info">${f.serving||'100g'} · ${f._mpType==='custom'&&f.servingType==='unit'?'unit':'per 100g'}</div>
+      <div class="sri-cal">${f.cal} kcal</div>
+    </div>`).join('');
+  results.classList.add('open');
 };
 
 function selectMpFood(f) {
