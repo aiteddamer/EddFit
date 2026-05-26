@@ -5840,7 +5840,7 @@ function dismissSplash() {
           <div class="form-group">
             <label class="form-label">Serving Label</label>
             <select class="form-select" id="cf-serving" onchange="cfOnServingChange()">
-              <option value="KASS L3NBA" selected>🥤 KASS L3NBA</option>
+              <option value="1 serving" selected>🍽 1 serving</option>
               <option value="1 can">🥤 1 can</option>
               <option value="1 bottle">🍶 1 bottle</option>
               <option value="1 bar">🍫 1 bar</option>
@@ -11677,7 +11677,7 @@ function openCustomFood() {
   const sizeEl = document.getElementById('cf-serving-size');
   if (sizeEl) sizeEl.value = '';
   const selEl = document.getElementById('cf-serving');
-  if (selEl) selEl.value = 'KASS L3NBA';
+  if (selEl) selEl.value = '1 serving';
   const customWrap = document.getElementById('cf-serving-custom-wrap');
   if (customWrap) customWrap.style.display = 'none';
   const customInp = document.getElementById('cf-serving-custom');
