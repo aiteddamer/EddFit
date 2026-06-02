@@ -16222,14 +16222,32 @@ function renderMealPlanGrid() {
       const totalFat  = items.reduce((s,it)=>s+(it.fat||0),0);
 
       if (items.length) {
-        const itemsHtml = items.map((it,idx) => `
+        const itemsHtml = items.map((it,idx) => {
+          // Build a clean quantity label from stored qty/mode, fallback to parsing name
+          let qtyBadge = '';
+          if (it.qty != null && it.mode) {
+            qtyBadge = it.mode === 'serving'
+              ? `x${it.qty} serving${it.qty !== 1 ? 's' : ''}`
+              : `${it.qty}g`;
+          } else {
+            // Fallback: extract from name (e.g. "Chicken Breast (100g)" or "Oats x1")
+            const m2 = (it.name||'').match(/\((\d+(?:\.\d+)?g)\)|x(\d+)$/);
+            if (m2) qtyBadge = m2[1] || `x${m2[2]}`;
+          }
+          // Strip qty/note suffix from display name to avoid double-showing
+          const displayName = (it.name||'').replace(/\s*\(\d+(?:\.\d+)?g\).*$|\s+x\d+.*$/,'');
+          return `
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:2px;padding:3px 0;border-bottom:1px solid var(--border)">
             <div style="flex:1;min-width:0">
-              <div style="font-size:0.68rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px">${it.name||''}</div>
-              <div style="font-size:0.6rem;color:var(--accent)">${it.cal||0} kcal</div>
+              <div style="font-size:0.68rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px" title="${it.name||''}">${displayName}</div>
+              <div style="display:flex;align-items:center;gap:4px;margin-top:1px;flex-wrap:wrap">
+                ${qtyBadge ? `<span style="font-size:0.58rem;font-weight:700;background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border);border-radius:3px;padding:0 3px;line-height:1.5">${qtyBadge}</span>` : ''}
+                <span style="font-size:0.6rem;color:var(--accent)">${it.cal||0} kcal</span>
+              </div>
             </div>
             <button onclick="event.stopPropagation();removeMpItem('${key}','${m.key}',${idx})" style="flex-shrink:0;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:0.65rem;padding:0 2px;line-height:1" title="Remove">✕</button>
-          </div>`).join('');
+          </div>`;
+        }).join('');
         html += `<div style="border-bottom:1px solid var(--border);border-right:1px solid var(--border);padding:6px;background:${isToday?'rgba(0,229,255,0.04)':'transparent'}">
           ${itemsHtml}
           <div style="font-size:0.6rem;color:var(--text-muted);margin-top:4px">P:${totalPro}g C:${totalCarb}g F:${totalFat}g</div>
@@ -16278,7 +16296,14 @@ function showMpDayBreakdown(dateKey) {
           <div style="font-size:0.8rem">${mealLabels[m]}</div>
           <div style="font-size:0.78rem;font-weight:600;color:${items.length?'var(--text-primary)':'var(--text-muted)'}">${items.length?slotCal+' kcal':'—'}</div>
         </div>
-        ${items.map(it=>`<div style="font-size:0.7rem;color:var(--text-secondary);padding-left:8px;margin-top:2px">· ${it.name} — ${it.cal} kcal</div>`).join('')}
+        ${items.map(it => {
+          let qtyBadge = '';
+          if (it.qty != null && it.mode) {
+            qtyBadge = it.mode === 'serving' ? `x${it.qty}` : `${it.qty}g`;
+          }
+          const displayName = (it.name||'').replace(/\s*\(\d+(?:\.\d+)?g\).*$|\s+x\d+.*$/,'');
+          return `<div style="font-size:0.7rem;color:var(--text-secondary);padding-left:8px;margin-top:2px">· ${displayName}${qtyBadge ? ` <span style="font-size:0.65rem;font-weight:700;color:var(--text-muted)">(${qtyBadge})</span>` : ''} — ${it.cal} kcal</div>`;
+        }).join('')}
       </div>`;
     }).join('')}
     <div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:4px">
