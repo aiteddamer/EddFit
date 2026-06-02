@@ -5913,6 +5913,28 @@ function dismissSplash() {
       </div>
     </div>
 
+    <!-- Visibility -->
+    <div style="margin-top:14px">
+      <div class="form-label" style="margin-bottom:8px">Visibility</div>
+      <div style="display:flex;gap:8px" id="cf-visibility-group">
+        <button type="button" class="cf-vis-btn cf-vis-active" data-vis="private"
+          onclick="cfSetVisibility('private')"
+          style="flex:1;padding:9px 6px;border-radius:var(--radius-sm);border:2px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-weight:700;cursor:pointer;font-size:0.78rem;transition:all var(--transition);text-align:center">
+          🔒 Private<br><span style="font-size:0.63rem;font-weight:400;opacity:0.8">Only you</span>
+        </button>
+        <button type="button" class="cf-vis-btn" data-vis="friends"
+          onclick="cfSetVisibility('friends')"
+          style="flex:1;padding:9px 6px;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-weight:700;cursor:pointer;font-size:0.78rem;transition:all var(--transition);text-align:center">
+          👥 Friends<br><span style="font-size:0.63rem;font-weight:400;opacity:0.8">Friends only</span>
+        </button>
+        <button type="button" class="cf-vis-btn" data-vis="public"
+          onclick="cfSetVisibility('public')"
+          style="flex:1;padding:9px 6px;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-weight:700;cursor:pointer;font-size:0.78rem;transition:all var(--transition);text-align:center">
+          🌍 Public<br><span style="font-size:0.63rem;font-weight:400;opacity:0.8">Everyone</span>
+        </button>
+      </div>
+    </div>
+
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="closeModal('modal-custom-food')">Cancel</button>
       <button class="btn btn-primary" id="cf-save-btn" onclick="saveCustomFood()">💾 Save Food</button>
@@ -9000,13 +9022,20 @@ function searchFood(q) {
     results.classList.add('open');
     return;
   }
-  results.innerHTML = matches.map(f => `
-    <div class="search-result-item" onclick="${f._custom ? `selectCustomFood(${f.id})` : `selectFood(${f.id})`}">
-      <div class="sri-name">${f.name}${f._custom ? ' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>' : ''}</div>
+  results.innerHTML = matches.map(f => {
+    const verifiedBadge = !f._custom
+      ? ' <span style="font-size:0.58rem;font-weight:700;background:#0ea5e933;color:#0ea5e9;border:1px solid #0ea5e966;border-radius:3px;padding:1px 5px;vertical-align:middle" title="Verified by EddFit">\u2713 Verified</span>'
+      : '';
+    const customBadge = f._custom
+      ? ' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>'
+      : '';
+    const visIcon = f._custom && f.visibility === 'public' ? ' 🌍' : f._custom && f.visibility === 'friends' ? ' 👥' : '';
+    return `<div class="search-result-item" onclick="${f._custom ? `selectCustomFood(${f.id})` : `selectFood(${f.id})`}">
+      <div class="sri-name">${f.name}${customBadge}${verifiedBadge}${visIcon}</div>
       <div class="sri-info">${f.serving}</div>
       <div class="sri-cal">${f.cal} kcal</div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
   results.classList.add('open');
 }
 
@@ -11674,6 +11703,7 @@ function openCustomFood() {
   _editCustomFoodIdx = -1;
   _cfType = 'unit';
   ['cf-name','cf-cal','cf-protein','cf-carbs','cf-fat'].forEach(id=>document.getElementById(id).value='');
+  _cfVisibility = 'private'; cfSetVisibility('private');
   const sizeEl = document.getElementById('cf-serving-size');
   if (sizeEl) sizeEl.value = '';
   const selEl = document.getElementById('cf-serving');
@@ -11700,6 +11730,7 @@ function editCustomFood(i) {
   document.getElementById('cf-protein').value = cf.protein || 0;
   document.getElementById('cf-carbs').value = cf.carbs || 0;
   document.getElementById('cf-fat').value = cf.fat || 0;
+  _cfVisibility = cf.visibility || 'private'; cfSetVisibility(_cfVisibility);
   const type = cf.servingType || 'unit';
   if (type === 'unit') {
     const selEl = document.getElementById('cf-serving');
@@ -11727,6 +11758,19 @@ function editCustomFood(i) {
   openModal('modal-custom-food');
 }
 
+// ── Custom Food Visibility ────────────────────────────────────────────
+let _cfVisibility = 'private'; // default
+
+function cfSetVisibility(vis) {
+  _cfVisibility = vis;
+  document.querySelectorAll('.cf-vis-btn').forEach(btn => {
+    const isActive = btn.dataset.vis === vis;
+    btn.style.border = isActive ? '2px solid var(--accent)' : '2px solid var(--border)';
+    btn.style.background = isActive ? 'var(--accent-dim)' : 'var(--bg-elevated)';
+    btn.style.color = isActive ? 'var(--accent)' : 'var(--text-secondary)';
+  });
+}
+
 function saveCustomFood() {
   const name = document.getElementById('cf-name').value.trim();
   if (!name) { showToast('Enter a food name.', 'error'); return; }
@@ -11751,14 +11795,14 @@ function saveCustomFood() {
   }
   if (_editCustomFoodIdx >= 0) {
     const existing = State.customFoods[_editCustomFoodIdx];
-    State.customFoods[_editCustomFoodIdx] = { ...existing, name, serving, servingType, servingSize, cal, protein, carbs, fat };
+    State.customFoods[_editCustomFoodIdx] = { ...existing, name, serving, servingType, servingSize, cal, protein, carbs, fat, visibility: _cfVisibility };
     _editCustomFoodIdx = -1;
     save();
     closeModal('modal-custom-food');
     renderCustomFoods();
     showToast(`${name} updated! ✏️`, 'success');
   } else {
-    State.customFoods.push({ id: Date.now(), name, serving, servingType, servingSize, cal, protein, carbs, fat });
+    State.customFoods.push({ id: Date.now(), name, serving, servingType, servingSize, cal, protein, carbs, fat, visibility: _cfVisibility });
     save();
     closeModal('modal-custom-food');
     renderCustomFoods();
@@ -11777,12 +11821,21 @@ function renderCustomFoods() {
       ? '<span class="tag" style="font-size:0.6rem;padding:1px 6px;background:var(--blue-dim);color:var(--blue)">per 100g</span>'
       : '<span class="tag" style="font-size:0.6rem;padding:1px 6px;background:var(--purple-dim);color:var(--purple)">unit</span>';
     const sizeLabel = cf.servingSize && cf.servingType === 'unit' ? ` · ${cf.servingSize}ml/g` : '';
+    const vis = cf.visibility || 'private';
+    const visMap = {
+      private: { icon: '🔒', label: 'Private',  bg: 'var(--bg-elevated)',  color: 'var(--text-muted)' },
+      friends: { icon: '👥', label: 'Friends',  bg: 'var(--blue-dim)',     color: 'var(--blue)' },
+      public:  { icon: '🌍', label: 'Public',   bg: 'var(--green-dim)',    color: 'var(--green)' },
+    };
+    const v = visMap[vis] || visMap.private;
+    const visTag = `<span class="tag" style="font-size:0.6rem;padding:1px 6px;background:${v.bg};color:${v.color};border:1px solid ${v.color}33">${v.icon} ${v.label}</span>`;
     return `
     <div class="food-item" style="flex-wrap:wrap;gap:8px">
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <span style="font-size:0.88rem;font-weight:700">${cf.name}</span>
           ${typeTag}
+          ${visTag}
         </div>
         <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">${cf.serving}${sizeLabel} · ${cf.cal} kcal · ${cf.protein}g P · ${cf.carbs}g C · ${cf.fat}g F</div>
       </div>
@@ -16384,12 +16437,17 @@ searchMpCell = function(q) {
                           }));
   const all = [...customMatches, ...foodMatches, ...recipeMatches];
   if (!all.length) { results.classList.remove('open'); return; }
-  results.innerHTML = all.map(f=>`
-    <div class="search-result-item" onclick="selectMpFood(${JSON.stringify(f).replace(/"/g,'&quot;')})">
-      <div class="sri-name">${f.name}${f._mpType==='custom'?' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>':f._mpType==='recipe'?'':''}</div>
+  results.innerHTML = all.map(f=>{
+    const verifiedBadge = f._mpType==='food'
+      ? ' <span style="font-size:0.58rem;font-weight:700;background:#0ea5e933;color:#0ea5e9;border:1px solid #0ea5e966;border-radius:3px;padding:1px 5px;vertical-align:middle" title="Verified by EddFit">\u2713 Verified</span>'
+      : '';
+    const customBadge = f._mpType==='custom' ? ' <span class="tag tag-blue" style="font-size:0.6rem;padding:1px 5px">Custom</span>' : '';
+    return `<div class="search-result-item" onclick="selectMpFood(${JSON.stringify(f).replace(/"/g,'&quot;')})">
+      <div class="sri-name">${f.name}${customBadge}${verifiedBadge}</div>
       <div class="sri-info">${f.serving||'100g'} · ${f._mpType==='custom'&&f.servingType==='unit'?'unit':'per 100g'}</div>
       <div class="sri-cal">${f.cal} kcal</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   results.classList.add('open');
 };
 
