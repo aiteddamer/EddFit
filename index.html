@@ -301,6 +301,10 @@
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       window._currentUser = user;
+      // ✅ FIX 1: Cancel any queued save from a previous session before resetting State.
+      // Without this, a stale debounce timer could write blank State to Firestore.
+      clearTimeout(window._saveTimeout);
+      window._fsLoading = true;
       // ── Analytics: track active users & sessions ──────────────────
       logEvent(analytics, 'login', { method: user.providerData?.[0]?.providerId || 'unknown' });
       // Hard-reset State so no previous user's data bleeds in
@@ -6158,6 +6162,9 @@ function hideSyncStatus() {
 }
 
 function save() {
+  // ✅ FIX 2: Never save while Firestore is still loading — this prevents a stale
+  // debounce timer from overwriting real data with a blank State.
+  if (window._fsLoading) return;
   clearTimeout(_saveTimeout);
   _saveTimeout = setTimeout(async () => {
     const user = window._currentUser;
@@ -6165,7 +6172,8 @@ function save() {
     showSyncStatus('\u2601 Saving…', 'var(--accent)');
     try {
       const ref = window._fbDoc(window._fbDb, 'users', user.uid);
-      await window._fbSetDoc(ref, { state: JSON.stringify(State) });
+      // ✅ FIX 3: { merge: true } ensures we UPDATE the document, never replace it entirely.
+      await window._fbSetDoc(ref, { state: JSON.stringify(State) }, { merge: true });
       showSyncStatus('\u2713 Synced', 'var(--green)');
       hideSyncStatus();
     } catch(e) {
@@ -6207,6 +6215,7 @@ window._loadFirestore = async function() {
       hideSyncStatus();
       const _sl = document.getElementById('sync-loading-screen');
       if (_sl) _sl.style.display = 'none';
+      window._fsLoading = false; // ✅ Data loaded — save() is now safe to run
       if (State.profile && State.profile.name) {
         startApp();
       } else {
@@ -6217,6 +6226,7 @@ window._loadFirestore = async function() {
       hideSyncStatus();
       const _sl2 = document.getElementById('sync-loading-screen');
       if (_sl2) _sl2.style.display = 'none';
+      window._fsLoading = false; // ✅ New user path — safe to save after onboarding
       document.getElementById('onboarding').style.display = 'flex';
       const appEl = document.getElementById('app');
       if (appEl) { appEl.style.display = 'none'; appEl.classList.remove('visible'); }
@@ -6227,6 +6237,7 @@ window._loadFirestore = async function() {
     // Auto-retry up to 3 times with backoff before showing error
     const _retryLoad = async (attempt) => {
       if (attempt > 3) {
+        window._fsLoading = false; // ✅ All retries failed — unblock save() so app isn't frozen
         showSyncStatus('\u26a0 Could not load — tap to retry', 'var(--red)');
         // Update sync loading screen to show error and make it tappable to retry
         const _sle = document.getElementById('sync-loading-screen');
@@ -6270,11 +6281,13 @@ window._loadFirestore = async function() {
             hideSyncStatus();
             const _slr = document.getElementById('sync-loading-screen');
             if (_slr) _slr.style.display = 'none';
+            window._fsLoading = false; // ✅ Retry succeeded — save() re-enabled
             if (State.profile && State.profile.name) { startApp(); } else { updateDots(1); }
           } else {
             hideSyncStatus();
             const _slr2 = document.getElementById('sync-loading-screen');
             if (_slr2) _slr2.style.display = 'none';
+            window._fsLoading = false; // ✅ Retry new-user path — safe to save
             document.getElementById('onboarding').style.display = 'flex';
             const _appEl = document.getElementById('app');
             if (_appEl) { _appEl.style.display = 'none'; _appEl.classList.remove('visible'); }
